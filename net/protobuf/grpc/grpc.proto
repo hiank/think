@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+
+message Request {
+
+    bytes token                 = 1;    //NOTE:请求者的token，当前系统中唯一
+    google.protobuf.Any data    = 2;
+}
+
+message Response {
+
+    repeated bytes tokens       = 1;    //NOTE:同一份数据可能需要多个接受者，比如战局，广播；如果此为空，全体发送
+    google.protobuf.Any data    = 2;
+}
+
+service Pipe {
+
+    rpc Tran(stream Request) returns (stream Response);
+}
+
