@@ -1,78 +1,58 @@
 package net
 
 import (
-	"github.com/hiank/think/util"
-	"io"
-	// "fmt"
-	"net/http"
-	"github.com/gorilla/websocket"
+	"github.com/hiank/think/pb"
+	"context"
 	"github.com/golang/glog"
+	"github.com/hiank/think/net/k8s"
+	"github.com/hiank/think/net/ws"
+	"github.com/hiank/think/pool"
 )
 
 
-var upgrader = websocket.Upgrader{} // use default options
-func wsServer(w http.ResponseWriter, r *http.Request) {
+//ServeWS ws服务启动
+func ServeWS(ctx context.Context, addrWithPort string) (err error) {
 
-
-	token := r.FormValue("token")
-	if token == "" {
-		http.Error(w, "Non token component of the query", http.StatusNonAuthoritativeInfo)	//NOTE: 没有包含token
-		return
-	}
-
-	//NOTE: 验证token
-
-	defer util.RecoverErr("wsServer : ")
-
-	c, err := upgrader.Upgrade(w, r, nil)
-	util.PanicErr(err)
-
-	quit := make(chan bool)
-	conn := NewConn(c, token)
-	// GetConnPool().GetConnaddChan() <- conn	//NOTE: 将此连接发送给connpool，添加
-	GetConnPool().AddConn(conn) 			//NOTE: 将conn添加到ConnPool中
-
-	go conn.SendAsync(quit)
-
-	k8schan := GetK8sClient().GetK8sRequestChan()
-L:	for {
-		select {
-		case <-quit: break L
-		default:
-			msg, err := conn.ReadMessage()				//NOTE: 读取并处理客户端发来的数据
-			GetConnPool().UpdateConn(conn)				//NOTE: 更新conn在ConnPool中的连接状态
-			switch err {
-			case nil: k8schan <- msg
-			case io.EOF: break L
-			}
-		}
-	}
-
-	close(quit)
-	// GetConnPool().GetConndelChan() <- conn	//NOTE: 将此连接发送到connpool，删除
-	GetConnPool().DelConn(conn)				//NOTE: 将conn从ConnPool中删除
+	k8s.InitClientPool(ctx, new(k8sReadHandler))
+	err = ws.ListenAndServeWS(ctx, addrWithPort, new(wsReadHandler))
+	return
 }
 
 
-//ListenAndServeWS used to start websocket serve
-func ListenAndServeWS(addrWithPort string) (err error) {
+type k8sReadHandler func()
+//Handle 处理中grpc 远端读到的Message
+func (kh k8sReadHandler) Handle(m *pb.Message) error {
 
-	connpool, client := GetConnPool(), GetK8sClient()
-	defer func() {
+	m.Key = "ws"		//NOTE: 将Message Key 转为 'ws'
+	glog.Infoln("k8sReadHandler Handle message :", m)
+	ws.GetWSPool().Post(m)
+	return nil
+}
 
-		ReleaseConnPool()
-		ReleaseK8sClient()
-	}()
 
-	quit := make(chan bool)
-	defer close(quit)
+type wsReadHandler func()
+//Handle 处理重ws中读到的数据
+func (wh wsReadHandler) Handle(m *pb.Message) error {
 
-	go connpool.RecvAsync(quit, client.GetK8sResponseChan())	//NOTE: 接受集群返回的消息，处理
+	clientPool, key := k8s.GetClientPool(), m.GetKey()
+	it := pool.NewDefaultIdentifier(key, m.GetToken())
+	if !clientPool.CheckConnected(it) {
 
-	http.HandleFunc("/websocket", wsServer)
-	err = http.ListenAndServe(addrWithPort, nil)
-	if err != nil {
-		glog.Error("listen websocket error " + err.Error())
+		cc, err := k8s.DailToCluster(k8s.TypeKubIn, key)
+		if err != nil {
+
+			glog.Infoln("dail to cluster : " + err.Error())
+			return err
+		}
+		c := pool.NewDefaultConn(k8s.NewClientHandler(cc, it))
+		clientPool.Push(c)
+		wait := make(chan bool)
+		go func () {
+			close(wait)
+			clientPool.Listen(c)
+		} ()
+		<-wait
 	}
-	return
+	clientPool.Post(m)
+	return nil
 }

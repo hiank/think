@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/hiank/think/pb";
+
+message Message {
+
+    string key                  = 1;        //NOTE: 目标服务器名
+    string token                = 2;        //NOTE: 绑定的token
+    google.protobuf.Any data    = 3;        //NTOE: 实际的数据
+    repeated string aimTokens   = 4;        //NOTE: 扩展的token绑定
+}

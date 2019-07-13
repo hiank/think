@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "message.proto";
+
+
+message Void {
+
+}
+
+service Pipe {
+
+    rpc Link(stream Message) returns (stream Message);
+    rpc Get(Message) returns (Message);
+    rpc Post(Message) returns (Void);
+}

@@ -16,6 +16,6 @@ func PanicErr(err error) {
 func RecoverErr(frontMsg string) {
 
 	if r := recover(); r != nil {
-		glog.Fatalln(frontMsg, r)
+		glog.Warning(frontMsg, r)
 	}
 }
