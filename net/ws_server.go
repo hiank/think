@@ -1,8 +1,9 @@
 package net
 
 import (
+	"errors"
 	"github.com/hiank/think/pb"
-	"context"
+	// "context"
 	"github.com/golang/glog"
 	"github.com/hiank/think/net/k8s"
 	"github.com/hiank/think/net/ws"
@@ -11,10 +12,13 @@ import (
 
 
 //ServeWS ws服务启动
-func ServeWS(ctx context.Context, addrWithPort string) (err error) {
+func ServeWS(addrWithPort string) (err error) {
 
-	k8s.InitClientPool(ctx, new(k8sReadHandler))
-	err = ws.ListenAndServeWS(ctx, addrWithPort, new(wsReadHandler))
+	if netCtx == nil {
+		return errors.New("net.Init should be called first")
+	}
+	k8s.InitClientPool(netCtx, new(k8sReadHandler))
+	err = ws.ListenAndServeWS(netCtx, addrWithPort, new(wsReadHandler))
 	return
 }
 
@@ -32,27 +36,40 @@ func (kh k8sReadHandler) Handle(m *pb.Message) error {
 
 type wsReadHandler func()
 //Handle 处理重ws中读到的数据
-func (wh wsReadHandler) Handle(m *pb.Message) error {
+func (wh wsReadHandler) Handle(m *pb.Message) (err error) {
 
-	clientPool, key := k8s.GetClientPool(), m.GetKey()
-	it := pool.NewDefaultIdentifier(key, m.GetToken())
-	if !clientPool.CheckConnected(it) {
+	if !k8s.GetClientPool().CheckConnected(m.GetKey(), m.GetToken()) {
 
-		cc, err := k8s.DailToCluster(k8s.TypeKubIn, key)
-		if err != nil {
+		errChan := make(chan error)
+		go wh.listen(m.GetKey(), m.GetToken(), errChan)
 
-			glog.Infoln("dail to cluster : " + err.Error())
-			return err
+		var ok bool
+		if err, ok = <-errChan; ok {
+			glog.Warningln(err)
+			return
 		}
-		c := pool.NewDefaultConn(k8s.NewClientHandler(cc, it))
-		clientPool.Push(c)
-		wait := make(chan bool)
-		go func () {
-			close(wait)
-			clientPool.Listen(c)
-		} ()
-		<-wait
 	}
-	clientPool.Post(m)
+	k8s.GetClientPool().Post(m)
 	return nil
+}
+
+func (wh wsReadHandler) listen(key, token string, errChan chan error) {
+
+	cc, err := k8s.DailToCluster(k8s.TypeKubIn, key)
+	if err != nil {
+		errChan <- err
+		return
+	}
+	defer cc.Close()
+
+	c := pool.NewConnWithDerivedToken(key, token, k8s.NewClientHandler(cc))
+	if c == nil {
+		errChan <- errors.New("NewConnWithDerivedToken keyed : " + key + "error")
+		return
+	}
+	defer c.GetToken().Cancel()
+
+	k8s.GetClientPool().Push(c)
+	close(errChan)
+	k8s.GetClientPool().Listen(c)
 }

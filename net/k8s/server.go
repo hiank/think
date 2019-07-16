@@ -27,8 +27,9 @@ func (s *server) Link(ls tg.Pipe_LinkServer) (err error) {
 
 		return err
 	}
-	c := pool.NewDefaultConn(newConnHandler(pool.NewDefaultIdentifier(msg.GetKey(), msg.GetToken()), ls))
-	c.SetInterval(600)
+	// c := pool.NewDefaultConn(newConnHandler(pool.NewDefaultIdentifier(msg.GetKey(), msg.GetToken()), ls))
+	c := pool.NewConn(msg.GetKey(), msg.GetToken(), newConnHandler(ls))
+	// c.SetInterval(600)
 	GetK8SPool().Push(c)
 	return GetK8SPool().Listen(c)
 }

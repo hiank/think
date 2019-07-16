@@ -3,7 +3,6 @@ package pool
 import (
 	"github.com/golang/glog"
 	"time"
-	"context"
 )
 
 
@@ -43,63 +42,30 @@ func (c *DefaultTimer) TimeOut() (out bool) {
 
 //****************************************************************//
 
-//DefaultIdentifier 默认验证
-type DefaultIdentifier struct {
+// //DefaultIdentifier 默认验证
+// type DefaultIdentifier struct {
 
-	key 	string
-	token 	string
-}
+// 	key 	string
+// 	token 	string
+// }
 
-//NewDefaultIdentifier 创建一个默认Identifier
-func NewDefaultIdentifier(k string, t string) Identifier {
+// //NewDefaultIdentifier 创建一个默认Identifier
+// func NewDefaultIdentifier(k string, t string) Identifier {
 
-	return &DefaultIdentifier{k, t}
-} 
+// 	return &DefaultIdentifier{k, t}
+// } 
 
-//GetKey Identifier实现
-func (di *DefaultIdentifier) GetKey() string {
+// //GetKey Identifier实现
+// func (di *DefaultIdentifier) GetKey() string {
 
-	return di.key
-}
+// 	return di.key
+// }
 
-//GetToken Identifier实现
-func (di *DefaultIdentifier) GetToken() string {
+// //GetToken Identifier实现
+// func (di *DefaultIdentifier) GetToken() string {
 
-	return di.token
-}
+// 	return di.token
+// }
 
 
 //****************************************************************//
-
-//Token 用于提供唯一信息
-type Token struct {
-
-	key 	string
-	token 	string
-
-	ctx 	context.Context
-	Cancel 	context.CancelFunc
-}
-
-//NewToken 创建一个新的Token对象
-func NewToken(ctx context.Context, key string, token string) *Token {
-
-	t := &Token {
-		key 	: key,
-		token 	: token,
-	}
-	t.ctx, t.Cancel = context.WithCancel(ctx)
-	return t
-}
-
-//GetKey 获得key
-func (t *Token) GetKey() string {
-
-	return t.key
-}
-
-//ToString 获得token 字符串
-func (t *Token) ToString() string {
-
-	return t.token
-}

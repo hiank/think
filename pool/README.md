@@ -27,4 +27,4 @@
 
 ## Conn
 
-- 有个唯一ID
+- Conn不需要处理Key 的Context, 如果服务挂了, 直接调用Conn.Token 的Cancel

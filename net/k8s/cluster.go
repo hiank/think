@@ -74,41 +74,6 @@ func ServiceNameWithPort(clusterType int, serviceName string, portName string) (
 // DailToCluster 连接到k8s
 func DailToCluster(clusterType int, msgName string) (*grpc.ClientConn, error) {
 
-
-	// var clientset *kubernetes.Clientset
-	// switch (clusterType) {
-
-	// case TypeKubIn:
-	// 	clientset = GetInClientset()
-	// case TypeKubOut: fallthrough
-	// default:
-	// 	return nil, errors.New("don't support type other than TypeKubIn")
-	// }
-
-	// serviceName := msgName + "-service"
-	// service, err := clientset.CoreV1().Services("think").Get(serviceName, meta_v1.GetOptions{})
-	// if err != nil {
-	// 	glog.Error("cann't get service named : " + serviceName + " : " + err.Error())
-	// 	return nil, err
-	// }
-
-	// var port int32
-	// L: for _, p := range service.Spec.Ports {
-
-	// 	switch p.Name {
-	// 	case "": fallthrough		//NOTE: 如果没有定义name，默认就是grpc服务端口
-	// 	case "grpc":				//NOTE:
-	// 		port = p.Port
-	// 		break L
-	// 	}
-	// }
-
-	// if port == 0 {					//NOTE: 如果没有找到端口
-	// 	err := errors.New("cann't find grpc service port for " + serviceName)
-	// 	glog.Error(err)
-	// 	return nil, err
-	// }
-
 	addr, err := ServiceNameWithPort(clusterType, msgName + "-service", "grpc")
 	if err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"github.com/hiank/think/token"
 	"github.com/golang/glog"
 	"context"
 	"github.com/hiank/think/pb"
@@ -69,16 +70,12 @@ func CloseK8SPool() {
 //**********************************************//
 type connhandler struct {
 
-	pool.Identifier
-	pool.IgnoreHandleContext
-
 	conn 	tg.Pipe_LinkServer
 }
 
-func newConnHandler(it pool.Identifier, lc tg.Pipe_LinkServer) pool.ConnHandler {
+func newConnHandler(lc tg.Pipe_LinkServer) pool.ConnHandler {
 
 	si := &connhandler {
-		Identifier 	: it,
 		conn 		: lc,
 	}
 	return si
@@ -86,17 +83,17 @@ func newConnHandler(it pool.Identifier, lc tg.Pipe_LinkServer) pool.ConnHandler 
 
 
 
-func (si *connhandler) ReadMessage() (msg *pb.Message, err error) {
+func (si *connhandler) ReadMessage(ctx context.Context) (msg *pb.Message, err error) {
 
 	if msg, err = si.conn.Recv(); err == nil {
-		msg.Key = si.GetKey()
+		msg.Key = ctx.Value(token.ContextKey("key")).(string)
 	}
 	glog.Infoln("ReadMessage in connHandler key : ", msg)
 	return
 }
 
 
-func (si *connhandler) WriteMessage(msg *pb.Message) (err error) {
+func (si *connhandler) WriteMessage(ctx context.Context, msg *pb.Message) (err error) {
  
 	return si.conn.Send(msg)
 }

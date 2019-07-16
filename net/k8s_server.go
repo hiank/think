@@ -1,12 +1,15 @@
 package net
 
 import (
-	"context"
+	"errors"
 	"github.com/hiank/think/net/k8s"
 )
 
 //ServeK8s 启动一个k8s服务
-func ServeK8s(ctx context.Context, addr string, h k8s.MessageHandler) error {
+func ServeK8s(addr string, h k8s.MessageHandler) error {
 
-	return k8s.ListenAndServe(ctx, addr, h)
+	if netCtx == nil {
+		return errors.New("net.Init should be called first")
+	}
+	return k8s.ListenAndServe(netCtx, addr, h)
 }

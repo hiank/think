@@ -8,9 +8,9 @@ type Timer interface {
 	TimeOut() bool 			//NOTE: 判断是否超时
 }
 
-//Identifier 身份信息
-type Identifier interface {
+// //Identifier 身份信息
+// type Identifier interface {
 
-	GetKey() string				//NOTE: 
-	GetToken() string	 		//NOTE:		
-}
+// 	GetKey() string				//NOTE: 
+// 	GetToken() string	 		//NOTE:		
+// }

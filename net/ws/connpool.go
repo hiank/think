@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"github.com/hiank/think/token"
 	"github.com/golang/glog"
 	"context"
 	"github.com/hiank/think/pb"
@@ -69,15 +70,15 @@ func CloseWSPool() {
 
 type handler struct {
 
-	pool.Identifier
-	pool.IgnoreHandleContext
+	// pool.Identifier
+	// pool.IgnoreHandleContext
 
 	conn 	*websocket.Conn
 }
 
 
 //ReadMessage 读消息，实现frame.Conn
-func (c *handler) ReadMessage() (msg *pb.Message, err error) {
+func (c *handler) ReadMessage(ctx context.Context) (msg *pb.Message, err error) {
 
 	_, buf, err := c.conn.ReadMessage()		//NOTE: 从websocket 读取消息
 	if err == nil {	
@@ -86,10 +87,8 @@ func (c *handler) ReadMessage() (msg *pb.Message, err error) {
 		if err == nil {			//NOTE: 解析消息
 
 			glog.Infoln("ws conn any decode :", m)
-			key, err := pb.GetServerKey(m)
-			if err == nil {
-
-				msg = &pb.Message{Key: key, Token: c.GetToken(), Data: m}
+			if key, err := pb.GetServerKey(m); err == nil {
+				msg = &pb.Message{Key: key, Token: ctx.Value(token.ContextKey("token")).(string), Data: m}
 			}
 		}
 	}
@@ -98,18 +97,16 @@ func (c *handler) ReadMessage() (msg *pb.Message, err error) {
 
 
 // WriteMessage Writer
-func (c *handler) WriteMessage(msg *pb.Message) (err error) {
+func (c *handler) WriteMessage(ctx context.Context, msg *pb.Message) (err error) {
 
 
-	d, err := pb.AnyEncode(msg.GetData())
-	if err != nil {
+	var buf []byte
+	if buf, err = pb.AnyEncode(msg.GetData()); err != nil {
 		glog.Infoln(err)
 		return
 	}
-
-	err = c.conn.WriteMessage(websocket.BinaryMessage, d)
+	err = c.conn.WriteMessage(websocket.BinaryMessage, buf)
 	switch (err) {
-
 	case nil:
 	default:			//NOTE:	处理错误
 		glog.Infoln(err)

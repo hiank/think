@@ -7,17 +7,17 @@ import (
 	"github.com/hiank/think/conf"
 	"time"
 	"context"
-	"sync"
 )
 
 //Pool 消息处理的核心
 type Pool struct {
 
-	sync.RWMutex
 	*ConnHub
 
 	readhub 	*MessageHub 			//NOTE: 读消息hub
 	writehub 	*MessageHub 			//NOTE: 写消息hub
+
+	rb 			*runtineHub 			//NOTE: 用于存储, key 绑定的Context, 比如某个grpc服务出了问题,可以通过这个方法释放所有Conn资源
 
 	ctx			context.Context	 		//NOTE: Context 用于维护生命周期
 	Close 		context.CancelFunc 		//NOTE: 关闭方法
@@ -30,10 +30,11 @@ func NewPool(ctx context.Context, mh MessageHandler) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 
 	num := conf.GetSys().MaxMessageGo
-	ch := NewConnHub()
+	ch := newConnHub()
 	pool := &Pool {
 		readhub 	: NewMessageHub(mh, num),
 		writehub 	: NewMessageHub(ch, num),
+		rb 			: newRuntineHub(),
 		ConnHub 	: ch,
 		ctx 		: ctx,
 		Close 		: cancel,
@@ -63,19 +64,20 @@ func (pool *Pool) loopRead(ctx context.Context, conn *Conn) {
 
 	L: for {
 
-		msg, err := conn.ReadMessage()
-		switch err {
-		case nil:
-			pool.readhub.Push(msg)
-			pool.Update(conn)
+		msg, err := conn.Recv()
+		select {
+		case <-ctx.Done(): 				break L
+		case <-conn.GetToken().Done(): 	break L
 		default:
-			glog.Warningln("conn read error : ", err, "...tokened : ", conn.GetToken())
-			select {
-			case <-ctx.Done():		//NOTE: 如果已经在外部gg了，不需要再调用Cancel，这个地方不要执行清理，清理放在Listen中执行
-			default:				//NOTE: 如果没有done，则主动调用Cancel，结束Listen
-				conn.Cancel()
+			switch err {
+			case nil:
+				pool.readhub.Push(msg)
+				pool.Update(conn)
+			default:
+				glog.Warningln("conn read error : ", err, "...tokened : ", conn.GetToken().ToString())
+				conn.GetToken().Cancel()
+				break L
 			}
-			break L
 		}
 	}
 }
@@ -84,21 +86,18 @@ func (pool *Pool) loopRead(ctx context.Context, conn *Conn) {
 //Listen 监听conn
 func (pool *Pool) Listen(conn *Conn) (err error) {
 
-	var ctx context.Context
-	ctx, conn.Cancel = context.WithCancel(pool.ctx)
-	conn.HandleContext(ctx)				//NOTE: ConnHandler 处理ctx
-
-	glog.Infoln("after HandleContext")
-
-	go pool.loopRead(ctx, conn)
+	r := pool.rb.get(pool.ctx, conn.GetKey())
+	go pool.loopRead(r.Context, conn)
 
 	//NOTE: 下面的代码两个作用，1 阻塞，2 处理关闭
 	select {
 
-	case <-ctx.Done():					//NOTE: Context 被关闭了，执行清理
-		pool.Remove(conn)
-		err = errors.New("conn removed")
+	case <-conn.GetToken().Done():		//NOTE: 此Conn 关联的Token 被释放了
+		err = errors.New("conn tokened : " + conn.GetToken().ToString() + " Done")
+	case <-r.Done():					//NOTE: Context 被关闭了，执行清理
+		err = errors.New("conn keyed : " + conn.GetKey() + " Done")
 	}
+	pool.Remove(conn)
 	return
 }
 
@@ -108,6 +107,12 @@ func (pool *Pool) Post(msg *pb.Message) {
 
 	pool.writehub.Push(msg)
 }
+
+// //Cancel 释放key 为key 的Conn
+// func (pool *Pool) Cancel(key string) {
+
+// 	pool.rb.delete(key)
+// }
 
 //clean 清理Pool
 func (pool *Pool) clean() {
