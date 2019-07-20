@@ -11,5 +11,6 @@ var netCtx context.Context
 func Init(ctx context.Context) {
 
 	token.InitBuilder(ctx)
+
 	netCtx = ctx
 }

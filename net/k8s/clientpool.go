@@ -156,7 +156,12 @@ func (ch *ClientHandler) listenLink(ctx context.Context, msg *pb.Message, errCha
 	hostname := os.Getenv("HOSTNAME")
 	lc.Send(&pb.Message{Key: hostname, Token: msg.GetToken()})
 
-	conn := pool.NewConnWithDerivedToken(msg.GetKey(), msg.GetToken(), &linkClientHandler{conn:lc})
+	conn, err := pool.NewConnWithDerivedToken(msg.GetKey(), msg.GetToken(), &linkClientHandler{conn:lc})
+	glog.Infoln("listenLink ", conn, err)
+	if err != nil {
+		errChan <- err
+		return
+	}
 	defer conn.GetToken().Cancel()		//NOTE: 退出时执行清理
 	lp.Push(conn)
 	close(errChan)						//NOTE: 如果一切正常，关闭errChan

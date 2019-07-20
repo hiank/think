@@ -62,9 +62,10 @@ func (wh wsReadHandler) listen(key, token string, errChan chan error) {
 	}
 	defer cc.Close()
 
-	c := pool.NewConnWithDerivedToken(key, token, k8s.NewClientHandler(cc))
-	if c == nil {
-		errChan <- errors.New("NewConnWithDerivedToken keyed : " + key + "error")
+	c, err := pool.NewConnWithDerivedToken(key, token, k8s.NewClientHandler(cc))
+	glog.Infoln("listen ", c, err)
+	if err != nil {
+		errChan <- err
 		return
 	}
 	defer c.GetToken().Cancel()

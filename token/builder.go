@@ -1,6 +1,7 @@
 package token
 
 import (
+	"github.com/golang/glog"
 	"errors"
 	"sync"
 	"context"
@@ -15,25 +16,43 @@ type tokenBuilder struct {
 }
 
 
-func (tb *tokenBuilder) get(tokenStr string) *Token {
+func (tb *tokenBuilder) get(tokenStr string) (*Token, bool) {
 
 	token, ok := tb.hub[tokenStr]
 	if !ok {
 
-		token, _ = newToken(context.WithValue(tb.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
-		tb.hub[tokenStr] = token
+		glog.Infoln("tokenBuilder cann't get token : ", tokenStr)
+		for key := range tb.hub {
+			glog.Infoln("tokenBuilder get : ", key)
+		}
 	}
-	return token
+	return token, ok
+}
+
+func (tb *tokenBuilder) build(tokenStr string) (token *Token, err error) {
+
+	if _, ok := tb.hub[tokenStr]; ok {
+		err = errors.New("token '" + tokenStr + "' existed in cluster")
+		return
+	}
+	token, _ = newToken(context.WithValue(tb.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
+	tb.hub[tokenStr] = token
+	glog.Infoln("tokenBuilder build token : ", tokenStr)
+	for key := range tb.hub {
+		glog.Infoln("tokenBuilder build : ", key)
+	}
+	return
 }
 
 func (tb *tokenBuilder) delete(tokenStr string) {
 
+	glog.Infoln("tokenBuilder delete token : ", tokenStr)
 	delete(tb.hub, tokenStr)
 }
 
 
 var builder *tokenBuilder
-var mtx sync.RWMutex
+var mtx sync.Mutex
 
 //InitBuilder 获取单例的tokenBuilder
 func InitBuilder(ctx context.Context) {
@@ -50,10 +69,10 @@ func InitBuilder(ctx context.Context) {
 }
 
 //Get 根据字符token 找到Token，如果不存在，则新建一个
-func Get(tokenStr string) (token *Token, err error) {
+func Get(tokenStr string) (token *Token, ok bool, err error) {
 
-	mtx.RLock()
-	defer mtx.RUnlock()
+	mtx.Lock()
+	defer mtx.Unlock()
 
 	if builder == nil {
 		err = errors.New("package token error : without initialized builder. please call InitBulider(context.Context) first")
@@ -66,7 +85,29 @@ func Get(tokenStr string) (token *Token, err error) {
 		builder.Cancel()
 		builder = nil
 	default:
-		token = builder.get(tokenStr)
+		token, ok = builder.get(tokenStr)
+	}
+	return
+}
+
+//Build 创建并返回一个Token
+func Build(tokenStr string) (token *Token, err error) {
+
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	if builder == nil {
+		err = errors.New("package token error : without initialized builder. please call InitBulider(context.Context) first")
+		return
+	}
+
+	select {
+	case <-builder.ctx.Done():
+		err = builder.ctx.Err()
+		builder.Cancel()
+		builder = nil
+	default:
+		token, err = builder.build(tokenStr)
 	}
 	return
 }

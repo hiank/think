@@ -1,8 +1,8 @@
 package pool
 
 import (
-	"context"
 	"github.com/golang/glog"
+	"context"
 	"github.com/hiank/think/token"
 	"errors"
 	"container/list"
@@ -35,25 +35,36 @@ func newDefaultConn(key string, t *token.Token, h ConnHandler) *Conn {
 }
 
 //NewConn 新建一个Conn，会用到tokenStr绑定的Token，这个Token 出现异常导致Done的情况下，所有tokenStr 绑定的Token 都会Done
-func NewConn(key, tokenStr string, h ConnHandler) *Conn {
+//如果Token 已存在，将释放原来Token资源
+func NewConn(key, tokenStr string, h ConnHandler) (*Conn, error) {
 
-	t, err := token.Get(tokenStr)
+	t, ok, err := token.Get(tokenStr)
 	if err != nil {
-		glog.Warningln("NewConn error : ", err)
-		return nil
+		return nil, err
 	}
-	return newDefaultConn(key, t, h)
+	if ok {
+		t.Cancel()			//NOTE: 释放旧的Token资源
+	}
+	if t, err = token.Build(tokenStr); err != nil { 
+		return nil, err
+	}
+	v1, v2, v3 := token.Get(tokenStr)
+	glog.Infoln("NewConn : ", v1, v2, v3)
+	return newDefaultConn(key, t, h), nil
 }
 
 //NewConnWithDerivedToken 使用派生Token 生成的Conn，如果与grpc服务连接的Conn，生命周期独立，连接异常断开 不会影响到其它使用了这个tokenStr 的代码
-func NewConnWithDerivedToken(key, tokenStr string, h ConnHandler) *Conn {
+func NewConnWithDerivedToken(key, tokenStr string, h ConnHandler) (*Conn, error) {
 
-	t, err := token.Get(tokenStr)
+	t, ok, err := token.Get(tokenStr)
+	glog.Infoln("NewConnWithDerivedToken : ", t, ok, err)
 	if err != nil {
-		glog.Warningln("NewConn error : ", err)
-		return nil
+		return nil, err
 	}
-	return newDefaultConn(key, t, h)
+	if !ok {		//NOTE: 必须存在已建立的token，才能生成派生Token
+		return nil, errors.New("not exist main tokened '" + tokenStr + "', cann't create derived token")
+	}
+	return newDefaultConn(key, t.Derive(), h), nil
 }
 
 //GetKey 获得Conn关键字，用于分类

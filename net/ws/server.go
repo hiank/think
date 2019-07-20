@@ -33,7 +33,11 @@ func wsServer(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	conn := pool.NewConn("ws", token, &handler{conn:c})
+	conn, err := pool.NewConn("ws", token, &handler{conn:c})
+	if err != nil {
+		glog.Warning("ws create conn : ", err)
+		return
+	}
 	defer conn.GetToken().Cancel()
 
 	GetWSPool().Push(conn)
