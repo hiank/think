@@ -26,18 +26,15 @@ type Sys struct {
 
 
 var _sys *Sys
-var _sysMtx sync.RWMutex
+var _sysOnce sync.Once
 //GetSys 获得系统配置
 func GetSys() *Sys {
 
-	_sysMtx.Lock()
-	defer _sysMtx.Unlock()
-
-	if _sys == nil {
+	_sysOnce.Do(func ()  {		
 		_sys = new(Sys)
 		c := conf.Conf(conf.JSON)
 		c.Unmarshal([]byte(defaultSysConf), &_sys)
-	}
+	})
 	return _sys
 }
 
