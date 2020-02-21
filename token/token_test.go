@@ -87,6 +87,32 @@ func TestContextValue(t *testing.T) {
 	t.Log(val)
 }
 
+//TestContextDone 用于验证，当context Cancel 调用后，所有此context 的Done() 都会响应
+func TestContextDone(t *testing.T) {
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	num, wait := 0, new(sync.WaitGroup)
+	wait.Add(2)
+	doneFunc := func ()  {
+		
+		<-ctx.Done()
+		num++
+		wait.Done()
+	}
+	go doneFunc()
+	go doneFunc()
+
+	go func ()  {
+		<-time.After(time.Second)
+		cancel()
+	}()
+	// <-time.After(time.Second)
+	// cancel()
+	wait.Wait()
+	assert.Equal(t, num, 2)
+}
+
 func TestConextCancel(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
