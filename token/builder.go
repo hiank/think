@@ -1,124 +1,86 @@
 package token
 
 import (
-	"github.com/golang/glog"
+	// "github.com/golang/glog"
 	"errors"
 	"sync"
 	"context"
 )
 
-type tokenBuilder struct {
+//Builder 用于构建Token
+type Builder struct {
 
 	ctx 	context.Context				//NOTE: Builder 的基础Context
-	Cancel 	context.CancelFunc
+	Cancel 	context.CancelFunc			//NOTE: 需要关闭时调用，关闭所有token
 
 	hub 	map[string]*Token 			//NOTE: map[tokenStr]*Token
+	rw		sync.RWMutex				//NOTE: 读写锁
 }
 
+//Find to get *Token with string key
+func (b *Builder) Find(tokenStr string) (*Token, bool) {
 
-func (tb *tokenBuilder) get(tokenStr string) (*Token, bool) {
+	b.rw.RLock()
+	defer b.rw.RUnlock()
 
-	token, ok := tb.hub[tokenStr]
-	if !ok {
-
-		glog.Infoln("tokenBuilder cann't get token : ", tokenStr)
-		for key := range tb.hub {
-			glog.Infoln("tokenBuilder get : ", key)
-		}
-	}
+	token, ok := b.hub[tokenStr]
 	return token, ok
 }
 
-func (tb *tokenBuilder) build(tokenStr string) (token *Token, err error) {
 
-	if _, ok := tb.hub[tokenStr]; ok {
+//Build build a *Token with string key
+//Deprecated: Use Get instead
+func (b *Builder) Build(tokenStr string) (token *Token, err error) {
+
+	b.rw.Lock()
+	defer b.rw.Unlock()
+
+	if _, ok := b.hub[tokenStr]; ok {
 		err = errors.New("token '" + tokenStr + "' existed in cluster")
 		return
 	}
-	token, _ = newToken(context.WithValue(tb.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
-	tb.hub[tokenStr] = token
-	glog.Infoln("tokenBuilder build token : ", tokenStr)
-	for key := range tb.hub {
-		glog.Infoln("tokenBuilder build : ", key)
-	}
+	token, _ = newToken(context.WithValue(b.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
+	b.hub[tokenStr] = token
 	return
 }
 
-func (tb *tokenBuilder) delete(tokenStr string) {
+//Get get *Token and if cann't find the *Token, then Build one and return
+func (b *Builder) Get(tokenStr string) (*Token, error) {
 
-	glog.Infoln("tokenBuilder delete token : ", tokenStr)
-	delete(tb.hub, tokenStr)
+	if tk, ok := b.Find(tokenStr); ok {
+		return tk, nil				//NOTE: already owned tk, back it 
+	}
+	return b.Build(tokenStr)		//NOTE: 
 }
 
 
-var builder *tokenBuilder
-var mtx sync.Mutex
+//Delete delete *Token with string key
+func (b *Builder) Delete(tokenStr string) {
 
-//InitBuilder 获取单例的tokenBuilder
-func InitBuilder(ctx context.Context) {
+	b.rw.Lock()
+	defer b.rw.Unlock()
 
-	mtx.Lock()
-	if builder == nil {
+	delete(b.hub, tokenStr)
+}
 
-		builder = &tokenBuilder{
+
+var builder *Builder
+var once sync.Once
+
+//GetBuilder return singleton tokenBuilder object
+func GetBuilder() *Builder {
+
+	once.Do(func () {
+
+		builder = &Builder {
 			hub : make(map[string]*Token),
 		}
-		builder.ctx, builder.Cancel = context.WithCancel(ctx)
-	}
-	mtx.Unlock()
+		builder.ctx, builder.Cancel = context.WithCancel(context.Background())
+		go func ()  {			
+			<- builder.ctx.Done()
+			builder = nil
+		}()			//NOTE: 如果builder Cancel 被调用，则清空builder
+	})
+	return builder
 }
 
-//Get 根据字符token 找到Token，如果不存在，则新建一个
-func Get(tokenStr string) (token *Token, ok bool, err error) {
-
-	mtx.Lock()
-	defer mtx.Unlock()
-
-	if builder == nil {
-		err = errors.New("package token error : without initialized builder. please call InitBulider(context.Context) first")
-		return
-	}
-
-	select {
-	case <-builder.ctx.Done():
-		err = builder.ctx.Err()
-		builder.Cancel()
-		builder = nil
-	default:
-		token, ok = builder.get(tokenStr)
-	}
-	return
-}
-
-//Build 创建并返回一个Token
-func Build(tokenStr string) (token *Token, err error) {
-
-	mtx.Lock()
-	defer mtx.Unlock()
-
-	if builder == nil {
-		err = errors.New("package token error : without initialized builder. please call InitBulider(context.Context) first")
-		return
-	}
-
-	select {
-	case <-builder.ctx.Done():
-		err = builder.ctx.Err()
-		builder.Cancel()
-		builder = nil
-	default:
-		token, err = builder.build(tokenStr)
-	}
-	return
-}
-
-//CloseBuilder 清除
-func CloseBuilder() {
-
-	mtx.Lock()
-	if builder != nil {
-		builder.Cancel()
-		builder = nil
-	}
-	mtx.Unlock()
-}

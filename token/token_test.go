@@ -1,11 +1,13 @@
 package token_test
 
 import (
-	"github.com/hiank/think/token"
-	"sync"
-	"time"
 	"context"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/hiank/think/token"
+	"gotest.tools/v3/assert"
 )
 
 func TestMapDelete(t *testing.T) {
@@ -19,6 +21,60 @@ func TestMapDelete(t *testing.T) {
 	t.Log(m)
 }
 
+func TestOnceDo(t *testing.T) {
+
+	var once sync.Once
+	num := 0
+	onceFunc := func ()  {
+		num++
+	}
+	once.Do(onceFunc)
+	once.Do(onceFunc)
+	assert.Equal(t, num, 1)
+
+	num2 := 0
+	once.Do(func ()  {
+	
+		num++
+		num2++
+	})
+	assert.Equal(t, num2, 0)
+	assert.Equal(t, num, 1)
+}
+
+
+func TestAsyncOnceDo(t *testing.T) {
+
+	num := 0
+	onceFunc := func ()  {
+		
+		time.Sleep(1000)
+		num++
+	}
+
+	ch := make(chan int, 2)
+	var once sync.Once
+
+	go func ()  {
+		
+		once.Do(onceFunc)
+		t.Log("1")
+		assert.Equal(t, num, 1)
+		ch <- 1
+	}()
+
+	go func () {
+		
+		once.Do(onceFunc)
+		t.Log("2")
+		assert.Equal(t, num, 1)
+		ch <- 2
+	}()
+
+	<- ch
+	<- ch
+	t.Log("3")
+}
 
 func TestContextValue(t *testing.T) {
 
@@ -59,24 +115,25 @@ func TestConextCancel(t *testing.T) {
 	wait.Wait()
 }
 
-func TestBuilder(t *testing.T) {
+// func TestBuilder(t *testing.T) {
 
-	ctx, cancel := context.WithCancel(context.Background())
-	token.InitBuilder(ctx)
-	tokenObj, err := token.Get("2001")
-	if err != nil {
-		t.Log(err)
-	}
+// 	ctx, cancel := context.WithCancel(context.Background())
+// 	token.InitBuilder(ctx)
+// 	defer token.ReleaseBuilder()
+// 	tokenObj, _, err := token.Get("2001")
+// 	if err != nil {
+// 		t.Log(err)
+// 	}
 
-	t.Log(tokenObj.ToString())
-	go func() {
+// 	t.Log(tokenObj.ToString())
+// 	go func() {
 
-		tokenObj.Cancel()
-		// t.Log()
-		<-time.After(time.Second)
-		cancel()
-	}()
+// 		tokenObj.Cancel()
+// 		// t.Log()
+// 		<-time.After(time.Second)
+// 		cancel()
+// 	}()
 
-	<-ctx.Done()
-	t.Log("passed test")
-}
+// 	<-ctx.Done()
+// 	t.Log("passed test")
+// }
