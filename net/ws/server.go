@@ -6,11 +6,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/net/addr"
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
+	"github.com/hiank/think/utils"
 )
 
 //Server websocket server
@@ -92,5 +92,5 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler pool.MessageHandl
 	defer _singleServer.Close()
 
 	http.Handle("/ws", _singleServer)
-	return http.ListenAndServe(addr.WithPort(ip, settings.GetSys().WsPort), nil)
+	return http.ListenAndServe(utils.WithPort(ip, settings.GetSys().WsPort), nil)
 }

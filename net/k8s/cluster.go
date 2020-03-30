@@ -5,11 +5,10 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
+	"github.com/hiank/think/utils"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-
-	"github.com/hiank/think/net/addr"
 )
 	
 
@@ -56,7 +55,7 @@ func ServiceNameWithPort(clusterType int, serviceName string, portName string) (
 		glog.Error(err)
 		return
 	}
-	addrWithPort = addr.WithPort(serviceName, port)
+	addrWithPort = utils.WithPort(serviceName, port)
 	return
 }
 

@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
-	"github.com/hiank/think/net/addr"
 	tg "github.com/hiank/think/net/k8s/protobuf"
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
+	"github.com/hiank/think/utils"
 	"google.golang.org/grpc"
 )
 
@@ -90,7 +90,7 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (
 		glog.Fatal("k8s server existed, cann't start another one.")
 	}
 
-	lis, err := net.Listen("tcp", addr.WithPort(ip, settings.GetSys().K8sPort))
+	lis, err := net.Listen("tcp", utils.WithPort(ip, settings.GetSys().K8sPort))
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 		return
