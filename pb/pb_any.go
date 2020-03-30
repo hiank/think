@@ -10,63 +10,44 @@ import (
 )
 
 
-// // Message2Any protobuf message to Any
-// func Message2Any(msg proto.Message) (*any.Any, error) {
-
-// 	buf, err := proto.Marshal(msg)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-	
-// 	anyMsg, err := AnyDecode(buf)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return anyMsg, nil
-// }
-
-
 // AnyDecode used to unmarshal net data to expect data
-func AnyDecode(msg []byte) (*any.Any, error) {
+func AnyDecode(msg []byte) (a *any.Any, err error) {
 
-	a := &any.Any{}
-	err := proto.Unmarshal(msg, a)
-	if err != nil {
-		return nil, err
+	a = &any.Any{}
+	if err = proto.Unmarshal(msg, a); err != nil {
+		a = nil
 	}
-	return a, nil
+	return
 }
 
 // AnyEncode used to marshal data to net data
-func AnyEncode(anyMsg *any.Any) ([]byte, error) {
+func AnyEncode(anyMsg *any.Any) (buf []byte, err error) {
 
-	buf, err := proto.Marshal(anyMsg)
-	if err != nil {
-		return nil, err
+	return proto.Marshal(anyMsg)
+}
+
+
+func messageNameTrimed(anyMsg *any.Any) (messageName string, err error) {
+
+	if messageName, err = ptypes.AnyMessageName(anyMsg); err != nil {
+		glog.Warningf("get any message name error : %v\n", err)
+		return
 	}
-	return buf, nil
+	if dotIdx := strings.LastIndexByte(messageName, '.'); dotIdx != -1 {
+		messageName = messageName[dotIdx+1:]		//NOTE: 协议可能包含包名，此处截掉包名
+	}
+	return
 }
 
 
 // GetServerKey 通过message name 获得服务名
-func GetServerKey(anyMsg *any.Any) (n string, e error) {
+func GetServerKey(anyMsg *any.Any) (name string, err error) {
 
-	messageName, e := ptypes.AnyMessageName(anyMsg)
-	if e != nil {
-
-		glog.Warningf("get any message name error : %v\n", e)
-		return
+	messageName, err := messageNameTrimed(anyMsg)
+	if err == nil {
+		glog.Infoln("messageName : ", messageName)
+		name = strings.ToLower(messageName[2:strings.IndexByte(messageName, '_')])	//NOTE: 前两位用于保存消息类型
 	}
-
-	if dotIdx := strings.LastIndexByte(messageName, '.'); dotIdx != -1 {
-		messageName = messageName[dotIdx+1:]		//NOTE: 协议可能包含包名，此处截掉包名
-	}
-
-	glog.Infof("messageName : %s\n", messageName)
-	messageName = messageName[2:]					//NOTE: 前两位用于保存消息类型
-	idx := strings.IndexByte(messageName, '_')
-	n = strings.ToLower(messageName[:idx])
 	return
 }
 
@@ -82,13 +63,9 @@ const (
 // GetServerType 获得服务类型
 func GetServerType(anyMsg *any.Any) (t int, err error) {
 
-	messageName, err := ptypes.AnyMessageName(anyMsg);
+	messageName, err := messageNameTrimed(anyMsg)
 	if err != nil {
 		return TypeUndefined, err
-	}
-
-	if dotIdx := strings.LastIndexByte(messageName, '.'); dotIdx != -1 {
-		messageName = messageName[dotIdx+1:]		//NOTE: 协议可能包含包名，此处截掉包名
 	}
 
 	switch messageName[0] {

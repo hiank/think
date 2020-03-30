@@ -1,12 +1,11 @@
-package token_test
+package token
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/hiank/think/token"
 	"gotest.tools/v3/assert"
 )
 
@@ -83,7 +82,7 @@ func TestContextValue(t *testing.T) {
 	lv := ctx.Value("level").(int)
 	t.Log(lv)
 
-	val := ctx.Value(token.ContextKey("token"))
+	val := ctx.Value(IdentityKey)
 	t.Log(val)
 }
 
@@ -139,6 +138,34 @@ func TestConextCancel(t *testing.T) {
 
 	cancel()
 	wait.Wait()
+}
+
+func TestListRemove(t *testing.T) {
+
+	queue := list.New()
+	element := queue.PushBack(1)
+	queue.Init()
+	queue.Remove(element)		//NOTE: 测试表明，经过Init 之后，某个已知的element 状态不会重置，导致再删的时候，会错乱
+
+	queue.PushBack(2)
+	assert.Equal(t, queue.Len(), 0)
+}
+
+
+func TestTokenCancel(t *testing.T) {
+
+	tk, _ := newToken(context.WithValue(context.Background(), IdentityKey, 1001))
+	derivedToken := tk.Derive()
+	// assert.Equal(t, derivedToken.Value(contextKey(1)).(int), 1002)
+	assert.Equal(t, derivedToken.Value(IdentityKey).(int), 1001)
+
+	// assert.Equal(t, tk.queue.Len(), 1)
+	// tk.Cancel()
+
+	// assert.Equal(t, tk.queue.Len(), 1)		//NOTE: 监听goroutine 中将删除元素，所以此时并没有立即删除
+	// time.Sleep(time.Microsecond)
+
+	// assert.Equal(t, tk.queue.Len(), 0)		//NOTE: 等待一定时间后，元素被删除
 }
 
 // func TestBuilder(t *testing.T) {

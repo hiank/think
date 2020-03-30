@@ -1,4 +1,4 @@
-package setting
+package settings
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 var _mtx sync.RWMutex
 
 //LoadFromFile 从配置文件中读取需要的配置
-func LoadFromFile(out interface{}, path string) error {
+func LoadFromFile(out interface{}, path string) (err error) {
 
 	_mtx.Lock()
 	defer _mtx.Unlock()
@@ -30,10 +30,9 @@ func LoadFromFile(out interface{}, path string) error {
 	default: return errors.New("not support file with extension name : " + extensionName)
 	}
 
-	in, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
+	var in []byte
+	if in, err = ioutil.ReadFile(path); err == nil {
+		err = c.Unmarshal(in, out)
 	}
-
-	return c.Unmarshal(in, out)			//NOTE: 将文件内容解析到配置数据中
+	return err			//NOTE: 将文件内容解析到配置数据中
 }

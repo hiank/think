@@ -1,4 +1,4 @@
-package setting
+package settings
 
 import (
 	"testing"
@@ -15,7 +15,7 @@ type loaderTemp struct {
 func TestLoader(t *testing.T) {
 
 	var temp loaderTemp
-	err := LoadFromFile(&temp, "./setting_test.json")
+	err := LoadFromFile(&temp, "./settings_test.json")
 	if err != nil {
 		t.Error(err)
 		return

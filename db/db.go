@@ -6,7 +6,7 @@ import (
 	"github.com/hiank/think/net/k8s"
 )
 
-func DailToRedis() {
+func DialToRedis() {
 
 	addr, err := k8s.ServiceNameWithPort(k8s.TypeKubIn, "redis-master", "redis")
 	if err != nil {

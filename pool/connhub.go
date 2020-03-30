@@ -1,149 +1,132 @@
 package pool
 
 import (
+	"context"
+	"errors"
+	"sync"
+
 	"github.com/golang/glog"
 	"github.com/hiank/think/pb"
-	"container/list"
-	"sync"
-	"errors"
 )
 
-//ConnHub used to maintain conn
+//ConnHub 用于存储管理Conn
 type ConnHub struct {
 
-	mtx sync.RWMutex				//NOTE: 读写锁，ConnHub 会在不同goroutine中添删conn
-	hub map[string]*list.List		//NOTE: 用于保存conn，key 一般为服务名
+	ctx 	context.Context				//NOTE: 
+	mtx 	sync.RWMutex				//NOTE: 读写锁，ConnHub 会在不同goroutine中添删conn
+	// queue 	*list.List					//NOTE: 用于保存连接
+	hub 	map[string]*Conn			//NOTE: map[tokenString]*Conn
 }
 
-//newConnHub 创建一个新的ConnHub
-func newConnHub() *ConnHub {
 
-	return &ConnHub {
+//NewConnHub 构建ConnHub
+func NewConnHub(ctx context.Context) *ConnHub {
 
-		hub : make(map[string]*list.List),
+	ch := &ConnHub{
+		ctx 	: ctx,
+		hub 	: make(map[string]*Conn),
 	}
+	return ch
 }
 
 
-//CheckConnected 检查Conn 是否已连接
-func (ch *ConnHub) CheckConnected(key, token string) bool {
+//AddConn 添加新的Conn，启用相关处理goroutine
+func (ch *ConnHub) AddConn(conn *Conn) (err error) {
 
-	// key, token := it.GetKey(), it.GetToken()
-	connected := false
-	if queue, ok := ch.hub[key]; ok {
-
-		for element := queue.Front(); element != nil; element = element.Next() {
-
-			if token == element.Value.(*Conn).GetToken().ToString() {
-
-				connected = true
-				break
-			}
+	ch.push(conn)
+	L: for err == nil {
+		select {
+		case <-conn.Done():
+			err = errors.New("conn tokened : " + conn.ToString() + " Done")
+			break L
+		case <-ch.ctx.Done():				//NOTE: Context 被关闭了，执行清理
+			err = errors.New("conn tokened : " + conn.ToString() + " Done")
+			break L
+		default:
+			err = ch.read(conn)
 		}
 	}
-	return connected
-}
-
-//Push 将新的Conn 加入到队列尾
-func (ch *ConnHub) Push(conn *Conn) {
-
-	ch.mtx.Lock()
-	defer ch.mtx.Unlock()
-
-	key := conn.GetKey()
-	glog.Infoln("ConnHub Push key : ", key)
-	queue, ok := ch.hub[key]
-	if !ok {
-		queue = list.New()
-		ch.hub[key] = queue
-	}
-	conn.Element = queue.PushBack(conn)
-	conn.Update()
-}
-
-//Handle 处理数据发送，总感觉这边会有性能问题，如果有超级多的玩家同时在线，比如1000万，每次要发送一个消息都要遍历查找一遍，可能会卡死
-func (ch *ConnHub) Handle(msg *pb.Message) (err error) {
-
-	ch.mtx.Lock()
-	defer ch.mtx.Unlock()
-
-	key := msg.GetKey()
-	queue, ok := ch.hub[key]
-	glog.Infoln("connhub handle keyed : ", key)
-	if !ok {
-		err = errors.New("connhub has no list keyed " + key)
-		glog.Infoln(err)
-		return
-	}
-	token := msg.GetToken()
-	var conn *Conn
-	for element := queue.Front(); element != nil; element = element.Next() {
-
-		c := element.Value.(*Conn)
-		if token == c.GetToken().ToString() {
-			conn = c
-			break
-		}
-	}
-	if conn == nil {
-
-		err = errors.New("connhub has no conn tokened " + token)
-		glog.Infoln(err)
-		return
-	}
-	err = conn.Send(msg)
+	ch.Remove(conn)
 	return
 }
 
-//Update 每次有通讯，将conn 移到队尾，提高清理效率
-func (ch *ConnHub) Update(conn *Conn) {
+func (ch *ConnHub) read(conn *Conn) error {
+
+	msg, err := conn.Recv()
+	select {
+	case <-ch.ctx.Done():
+		return errors.New("conn tokened : " + conn.ToString() + " Done")
+	case <-conn.Done():
+		return errors.New("conn tokened : " + conn.ToString() + " Done")
+	default:
+	}		//NOTE: 此处确保连接关闭后，不再处理后续
+
+	switch err {
+	case nil:
+		ch.update(conn)
+		go ch.ctx.Value(CtxKeyRecvHandler).(MessageHandler).Handle(msg)		//NOTE: 处理收到的消息
+	default:
+		glog.Warningln("conn read error : ", err, "...tokened : ", conn.ToString())
+		conn.Cancel()		//NOTE: 连接出错，释放token，所有相关的资源将被释放
+	}
+	return err
+}
+
+
+func (ch *ConnHub) push(conn *Conn) (err error) {
 
 	ch.mtx.Lock()
 	defer ch.mtx.Unlock()
 
-	key := conn.GetKey()
-	glog.Infof("updage conn keyed %s, tokened %s\n", key, conn.GetToken().ToString())
-	ch.hub[key].MoveToBack(conn.Element)
+	ch.hub[conn.ToString()] = conn
+	// conn.Element = ch.queue.PushBack(conn)
+	// ch.queue.PushBack(conn)
+	return
 }
 
-
-//Upgrade 清理超时连接
-func (ch *ConnHub) Upgrade() {
+func (ch *ConnHub) update(conn *Conn) {
 
 	ch.mtx.Lock()
 	defer ch.mtx.Unlock()
 
-	for _, v := range ch.hub {
-
-		ch.upgrade(v)
+	select {
+	case <-conn.Done():		//NOTE: 极端情况下，upgrade 将此conn Cancel了，当锁解开后，此处conn 已经失效，所以加个判断
+	default:
+		conn.ResetTimer()	//NOTE: 重置相关token 的定时器
+		// ch.queue.MoveToBack(conn.Element)
+		// conn.Reset()
 	}
 }
 
-func (ch *ConnHub) upgrade(queue *list.List) {
 
-	element := queue.Front()
-	for element != nil {
+//Handle 处理数据发送，总感觉这边会有性能问题，如果有超级多的玩家同时在线，比如1000万，每次要发送一个消息都要遍历查找一遍，可能会卡死
+func (ch *ConnHub) Handle(msg *pb.Message) error {
 
-		if !element.Value.(Timer).TimeOut() {
-			break
-		}
+	ch.mtx.RLock()
+	defer ch.mtx.RUnlock()
 
-		glog.Infoln("conn keyed ", element.Value.(*Conn).GetKey(), " timeout !")
-
-		cur := element
-		element = element.Next()
-		cur.Value.(*Conn).GetToken().Cancel()			//NOTE: 关闭Context，将触发pool Listen中调用ConnHub Remove的逻辑，conn将在Remove中被清除
+	if conn, ok := ch.hub[msg.GetToken()]; ok {
+		return conn.Send(msg)
 	}
+	if builder := ch.ctx.Value(CtxKeyConnBuilder).(ConnBuilder); builder != nil {
+		go builder.BuildAndSend(msg)
+	}
+	return errors.New("connhub has no conn tokened " + msg.GetToken())
 }
 
-//Remove 当conn 关闭的时候，调用这个方法，清除 
-//NOTE: 这个方法只在pool中调用
-func (ch *ConnHub) Remove(conn *Conn) {
+//Remove 删除Conn
+func (ch *ConnHub) Remove(conn *Conn) (err error) {
 
 	ch.mtx.Lock()
+	defer ch.mtx.Unlock()
 
-	ch.hub[conn.GetKey()].Remove(conn.Element)
-	conn.Element = nil
+	delete(ch.hub, conn.ToString())
+	return
+}
 
-	ch.mtx.Unlock()
+
+//ConnBuilder interface for build Conn
+type ConnBuilder interface {
+
+	BuildAndSend(msg *pb.Message)
 }

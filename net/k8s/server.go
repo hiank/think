@@ -1,82 +1,96 @@
 package k8s
 
 import (
-	"net/http"
-	"strconv"
-	"bytes"
 	"context"
 	"net"
-	"github.com/hiank/think/conf"
-	"github.com/hiank/think/pool"
-	"github.com/hiank/think/pb"
-	"google.golang.org/grpc"
+	"net/http"
+
 	"github.com/golang/glog"
+	"github.com/hiank/think/net/addr"
 	tg "github.com/hiank/think/net/k8s/protobuf"
+	"github.com/hiank/think/pb"
+	"github.com/hiank/think/pool"
+	"github.com/hiank/think/settings"
+	"github.com/hiank/think/token"
+	"google.golang.org/grpc"
 )
 
+//Server k8s server
+type Server struct {
 
-type server struct {
-
-	MessageHandler
+	handler 	MessageHandler
+	*pool.Pool			//NOTE: server 包含一个连接池，用于处理服务端的连接
 }
 
-func (s *server) Link(ls tg.Pipe_LinkServer) (err error) {
+//newServer instantiate a Server
+func newServer(ctx context.Context, msgHandler MessageHandler) *Server {
+
+	return &Server {
+		handler : msgHandler,
+		Pool 	: pool.NewPool(context.WithValue(ctx, pool.CtxKeyRecvHandler, msgHandler)),
+	}
+}
+
+//Link operate 'stream' type message
+func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 
 	var msg *pb.Message
 	if msg, err = ls.Recv(); err != nil {
-
-		return err
+		return
 	}
-	c, err := pool.NewConn(msg.GetKey(), msg.GetToken(), newConnHandler(ls))
+
+	tok, err := token.GetBuilder().Get(msg.GetToken())
 	if err != nil {
-		return err
+		glog.Warning("cann't get token from token.GetBuilder(): ", err)
+		return
 	}
-	defer c.GetToken().Cancel()
-	// c.SetInterval(600)
-	GetK8SPool().Push(c)
-	return GetK8SPool().Listen(c)
+	return s.AddConn(pool.NewConn(tok, ls))
 }
 
-func (s *server) Get(ctx context.Context, req *pb.Message) (res *pb.Message, err error) {
+//Donce respond TypeGET | TypePOST message
+func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, err error) {
 
-	glog.Infoln("do k8s get : ", req)
+	glog.Infoln("do k8s Donce : ", req)
 	select {
 	case <-ctx.Done():
 		err = http.ErrServerClosed
 	default:
-		res, err = s.HandleGet(req)
+		t, _ := pb.GetServerType(req.GetData())		//NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
+		switch t {
+		case pb.TypeGET:
+			res, err = s.handler.HandleGet(req)
+		case pb.TypePOST:
+			err = s.handler.HandlePost(req)
+		}
 	}
 	return
 }
 
-func (s *server) Post(ctx context.Context, msg *pb.Message) (rlt *tg.Void, err error) {
 
-	select {
-	case <-ctx.Done():
-		err = http.ErrServerClosed
-	default:
-		err = s.HandlePost(msg)
+var _singleServer *Server
+
+//Writer 服务端写消息对象
+type Writer int 
+
+//Handle 实现pool.MessageHandler
+func (w Writer) Handle(msg *pb.Message) error {
+
+	if _singleServer != nil {
+		glog.Fatalf("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)")
 	}
-	return
+	_singleServer.Pool.Post(msg)
+	return nil
 }
 
 
 // ListenAndServe start a PipeServer
-func ListenAndServe(ctx context.Context, addr string, h MessageHandler) (err error) {
+func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (err error) {
 
-	k8sCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	if _singleServer != nil {
+		glog.Fatal("k8s server existed, cann't start another one.")
+	}
 
-	InitK8SPool(k8sCtx, h.(pool.MessageHandler))
-
-	var buffer bytes.Buffer
-	buffer.WriteString(addr)
-	buffer.WriteByte(':')
-	buffer.WriteString(strconv.FormatInt(conf.GetSys().K8sPort, 10))
-
-	addr = buffer.String()
-
-	lis, err := net.Listen("tcp", addr)
+	lis, err := net.Listen("tcp", addr.WithPort(ip, settings.GetSys().K8sPort))
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 		return
@@ -85,43 +99,9 @@ func ListenAndServe(ctx context.Context, addr string, h MessageHandler) (err err
 	grpcServer := grpc.NewServer()
 	defer grpcServer.Stop()
 
-	tg.RegisterPipeServer(grpcServer, &server{h})
+	_singleServer = newServer(ctx, msgHandler)
+	defer _singleServer.Close()
+
+	tg.RegisterPipeServer(grpcServer, _singleServer)
 	return grpcServer.Serve(lis)
 }
-
-
-//MessageHandler 服务器消息处理
-type MessageHandler interface {
-
-	pool.MessageHandler									//NOTE: 处理stream消息
-	HandleGet(*pb.Message) (*pb.Message, error)		//NOTE: 处理Get消息
-	HandlePost(*pb.Message) error 						//NOTE: 处理Post消息
-}
-
-//IgnoreGet 忽略Get 实现
-type IgnoreGet int
-
-//HandleGet 用于忽略HandleGet
-func (i IgnoreGet) HandleGet(*pb.Message) (msg *pb.Message, err error) {
-
-	return
-}
-
-//IgnorePost 忽略Post 实现
-type IgnorePost int
-
-//HandlePost 用于忽略HandlePost 方法
-func (i IgnorePost) HandlePost(*pb.Message) (err error) {
-
-	return
-}
-
-//IgnoreStream 忽略Stream 实现
-type IgnoreStream int
-
-//Handle 用于忽略Handle
-func (i IgnoreStream) Handle(*pb.Message) (err error) {
-
-	return
-}
-  

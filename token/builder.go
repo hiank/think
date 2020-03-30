@@ -1,10 +1,12 @@
 package token
 
 import (
-	// "github.com/golang/glog"
+	"context"
 	"errors"
 	"sync"
-	"context"
+	"time"
+
+	"github.com/hiank/think/settings"
 )
 
 //Builder 用于构建Token
@@ -15,6 +17,38 @@ type Builder struct {
 
 	hub 	map[string]*Token 			//NOTE: map[tokenStr]*Token
 	rw		sync.RWMutex				//NOTE: 读写锁
+}
+
+func newBuilder() *Builder {
+
+	builder := &Builder {
+		hub : make(map[string]*Token),
+	}
+	builder.ctx, builder.Cancel = context.WithCancel(context.Background())
+
+	go builder.healthMonitoring()
+	return builder
+}
+
+//healthMonitoring 监测状态
+func (b *Builder) healthMonitoring() {
+
+	interval := time.Duration(settings.GetSys().ClearInterval) * time.Second
+	L: for {
+		select {
+		case <-b.ctx.Done():
+			_singleBuilder = nil
+			break L
+		case <-time.After(interval):		//NOTE: 定时检查Token 超时
+			for _, tok := range b.hub {
+				select {
+				case <-tok.Value(TimerKey).(*time.Timer).C:		//NOTE: 如果某个tok 超时，关闭此token
+					tok.Cancel()
+				default:
+				}				
+			}
+		}
+	}
 }
 
 //Find to get *Token with string key
@@ -39,7 +73,7 @@ func (b *Builder) Build(tokenStr string) (token *Token, err error) {
 		err = errors.New("token '" + tokenStr + "' existed in cluster")
 		return
 	}
-	token, _ = newToken(context.WithValue(b.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
+	token, _ = newToken(context.WithValue(b.ctx, IdentityKey, tokenStr))		//NOTE: 此处一定不会触发error
 	b.hub[tokenStr] = token
 	return
 }
@@ -64,23 +98,16 @@ func (b *Builder) Delete(tokenStr string) {
 }
 
 
-var builder *Builder
-var once sync.Once
+var _singleBuilder *Builder
+var _singleBuilderOnce sync.Once
 
 //GetBuilder return singleton tokenBuilder object
 func GetBuilder() *Builder {
 
-	once.Do(func () {
+	_singleBuilderOnce.Do(func () {
 
-		builder = &Builder {
-			hub : make(map[string]*Token),
-		}
-		builder.ctx, builder.Cancel = context.WithCancel(context.Background())
-		go func ()  {			
-			<- builder.ctx.Done()
-			builder = nil
-		}()			//NOTE: 如果builder Cancel 被调用，则清空builder
+		_singleBuilder = newBuilder()
 	})
-	return builder
+	return _singleBuilder
 }
 
