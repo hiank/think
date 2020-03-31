@@ -11,6 +11,7 @@ import (
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
 	"github.com/hiank/think/utils"
+	"github.com/hiank/think/utils/robust"
 )
 
 //Server websocket server
@@ -42,20 +43,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer robust.Recover(robust.Warning)
 	c, err := s.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		glog.Warning("upgrade error : ", err)		//NOTE: 这个地方看下测试websocket 包的测试用例
-		return
-	}
+	robust.Panic(err)
 	defer c.Close()
 
 	tok, err := token.GetBuilder().Get(tokenStr)
-	if err != nil {
-		glog.Warning("cann't get token from token.GetBuilder(): ", err)
-		return
-	}
-	err = s.AddConn(pool.NewConn(tok, &Handler{Conn:c, tokenStr: tokenStr}))
-	glog.Warning("ws conn over : ", err)
+	robust.Panic(err)
+
+	robust.Panic(s.AddConn(pool.NewConn(tok, &Handler{Conn:c, tokenStr: tokenStr})))
 }
 
 //auth 认证token

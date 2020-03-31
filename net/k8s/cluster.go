@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/hiank/think/utils"
+	"github.com/hiank/think/utils/robust"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -70,15 +71,14 @@ func GetInClientset() *kubernetes.Clientset {
 
 	_inclientsetOnce.Do(func ()  {
 		
+		defer robust.Recover(robust.Warning)
+		
 		config, err := rest.InClusterConfig()
-		if err != nil {
-			glog.Fatalln("cann't get inclusterconfig from rest : ", err)
-		}
+		robust.Panic(err)
 
 		// creates the clientset
-		if _inclientset, err = kubernetes.NewForConfig(config); err != nil {
-			glog.Fatalln("cann't create inclientset : ", err)
-		}
+		_inclientset, err = kubernetes.NewForConfig(config)
+		robust.Panic(err)
 	})
 	return _inclientset
 }
