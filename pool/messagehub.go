@@ -2,65 +2,88 @@ package pool
 
 import (
 	"container/list"
-	"sync"
+	"context"
 
 	"github.com/hiank/think/pb"
-	"github.com/hiank/think/settings"
 )
 
-//MessageHub message池，用于限制goroutine 数量来处理Message
+//MessageHub 集中处理*pb.Message，顺序handle
 type MessageHub struct {
 
-	MessageHandler
-	mtx 	*sync.Mutex			//NOTE: 处理message 增减
-	queue 	*list.List 			//NOTE: message 队列
-	gonum 	int					//NOTE: 当前goroutine 数量，用于限制goroutine 总数
+	handler 	MessageHandler		//NOTE: 处理消息
+	req 		chan *message		//NOTE: 待处理的消息管道
+	lock 		chan bool
 }
 
-//NewMessageHub 新建一个MessageHub
-func NewMessageHub(handler MessageHandler) *MessageHub {
+//message 用于管道传递
+type message struct {
 
-	return &MessageHub {
-		MessageHandler 	: handler,
-		mtx 			: new(sync.Mutex),
-		queue 			: list.New(),
+	*pb.Message
+	err chan<- error
+}
+
+
+//NewMessageHub 构建新的 MessageHub
+func NewMessageHub(ctx context.Context, handler MessageHandler) *MessageHub {
+
+	mh := &MessageHub{
+		handler: 	handler,
+		req: 		make(chan *message),
+		lock: 		make(chan bool),
+	}
+	go mh.loop(ctx)
+	return mh
+}
+
+
+func (mh *MessageHub) loop(ctx context.Context) {
+
+	locked, hub, waited, wait := true, list.New(), false, make(chan bool)
+	handle := func ()  {
+
+		if locked || waited || (hub.Len() == 0) {	//NOTE: 锁住 或 等待中 或 无消息
+			return
+		}
+		waited = true
+		go func (req *message) {
+
+			req.err <- mh.handler.Handle(req.Message)
+			wait <- false
+		}(hub.Remove(hub.Front()).(*message))
+	}
+
+	L: for {
+		select {
+		case <-ctx.Done(): break L
+		case locked = <-mh.lock: handle()
+		case waited = <-wait: handle()
+		case msg := <-mh.req:
+			hub.PushBack(msg)
+			handle()
+		}
 	}
 }
 
-//Post 新的待处理Message 传入其中 排队处理
-func (mh *MessageHub) Post(msg *pb.Message) {
+//LockChan 用于锁定或解锁 Handle
+func (mh *MessageHub) LockChan() chan<- bool {
 
-	mh.mtx.Lock()
-	defer mh.mtx.Unlock()
-
-	if mh.gonum < settings.GetSys().MessageGo {
-		mh.gonum++
-		go mh.do(msg)
-		return
-	}
-	mh.queue.PushBack(msg)
+	return mh.lock
 }
 
-func (mh *MessageHub) do(msg *pb.Message) {
+//Push 将消息推送到hub中
+//返回一个chan 用于接收结果
+func (mh *MessageHub) Push(msg *pb.Message) <-chan error {
 
-	mh.Handle(msg)
-	if msg = mh.shift(); msg != nil {
-		mh.do(msg)
-		return
-	}
-	mh.gonum--
+	err := make(chan error)
+	mh.req <- &message{Message: msg, err: err}
+	return err
 }
 
-func (mh *MessageHub) shift() (msg *pb.Message) {
+// //InChan 加入消息管道
+// func (mh *MessageHub) InChan() chan<- *pb.Message {
 
-	mh.mtx.Lock()
-	defer mh.mtx.Unlock()
-
-	if mh.queue.Len() > 0 {
-		msg = mh.queue.Remove(mh.queue.Front()).(*pb.Message)
-	}
-	return
-}
+// 	return mh.req
+// }
 
 
 //MessageHandler Message处理接口

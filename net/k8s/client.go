@@ -1,136 +1,137 @@
 package k8s
 
 import (
-	"container/list"
 	"context"
-	"sync"
-	"time"
 
 	tg "github.com/hiank/think/net/k8s/protobuf"
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
-	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
+	"github.com/hiank/think/utils/robust"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer/roundrobin"
 )
 
 
-type contextClientKey string
+type pipeState struct {
 
+	ready 	bool 
+	name 	string
+}
 
 //Client k8s 客户端，每一个服务对应一个Client，连接池不关心
 type Client struct {
 
 	ctx 		context.Context
 
-	ccMtx 		sync.RWMutex				//NOTE: 
-	ccList 		*list.List					//NOTE: 保存ClientConn
+	send 		chan *pb.Message				//NOTE: 发送消息管道
+	readyCC 	chan *grpc.ClientConn
 
-	msgMtx 		sync.Mutex					//NOTE: 用于等待发送的消息 的存取
-	waitingMsgs map[string]*list.List		//NOTE: 保存等待发送的消息 map[tokenStr]messageList
-
-	*pool.Pool 					//NOTE: 每个token 对应一个pipe
+	pool 		*pool.Pool 					//NOTE: 每个token 对应一个pipe
 }
 
 
 //newClient 构建新的 Client，service 包含端口号
-func newClient(ctx context.Context) *Client {
+func newClient(ctx context.Context, name string) *Client {
 
 	c := &Client{
-		ccList: 		list.New(),
-		waitingMsgs: 	make(map[string]*list.List),
+		send: 		make(chan *pb.Message),
+		readyCC:	make(chan *grpc.ClientConn),
 	}
 	ctx = context.WithValue(ctx, pool.CtxKeyRecvHandler, ctx.Value(CtxKeyClientHubRecvHandler))
-	ctx = context.WithValue(ctx, pool.CtxKeyConnBuilder, c)
-	c.ctx, c.Pool = ctx, pool.NewPool(ctx)
+	c.ctx, c.pool = ctx, pool.NewPool(ctx)
+
+	ready := make(chan bool)
+	go c.loop(name, ready)
+	<-ready		//NOTE: 等待loop协程开启
+
+	go c.dial(name)
 	return c
 }
 
 
-//BuildAndSend for pool.ConnHandler
-//when pool's ConnHub cann't find the *Conn, it would call this api in an new goroutine
-func (c *Client) BuildAndSend(msg *pb.Message) {
+func (c *Client) loop(name string, ready chan bool) {
 
-	if c.pushWaitingMsg(msg) {
-		return
-	}
-	
-	cc := c.findCC(msg)
-	if cc == nil {
-		name, _ := pb.GetServerKey(msg.GetData())
-		cc, _ = c.dial(name)
-	}
+	ready <- true
+	var (
+		cc *grpc.ClientConn
+		hubMap = make(map[string]*pool.MessageHub)
+		pp = make(chan *pipeState)
+	)
+	L: for {
 
-	tok, _ := token.GetBuilder().Get(msg.GetToken())
-	pipe := &Pipe{ctx: tok, pipe: tg.NewPipeClient(cc)}
-	go c.sendWaitingMsgsWithPipe(msg.GetToken(), pipe)
-	c.AddConn(pool.NewConn(tok, pipe))
+		select {
+		case <-c.ctx.Done(): break L
+		case cc =<-c.readyCC:
+			if cc == nil {
+				break L
+			}
+			defer cc.Close()
+			for key := range hubMap {
+				tok, _ := token.GetBuilder().Get(key)
+				go c.listenPipe(tok, tg.NewPipeClient(cc), pp)
+			}
+		case state := <-pp:		//NOTE: 监听 listenPipe 完成状态
+			if state.ready {
+				hubMap[state.name].LockChan() <- false
+			} else {
+				delete(hubMap, state.name)
+			}
+		case msg :=<-c.send:
+			tok, _ := token.GetBuilder().Get(msg.GetToken())
+			hub, ok := hubMap[tok.ToString()]
+			if !ok {
+				hub = pool.NewMessageHub(c.ctx, c)
+				hubMap[tok.ToString()] = hub
+				if cc != nil {
+					go c.listenPipe(tok, tg.NewPipeClient(cc), pp)
+				}
+			}
+			hub.Push(msg)
+			// hub.InChan() <- msg
+		}
+	}
 }
 
-//findCC find *grpc.ClientConn existed
-func (c *Client) findCC(msg *pb.Message) (cc *grpc.ClientConn) {
 
-	c.ccMtx.RLock()
-	defer c.ccMtx.RUnlock()
+//Post 发送消息，此处在调用pool.Post 之前，需要先确保msg 在pool中
+func (c *Client) Post(msg *pb.Message) {
 
-	if c.ccList.Len() >= settings.GetSys().GrpcGo {
-		cc = c.ccList.Front().Value.(*grpc.ClientConn)
-	}
-	return
+	c.send <- msg
 }
 
-//pushWaitingMsg push waiting message to 'waitingMsgs'
-//return if the message is not the first one
-func (c *Client) pushWaitingMsg(msg *pb.Message) (notFirst bool) {
 
-	c.msgMtx.Lock()
-	defer c.msgMtx.Unlock()
+//Handle 处理消息
+func (c *Client) Handle(msg *pb.Message) error {
 
-	msgList, notFirst := c.waitingMsgs[msg.GetToken()]
-	if !notFirst {
-		msgList = list.New()
-		c.waitingMsgs[msg.GetToken()] = msgList
-	}
-	msgList.PushBack(msg)
-	return
+	c.pool.Post(msg)
+	return nil
 }
 
-//sendWaitingMsgsWithPipe
-//send all waiting messages with key in an new goutine [controled by the caller]
-//when the goroutine running, the *Conn already added to pool
-//so new messsage should not push to the message list
-func (c *Client) sendWaitingMsgsWithPipe(key string, pipe *Pipe) {
 
-	c.msgMtx.Lock()
-	defer c.msgMtx.Unlock()
+//listenPipe 监听pipe
+func (c *Client) listenPipe(tok *token.Token, pipeClient tg.PipeClient, state chan *pipeState) {
 
-	msgList, ok := c.waitingMsgs[key]
-	if !ok {
-		return
-	}
-	for element := msgList.Front(); element != nil; element = element.Next() {
-		pipe.Send(element.Value.(*pb.Message))
-	}
-	delete(c.waitingMsgs, key)		//NOTE: 处理完了将消息列表删掉
-} 
+	pipe, added := &Pipe{ctx: tok, pipe: pipeClient}, make(chan interface{})
+	go c.pool.Listen(tok, pipe, added)
+
+	ps := &pipeState{name: tok.ToString()}
+	ps.ready = (<-added).(bool)
+	state <- ps
+}
 
 
-func (c *Client) dial(name string) (*grpc.ClientConn, error) {
+//dial 建立，需要检测返回cc 的状态
+func (c *Client) dial(name string) {
+
+	defer robust.Recover(robust.Warning)
 
 	addr, err := ServiceNameWithPort(TypeKubIn, name + "-service", "grpc")
-	if err != nil {
-		return nil, err
-	}
+	robust.Panic(err)
 
-	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
-	defer cancel()
-	grpcCC, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		return nil, err
-	}
+	cc, err := grpc.DialContext(c.ctx, addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name))		//NOTE: block 为阻塞知道ready，insecure 为不需要验证的
+	robust.Panic(err)
 
-	c.ccMtx.Lock()
-	c.ccList.PushBack(grpcCC)
-	c.ccMtx.Unlock()
-	return grpcCC, nil
+	c.readyCC <- cc
 }
+

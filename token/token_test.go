@@ -106,8 +106,7 @@ func TestContextDone(t *testing.T) {
 		<-time.After(time.Second)
 		cancel()
 	}()
-	// <-time.After(time.Second)
-	// cancel()
+
 	wait.Wait()
 	assert.Equal(t, num, 2)
 }

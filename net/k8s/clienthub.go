@@ -12,8 +12,6 @@ type contextKey int
 
 //CtxKeyClientHubRecvHandler ClientHub收到消息处理
 var CtxKeyClientHubRecvHandler = contextKey(0)
-//CtxKeyServiceName 保存服务名，构建Client 时用到
-var CtxKeyServiceName = contextKey(1)
 
 
 //ClientHub 管理所有client
@@ -41,16 +39,25 @@ func (ch *ClientHub) Handle(msg *pb.Message) error {
 		return err
 	}
 
-	ch.mtx.Lock()
-	defer ch.mtx.Unlock()
-
-	client, ok := ch.hub[name]
+	client, ok := ch.findClient(name)//ch.hub[name]
 	if !ok {
-		client = newClient(context.WithValue(ch.ctx, CtxKeyServiceName, name))
+		ch.mtx.Lock()
+		defer ch.mtx.Unlock()
+		client = newClient(ch.ctx, name)
 		ch.hub[name] = client
 	}
 	client.Post(msg)
 	return nil
+}
+
+
+func (ch *ClientHub) findClient(name string) (client *Client, ok bool) {
+
+	ch.mtx.RLock()
+	defer ch.mtx.RUnlock()
+
+	client, ok = ch.hub[name]
+	return
 }
 
 

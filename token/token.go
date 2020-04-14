@@ -64,7 +64,7 @@ func (t *Token) ToString() string {
 //Cancel 清理Token
 func (t *Token) Cancel() {
 
-	t.cancel()								//NOTE: 这个重复调用是没有关系的, 参见token_test.TestContextCancel
+	t.cancel()										//NOTE: 这个重复调用是没有关系的, 参见token_test.TestContextCancel
 	if !t.derived && _singleBuilder != nil {		//NOTE: 不是派生Token，同时token生成器没有被消除
 
 		GetBuilder().Delete(t.Value(IdentityKey).(string))

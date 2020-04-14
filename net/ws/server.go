@@ -51,7 +51,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tok, err := token.GetBuilder().Get(tokenStr)
 	robust.Panic(err)
 
-	robust.Panic(s.AddConn(pool.NewConn(tok, &Handler{Conn:c, tokenStr: tokenStr})))
+	robust.Panic(s.Listen(tok, &Handler{Conn:c, tokenStr: tokenStr}))
 }
 
 //auth 认证token

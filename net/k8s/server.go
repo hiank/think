@@ -44,7 +44,7 @@ func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 		glog.Warning("cann't get token from token.GetBuilder(): ", err)
 		return
 	}
-	return s.AddConn(pool.NewConn(tok, ls))
+	return s.Listen(tok, ls)
 }
 
 //Donce respond TypeGET | TypePOST message

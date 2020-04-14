@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"gotest.tools/assert"
-	// "github.com/stretchr/testify/assert"
 )
 
 //测试 list.List 包Remove 对
