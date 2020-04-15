@@ -45,6 +45,38 @@ func TestListRemove2(t *testing.T) {
 	assert.Equal(t, element.Next(), nilObj)
 }
 
+func TestChan(t *testing.T) {
+
+	ok, num := make(chan bool), 0
+
+	go func() {
+		select {
+		case <-ok:
+			num++
+		}
+	}()
+	ok <- true			//NOTE：这个地方证明，chan 写入也是会阻塞的
+	assert.Equal(t, num, 1)
+}
+
+
+func TestChanCloseThenRead(t *testing.T) {
+
+	exit := make(chan bool)
+	close(exit)
+
+	_, ok := <-exit
+	assert.Equal(t, ok, false)
+}
+
+
+// func TestChanCloseThenWrite(t *testing.T) {
+
+// 	exit := make(chan bool)
+// 	close(exit)
+
+// 	exit <- true
+// }
 
 // func TestContextDone(t *testing.T) {
 

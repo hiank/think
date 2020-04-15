@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/hiank/think/pb"
+	"github.com/hiank/think/pool"
 )
 
 type contextKey int
@@ -31,7 +32,7 @@ func newClientHub(ctx context.Context) *ClientHub {
 }
 
 //Handle 实现 pool.MessageHandler，用于处理转发到k8s 的消息
-func (ch *ClientHub) Handle(msg *pb.Message) error {
+func (ch *ClientHub) Handle(msg *pool.Message) error {
 
 	name, err := pb.GetServerKey(msg.GetData())
 	if err != nil {
@@ -46,7 +47,7 @@ func (ch *ClientHub) Handle(msg *pb.Message) error {
 		client = newClient(ch.ctx, name)
 		ch.hub[name] = client
 	}
-	client.Post(msg)
+	client.Push(msg)
 	return nil
 }
 

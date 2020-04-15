@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hiank/think/pb"
 	tk "github.com/hiank/think/token"
 )
 
@@ -52,7 +51,7 @@ func (p *Pool) Listen(tok *tk.Token, rw IO, addedArr ...chan interface{}) (err e
 		if len(addedArr) > 0 {
 			added = addedArr[0]
 		}
-		p.req <- &req{t: typeAdd, r: conn, s: added}
+		p.req <- &req{tag: typeAdd, param: conn, res: added}
 		err = conn.Listen(p.ctx.Value(CtxKeyRecvHandler).(MessageHandler))
 	}
 	return
@@ -62,27 +61,29 @@ func (p *Pool) Listen(tok *tk.Token, rw IO, addedArr ...chan interface{}) (err e
 //Has 查找Conn
 func (p *Pool) Has(tokStr string) bool {
 
-	req := &req{t: typeFind, r: tokStr, s: make(chan interface{})}
+	req := &req{tag: typeFind, param: tokStr, res: make(chan interface{})}
 	p.req <-req
-	ok := (<-req.s).(bool)
-	close(req.s)
+	ok := (<-req.res).(bool)
+	// close(req.s)
 	return ok
 }
 
 
-//PostAndWait 推送消息，等待反馈
-func (p *Pool) PostAndWait(msg *pb.Message) error {
+// //PostAndWait 推送消息，等待反馈
+// func (p *Pool) PostAndWait(msg *Message) error {
 
-	req := &req{t: typeSend, r: msg, s: make(chan interface{})}
-	p.req <-req
-	err := (<-req.s).(error)
-	close(req.s)
-	return err
-}
+// 	req := &req{t: typeSend, r: msg, s: make(chan interface{})}
+// 	p.req <-req
+// 	err := (<-req.s).(error)
+// 	close(req.s)
+// 	return err
+// }
 
 
-//Post 推送消息，忽略反馈
-func (p *Pool) Post(msg *pb.Message) {
+//Post 推送消息
+//
+func (p *Pool) Post(msg *Message) error {
 
-	p.req <- &req{t: typeSend, r: msg}
+	p.req <- &req{tag: typeSend, param: msg}
+	return nil
 }

@@ -73,7 +73,7 @@ var _singleServer *Server
 type Writer int 
 
 //Handle 实现pool.MessageHandler
-func (w Writer) Handle(msg *pb.Message) error {
+func (w Writer) Handle(msg *pool.Message) error {
 
 	if _singleServer != nil {
 		glog.Fatalf("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)")

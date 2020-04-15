@@ -12,7 +12,7 @@ const (
 )
 
 //Recover 捕捉异常
-func Recover(level int) {
+func Recover(level int, arr ...ErrorHandle) {
 
 	if r := recover(); r != nil {
 		switch level {
@@ -22,5 +22,11 @@ func Recover(level int) {
 		case Fatal:		glog.Fatal(r)
 		case Exit:		glog.Exit(r)
 		}
+		for _, handle := range arr {
+			handle(r)
+		}
 	}
 }
+
+//ErrorHandle 捕捉到异常后，处理
+type ErrorHandle func(interface{})

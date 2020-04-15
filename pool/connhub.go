@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hiank/think/pb"
+	"github.com/golang/glog"
 )
 
 //connHub 用于存储管理conn
@@ -23,9 +23,23 @@ const (
 
 type req struct {
 
-	t 	int					//NOTE: 请求类型
-	r 	interface{}			//NOTE: 请求参数
-	s 	chan interface{}	//NOTE: 结果chan
+	tag 	int					//NOTE: 请求类型
+	param 	interface{}			//NOTE: 请求参数
+	res 	chan interface{}	//NOTE: 结果chan
+}
+
+func (r *req) response(rlt interface{}) {
+
+	if r.res != nil {
+		r.res <- rlt
+	}
+}
+
+func (r *req) close() {
+
+	if r.res != nil {
+		close(r.res)
+	}
 }
 
 //newConnHub 构建ConnHub
@@ -46,38 +60,45 @@ func (ch *connHub) loop(ctx context.Context) {
 
 		select {
 		case <-ctx.Done(): break L
-		case req := <-ch.req: ch.do(req)
+		case req := <-ch.req:
+			switch req.tag {
+			case typeAdd: ch.add(req)
+			case typeDel: ch.del(req)
+			case typeFind: ch.find(req)
+			case typeSend: ch.send(req)
+			default: 
+				glog.Warning("request cann't knowing")
+				req.close()			//NOTE: 避免奇怪的请求发过来，无法响应
+			}
 		}  
 	}
 }
 
-func (ch *connHub) do(r *req) {
+func (ch *connHub) add(r *req) {
 
-	var s interface{}
-	switch r.t {
-	case typeAdd:
-		c := r.r.(*conn)
-		ch.hub[c.ToString()] = c
-		s = true
-	case typeDel:
-		delete(ch.hub, r.r.(string))
-		s = true
-	case typeSend:
-		msg := r.r.(*pb.Message)
-		if c, ok := ch.hub[msg.GetToken()]; ok {		
-			if errChan := c.AsyncSend(r.r.(*pb.Message)); r.s != nil {
-				go func(res chan interface{}, errChan <-chan error) {
-					res <- (<- errChan)
-				}(r.s, errChan)
-			}
-		} else {
-			s = errors.New("cann't find conn tokened " + msg.GetToken())
-		}
-	case typeFind:
-		s = ch.hub[r.r.(string)]
-	}
+	c := r.param.(*conn)
+	ch.hub[c.ToString()] = c
+	r.response(true)
+}
 
-	if (s != nil) && (r.s != nil) {
-		r.s <- s
+func (ch *connHub) del(r *req) {
+
+	delete(ch.hub, r.param.(string))
+	r.response(true)
+}
+
+func (ch *connHub) find(r *req) {
+
+	r.response(ch.hub[r.param.(string)])
+}
+
+
+func (ch *connHub) send(r *req) {
+
+	msg := r.param.(*Message)
+	if c, ok := ch.hub[msg.GetToken()]; ok {
+		go r.response(c.Send(msg))
+		return
 	}
+	r.response(errors.New("cann't find conn tokened " + msg.GetToken()))
 }

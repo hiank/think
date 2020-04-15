@@ -6,7 +6,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
@@ -67,7 +66,7 @@ var _singleServer *Server		//NOTE: 全局唯一的websocket server
 type Writer int 
 
 //Handle 实现pool.MessageHandler
-func (w Writer) Handle(msg *pb.Message) error {
+func (w Writer) Handle(msg *pool.Message) error {
 
 	if _singleServer != nil {
 		glog.Fatalf("websocket server not started, please start a websocket server first. (use 'ListenAndServe' function to do this.)")

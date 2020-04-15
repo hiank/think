@@ -5,7 +5,6 @@ package pool
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/golang/glog"
 	"github.com/hiank/think/pb"
@@ -17,12 +16,8 @@ type conn struct {
 	*tk.Token   		//NOTE：用于维护生命周期
 	rw 		IO 				//NOTE: 读写Message
 	hub 	*MessageHub		//NOTE: 待发送 MessageHub
-	mtx 	sync.Mutex	//NOTE: 用于读写hub
-	rchan 	chan *pb.Message	//NOTE: 待发送的消息
 
-	wToken 	*tk.Token		//NOTE: 发送消息context
 	exit 	chan error		//NOTE: 退出指令，当读或写消息出错后，通知此chan，用于退出Listen，并结束Conn
-
 }
 
 //newConn 构建新的conn
@@ -31,7 +26,7 @@ func newConn(tok *tk.Token, rw IO) *conn {
 	c := &conn{
 		Token: 	tok,
 		rw: 	rw,
-		rchan:  make(chan *pb.Message),
+		exit: 	make(chan error),
 	}
 	c.hub = NewMessageHub(tok, c)
 	return c
@@ -47,13 +42,7 @@ func (c *conn) Listen(readHandler MessageHandler) error {
 	default:
 	}
 
-	c.mtx.Lock()
-	c.exit = make(chan error)
-	c.wToken = c.Derive()
-	c.mtx.Unlock()
-
 	go c.loopRead(readHandler)			//NOTE: 起一个读协程
-
 	err := <- c.exit
 	c.Cancel()
 	return err
@@ -61,14 +50,14 @@ func (c *conn) Listen(readHandler MessageHandler) error {
 
 
 //Handle 发送消息
-func (c *conn) Handle(msg *pb.Message) error {
+func (c *conn) Handle(msg *Message) error {
 
 	select {
-	case <-c.wToken.Done(): return errors.New("conn's context was done")
+	case <-msg.Done(): return errors.New("message's context was done")		//NOTE: 要发送的消息绑定的context 关闭了
+	case <-c.Done(): return errors.New("conn's context was done")
 	default:
 	}
-
-	if err := c.rw.Send(msg); err != nil {		//NOTE: 发送失败，人物连接出了问题，退出[此处可能需要优化]
+	if err := c.rw.Send(msg.Message); err != nil {		//NOTE: 发送失败，人物连接出了问题，退出[此处可能需要优化]
 		c.exit <- err
 		return err
 	}
@@ -77,32 +66,35 @@ func (c *conn) Handle(msg *pb.Message) error {
 }
 
 
-//AsyncSend 异步发送消息
-func (c *conn) AsyncSend(msg *pb.Message) <-chan error {
+//Send 发送消息，同步
+func (c *conn) Send(msg *Message) error {
 
-	return c.hub.Push(msg)
+	errChan := make(chan error)
+	c.hub.PushWithBack(msg, errChan)
+	return <-errChan
 }
 
 
 //loopRead 循环读消息
 func (c *conn) loopRead(handler MessageHandler) {
 
-	for {
+	L: for {
 
 		select {
-		case <-c.Done(): return
+		case <-c.Done(): 
+			c.exit <- errors.New("conn's token Done")
+			break L
 		default:
 		}
-
 		msg, err := c.rw.Recv()
 		if err != nil {
 			c.exit <- err
-			return
-		}
-		if err = handler.Handle(msg); err != nil {
-			glog.Warning("conn tokend " + c.ToString(), err)
+			break L
 		}
 		c.ResetTimer()				//NOTE: 收到消息成功时，重置超时定时器
+		if err = handler.Handle(NewMessage(msg, c.Derive())); err != nil {
+			glog.Warning("conn tokend " + c.ToString(), err)
+		}
 	}
 }
  
