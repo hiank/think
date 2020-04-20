@@ -63,25 +63,20 @@ func (p *Pool) Has(tokStr string) bool {
 
 	req := &req{tag: typeFind, param: tokStr, res: make(chan interface{})}
 	p.req <-req
-	ok := (<-req.res).(bool)
-	// close(req.s)
-	return ok
+	return (<-req.res).(bool)
 }
 
 
-// //PostAndWait 推送消息，等待反馈
-// func (p *Pool) PostAndWait(msg *Message) error {
+//PostAndWait 推送消息，等待反馈
+func (p *Pool) PostAndWait(msg *Message) error {
 
-// 	req := &req{t: typeSend, r: msg, s: make(chan interface{})}
-// 	p.req <-req
-// 	err := (<-req.s).(error)
-// 	close(req.s)
-// 	return err
-// }
+	req := &req{tag: typeSend, param: msg, res: make(chan interface{})}
+	p.req <-req
+	return (<-req.res).(error)
+}
 
 
 //Post 推送消息
-//
 func (p *Pool) Post(msg *Message) error {
 
 	p.req <- &req{tag: typeSend, param: msg}

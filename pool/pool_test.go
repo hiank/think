@@ -1,4 +1,4 @@
-package pool
+package pool_test
 
 
 import (
@@ -69,36 +69,20 @@ func TestChanCloseThenRead(t *testing.T) {
 	assert.Equal(t, ok, false)
 }
 
-
-// func TestChanCloseThenWrite(t *testing.T) {
-
-// 	exit := make(chan bool)
-// 	close(exit)
-
-// 	exit <- true
-// }
-
-// func TestContextDone(t *testing.T) {
-
-// 	ctx := context.Background()
-// 	// ctx.Done()
-// 	// context.WithTimeout(1)
-// 	go func() {
-		
-// 		select {
-// 		case <- ctx.Done():
-// 			t.Log("recive ctx done")
-// 		}
-// 	}()
-
-// 	t.Log("before close ctx")
-// 	// close(ctx.Done())
-// 	// close(ctx)
-// 	// ctx.Done() <- true
-// }
+//test pool api Has
+func TestHas(t *testing.T) {
 
 
-// func TestPoolClose(t *testing.T) {
+}
+
+//test pool api Post
+func TestPost(t *testing.T) {
 
 
-// }
+}
+
+//test pool api PostAndWait
+func TestPostAndWait(t *testing.T) {
+
+
+}

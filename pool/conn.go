@@ -29,6 +29,7 @@ func newConn(tok *tk.Token, rw IO) *conn {
 		exit: 	make(chan error),
 	}
 	c.hub = NewMessageHub(tok, c)
+	c.hub.LockReq() <- false				//NOTE: 不需要加锁等待，所有待处理的数据可以立即执行
 	return c
 }
 
