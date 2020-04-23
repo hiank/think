@@ -5,6 +5,7 @@ import (
 
 	"github.com/hiank/think/net/k8s"
 	"github.com/hiank/think/net/ws"
+	"github.com/hiank/think/pool"
 )
 
 
@@ -18,7 +19,6 @@ func ServeK8s(ip string, msgHandler k8s.MessageHandler) error {
 //收到的消息交给k8s ClientHub 来处理
 func ServeWS(ip string) error {
 
-	k8s.ActiveClientHub(context.WithValue(GetRuntime().Context, k8s.CtxKeyClientHubRecvHandler, new(ws.Writer)))		//NOTE: 激活ClientHub 用于处理ws服务收到的消息
-	return ws.ListenAndServe(GetRuntime().Context, ip, new(k8s.Writer))
+	return ws.ListenAndServe(GetRuntime().Context, ip, k8s.NewClientHub(context.WithValue(GetRuntime().Context, pool.CtxKeyRecvHandler, new(ws.Writer))))
 }
 

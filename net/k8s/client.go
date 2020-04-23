@@ -26,8 +26,6 @@ type Client struct {
 //newClient 构建新的 Client，service 包含端口号
 func newClient(ctx context.Context, name string) *Client {
 
-	ctx = context.WithValue(ctx, pool.CtxKeyRecvHandler, ctx.Value(CtxKeyClientHubRecvHandler))
-
 	c, msgChan := new(Client), make(chan *pool.Message)
 	c.ctx, c.Close = context.WithCancel(ctx)
 	c.pool = pool.NewPool(ctx)

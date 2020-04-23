@@ -9,12 +9,6 @@ import (
 	"github.com/hiank/think/pool"
 )
 
-type contextKey int
-
-//CtxKeyClientHubRecvHandler ClientHub收到消息处理
-var CtxKeyClientHubRecvHandler = contextKey(0)
-
-
 //ClientHub 管理所有client
 type ClientHub struct {
 
@@ -23,7 +17,9 @@ type ClientHub struct {
 	hub 	map[string]*Client				//NOTE: 用于保存client
 }
 
-func newClientHub(ctx context.Context) *ClientHub {
+//NewClientHub 构建一个全新的ClientHub 用于处理消息，将消息转发到相关k8s 服务中
+//ctx should contain value keyed pool.CtxKeyRecvHandler, to operate the message recv from conn
+func NewClientHub(ctx context.Context) *ClientHub {
 
 	return &ClientHub{
 		ctx 	: ctx,
@@ -59,20 +55,4 @@ func (ch *ClientHub) findClient(name string) (client *Client, ok bool) {
 
 	client, ok = ch.hub[name]
 	return
-}
-
-
-var _singleClientHub *ClientHub
-var _singleClientHubOnce sync.Once
-
-//ActiveClientHub 激活单例ClientHub
-//第一次调用时，必须带有context 参数
-//context 需包含一个 pool.MessageHandler，用于处理ClientHub收到的消息
-func ActiveClientHub(ctx context.Context) bool {
-
-	_singleClientHubOnce.Do(func () {
-
-		_singleClientHub = newClientHub(ctx)
-	})
-	return _singleClientHub != nil
 }
