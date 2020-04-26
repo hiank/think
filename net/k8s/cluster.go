@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -21,7 +22,7 @@ const (
 ) 
 
 //ServiceNameWithPort 通过消息名 得到服务名与端口号连接字符串
-func ServiceNameWithPort(clusterType int, serviceName string, portName string) (addrWithPort string, err error) {
+func ServiceNameWithPort(ctx context.Context, clusterType int, serviceName string, portName string) (addrWithPort string, err error) {
 
 	var clientset *kubernetes.Clientset
 	switch (clusterType) {
@@ -34,7 +35,7 @@ func ServiceNameWithPort(clusterType int, serviceName string, portName string) (
 		return
 	}
 
-	service, err := clientset.CoreV1().Services("think").Get(serviceName, meta_v1.GetOptions{})
+	service, err := clientset.CoreV1().Services("think").Get(ctx, serviceName, meta_v1.GetOptions{})
 	if err != nil {
 		glog.Error("cann't get service named : " + serviceName + " : " + err.Error())
 		return

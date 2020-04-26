@@ -86,7 +86,7 @@ func (c *Client) dial(name string) (cc *grpc.ClientConn, err error) {
 
 	defer robust.Recover(robust.Warning)
 
-	addr, err := ServiceNameWithPort(TypeKubIn, name + "-service", "grpc")
+	addr, err := ServiceNameWithPort(c.ctx, TypeKubIn, name + "-service", "grpc")
 	robust.Panic(err)
 
 	cc, err = grpc.DialContext(c.ctx, addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name))		//NOTE: block 为阻塞知道ready，insecure 为不需要验证的

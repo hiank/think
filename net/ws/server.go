@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -10,6 +11,7 @@ import (
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
 	"github.com/hiank/think/utils"
+	"github.com/hiank/think/utils/health"
 	"github.com/hiank/think/utils/robust"
 )
 
@@ -80,12 +82,17 @@ func (w Writer) Handle(msg *pool.Message) error {
 func ListenAndServe(ctx context.Context, ip string, msgHandler pool.MessageHandler) (err error) {
 
 	if _singleServer != nil {
-		glog.Fatal("websocket server existed, cann't start another one.")
+		err = errors.New("websocket server existed, cann't start another one")
+		glog.Fatal(err)
+		return
 	}
 
 	_singleServer = newServer(ctx, msgHandler)
 	defer _singleServer.Close()
 
 	http.Handle("/ws", _singleServer)
-	return http.ListenAndServe(utils.WithPort(ip, settings.GetSys().WsPort), nil)
+	server := &http.Server{Addr: utils.WithPort(ip, settings.GetSys().WsPort)}
+	go health.MonitorHealth(ctx, func(){server.Close()})
+	return server.ListenAndServe()
+	// return http.ListenAndServe(utils.WithPort(ip, settings.GetSys().WsPort), nil)
 }

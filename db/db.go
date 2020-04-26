@@ -1,6 +1,8 @@
 package db
 
 import (
+	"context"
+
 	"github.com/go-redis/redis"
 	"github.com/golang/glog"
 	"github.com/hiank/think/net/k8s"
@@ -8,7 +10,7 @@ import (
 
 func DialToRedis() {
 
-	addr, err := k8s.ServiceNameWithPort(k8s.TypeKubIn, "redis-master", "redis")
+	addr, err := k8s.ServiceNameWithPort(context.Background(), k8s.TypeKubIn, "redis-master", "redis")
 	if err != nil {
 
 		glog.Error(err)

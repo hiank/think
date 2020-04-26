@@ -26,4 +26,4 @@ func (i IgnorePost) HandlePost(*pb.Message) (err error) {return}
 //IgnoreStream 忽略Stream 实现
 type IgnoreStream int
 //Handle 用于忽略Handle
-func (i IgnoreStream) Handle(*pb.Message) (err error) {return}
+func (i IgnoreStream) Handle(*pool.Message) (err error) {return}

@@ -2,16 +2,18 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 
-	"github.com/golang/glog"
 	tg "github.com/hiank/think/net/k8s/protobuf"
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/settings"
 	"github.com/hiank/think/token"
 	"github.com/hiank/think/utils"
+	"github.com/hiank/think/utils/health"
+	"github.com/hiank/think/utils/robust"
 	"google.golang.org/grpc"
 )
 
@@ -34,23 +36,20 @@ func newServer(ctx context.Context, msgHandler MessageHandler) *Server {
 //Link operate 'stream' type message
 func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 
+	defer robust.Recover(robust.Warning)
+
 	var msg *pb.Message
-	if msg, err = ls.Recv(); err != nil {
-		return
-	}
+	msg, err = ls.Recv()
+	robust.Panic(err)
 
 	tok, err := token.GetBuilder().Get(msg.GetToken())
-	if err != nil {
-		glog.Warning("cann't get token from token.GetBuilder(): ", err)
-		return
-	}
+	robust.Panic(err)
 	return s.Listen(tok, ls)
 }
 
 //Donce respond TypeGET | TypePOST message
 func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, err error) {
 
-	glog.Infoln("do k8s Donce : ", req)
 	select {
 	case <-ctx.Done():
 		err = http.ErrServerClosed
@@ -75,8 +74,9 @@ type Writer int
 //Handle 实现pool.MessageHandler
 func (w Writer) Handle(msg *pool.Message) error {
 
+	defer robust.Recover(robust.Fatal)
 	if _singleServer != nil {
-		glog.Fatalf("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)")
+		robust.Panic(errors.New("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)"))
 	}
 	_singleServer.Pool.Post(msg)
 	return nil
@@ -86,15 +86,16 @@ func (w Writer) Handle(msg *pool.Message) error {
 // ListenAndServe start a PipeServer
 func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (err error) {
 
+	defer robust.Recover(robust.Fatal)
+
 	if _singleServer != nil {
-		glog.Fatal("k8s server existed, cann't start another one.")
+		err = errors.New("k8s server existed, cann't start another one")
+		robust.Panic(err)
 	}
 
-	lis, err := net.Listen("tcp", utils.WithPort(ip, settings.GetSys().K8sPort))
-	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
-		return
-	}
+	var lc net.ListenConfig
+	lis, err := lc.Listen(ctx, "tcp", utils.WithPort(ip, settings.GetSys().K8sPort))
+	robust.Panic(err)
 
 	grpcServer := grpc.NewServer()
 	defer grpcServer.Stop()
@@ -103,5 +104,6 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (
 	defer _singleServer.Close()
 
 	tg.RegisterPipeServer(grpcServer, _singleServer)
+	go health.MonitorHealth(ctx, func(){grpcServer.Stop()})
 	return grpcServer.Serve(lis)
 }

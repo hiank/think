@@ -26,6 +26,7 @@ func GetRuntime() *Runtime {
 		go func ()  {
 			<-_singleRuntime.Done()
 			_singleRuntime = nil
+			_singleRuntimeOnce = sync.Once{}
 		}()
 	})
 	return _singleRuntime
