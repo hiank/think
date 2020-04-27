@@ -69,8 +69,8 @@ github.com/gorilla/websocket v1.4.1/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/ad
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
-github.com/hiank/conf v0.0.0-20200118080503-bd23c9a11bff h1:1ZcrD5Nczy4NXUhqFCmP32E/+u2OeisBTXWAwf3tqhA=
-github.com/hiank/conf v0.0.0-20200118080503-bd23c9a11bff/go.mod h1:l1AoPz3Ff+r1p/uJaX8OI5jkZQ3OFEItIQ5NrbD89XE=
+github.com/hiank/conf v0.0.2 h1:OxBPJT5tz+13uPjqZMg5IKsQKSeaOYHMivoPThOaMAs=
+github.com/hiank/conf v0.0.2/go.mod h1:l1AoPz3Ff+r1p/uJaX8OI5jkZQ3OFEItIQ5NrbD89XE=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJh5FfA=

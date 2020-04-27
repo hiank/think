@@ -2,6 +2,7 @@ package settings
 
 import (
 	"testing"
+	"github.com/hiank/conf"
 	"gotest.tools/v3/assert"
 )
 
@@ -17,7 +18,7 @@ func TestDefaultValue(t *testing.T) {
 
 func TestCustomValue(t *testing.T) {
 
-	LoadFromFile(GetSys(), "./settings_test.json")
+	conf.LoadFromFile(GetSys(), "./settings_test.json")
 	assert.Equal(t, GetSys().WsPort, int16(1024))
 	assert.Equal(t, GetSys().K8sPort, int16(8026))
 }
