@@ -3,10 +3,9 @@ package token
 import (
 	"testing"
 	"time"
+
 	"gotest.tools/v3/assert"
 )
-
-
 
 func TestGet(t *testing.T) {
 
@@ -17,7 +16,6 @@ func TestGet(t *testing.T) {
 	}
 	// assert.Assert(t, false)
 }
-
 
 func TestFind(t *testing.T) {
 
@@ -47,7 +45,6 @@ func TestDelete(t *testing.T) {
 	assert.Assert(t, !ok)
 }
 
-
 //NOTE: 测试单例调用
 func TestCancel(t *testing.T) {
 
@@ -56,6 +53,6 @@ func TestCancel(t *testing.T) {
 	assert.Assert(t, GetBuilder() != nilVal)
 	GetBuilder().Cancel()
 
-	time.Sleep(1000)			//NOTE: 需要等待监听goroutine 处理ctx.Done()
+	time.Sleep(1000) //NOTE: 需要等待监听goroutine 处理ctx.Done()
 	assert.Equal(t, GetBuilder(), nilVal)
 }

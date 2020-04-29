@@ -11,17 +11,14 @@ import (
 	"google.golang.org/grpc/balancer/roundrobin"
 )
 
-
 //Client k8s 客户端，每一个服务对应一个Client，连接池不关心
 type Client struct {
+	ctx   context.Context
+	Close context.CancelFunc
 
-	ctx 		context.Context
-	Close 		context.CancelFunc
-
-	*pool.MessageHub 						//NOTE: 用于统一处理需要通过当前client 处理的消
-	pool 		*pool.Pool 					//NOTE: 每个token 对应一个pipe
+	*pool.MessageHub            //NOTE: 用于统一处理需要通过当前client 处理的消
+	pool             *pool.Pool //NOTE: 每个token 对应一个pipe
 }
-
 
 //newClient 构建新的 Client，service 包含端口号
 func newClient(ctx context.Context, name string) *Client {
@@ -35,7 +32,6 @@ func newClient(ctx context.Context, name string) *Client {
 	return c
 }
 
-
 func (c *Client) loop(name string, msgChan <-chan *pool.Message) {
 
 	cc, err := c.dial(name)
@@ -44,13 +40,15 @@ func (c *Client) loop(name string, msgChan <-chan *pool.Message) {
 	}
 	defer cc.Close()
 
-	c.LockReq() <- false		//NOTE: 解锁消息hub
+	c.LockReq() <- false //NOTE: 解锁消息hub
 	hubMap := make(map[string]*pool.MessageHub)
-	L: for {
+L:
+	for {
 
 		select {
-		case <-c.ctx.Done(): break L
-		case msg :=<-msgChan:		//NOTE: 这个消息时候 c.hub 发过来的
+		case <-c.ctx.Done():
+			break L
+		case msg := <-msgChan: //NOTE: 这个消息时候 c.hub 发过来的
 			tok, _ := token.GetBuilder().Get(msg.GetToken())
 			hub, ok := hubMap[tok.ToString()]
 			if !ok {
@@ -63,13 +61,11 @@ func (c *Client) loop(name string, msgChan <-chan *pool.Message) {
 	}
 }
 
-
 // //Push 推送消息，此处在调用pool.Post 之前，需要先确保msg 在pool中
 // func (c *Client) Push(msg *pool.Message) {
 
 // 	c.hub.Push(msg)		//NOTE: c.hub 在dial完成之前，一直处于locked 状态，加入的消息都会缓存
 // }
-
 
 //listenPipe 监听pipe
 func (c *Client) listenPipe(tok *token.Token, pipeClient tg.PipeClient, lockReq chan<- bool) {
@@ -80,16 +76,15 @@ func (c *Client) listenPipe(tok *token.Token, pipeClient tg.PipeClient, lockReq 
 	lockReq <- !(<-added).(bool)
 }
 
-
 //dial 建立，需要检测返回cc 的状态
 func (c *Client) dial(name string) (cc *grpc.ClientConn, err error) {
 
 	defer robust.Recover(robust.Warning)
 
-	addr, err := ServiceNameWithPort(c.ctx, TypeKubIn, name + "-service", "grpc")
+	addr, err := ServiceNameWithPort(c.ctx, TypeKubIn, name+"-service", "grpc")
 	robust.Panic(err)
 
-	cc, err = grpc.DialContext(c.ctx, addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name))		//NOTE: block 为阻塞知道ready，insecure 为不需要验证的
+	cc, err = grpc.DialContext(c.ctx, addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name)) //NOTE: block 为阻塞知道ready，insecure 为不需要验证的
 	robust.Panic(err)
 	return
 }

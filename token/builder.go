@@ -11,18 +11,17 @@ import (
 
 //Builder 用于构建Token
 type Builder struct {
+	ctx    context.Context    //NOTE: Builder 的基础Context
+	Cancel context.CancelFunc //NOTE: 需要关闭时调用，关闭所有token
 
-	ctx 	context.Context				//NOTE: Builder 的基础Context
-	Cancel 	context.CancelFunc			//NOTE: 需要关闭时调用，关闭所有token
-
-	hub 	map[string]*Token 			//NOTE: map[tokenStr]*Token
-	rw		sync.RWMutex				//NOTE: 读写锁
+	hub map[string]*Token //NOTE: map[tokenStr]*Token
+	rw  sync.RWMutex      //NOTE: 读写锁
 }
 
 func newBuilder() *Builder {
 
-	builder := &Builder {
-		hub : make(map[string]*Token),
+	builder := &Builder{
+		hub: make(map[string]*Token),
 	}
 	builder.ctx, builder.Cancel = context.WithCancel(context.Background())
 
@@ -34,18 +33,19 @@ func newBuilder() *Builder {
 func (b *Builder) healthMonitoring() {
 
 	interval := time.Duration(settings.GetSys().ClearInterval) * time.Second
-	L: for {
+L:
+	for {
 		select {
 		case <-b.ctx.Done():
 			_singleBuilder = nil
 			break L
-		case <-time.After(interval):		//NOTE: 定时检查Token 超时
+		case <-time.After(interval): //NOTE: 定时检查Token 超时
 			for _, tok := range b.hub {
 				select {
-				case <-tok.Value(TimerKey).(*time.Timer).C:		//NOTE: 如果某个tok 超时，关闭此token
+				case <-tok.Value(TimerKey).(*time.Timer).C: //NOTE: 如果某个tok 超时，关闭此token
 					tok.Cancel()
 				default:
-				}				
+				}
 			}
 		}
 	}
@@ -61,7 +61,6 @@ func (b *Builder) Find(tokenStr string) (*Token, bool) {
 	return token, ok
 }
 
-
 //Build build a *Token with string key
 //Deprecated: Use Get instead
 func (b *Builder) Build(tokenStr string) (token *Token, err error) {
@@ -73,7 +72,7 @@ func (b *Builder) Build(tokenStr string) (token *Token, err error) {
 		err = errors.New("token '" + tokenStr + "' existed in cluster")
 		return
 	}
-	token, _ = newToken(context.WithValue(b.ctx, IdentityKey, tokenStr))		//NOTE: 此处一定不会触发error
+	token, _ = newToken(context.WithValue(b.ctx, IdentityKey, tokenStr)) //NOTE: 此处一定不会触发error
 	b.hub[tokenStr] = token
 	return
 }
@@ -82,11 +81,10 @@ func (b *Builder) Build(tokenStr string) (token *Token, err error) {
 func (b *Builder) Get(tokenStr string) (*Token, error) {
 
 	if tk, ok := b.Find(tokenStr); ok {
-		return tk, nil				//NOTE: already owned tk, back it 
+		return tk, nil //NOTE: already owned tk, back it
 	}
-	return b.Build(tokenStr)		//NOTE: 
+	return b.Build(tokenStr) //NOTE:
 }
-
 
 //Delete delete *Token with string key
 func (b *Builder) Delete(tokenStr string) {
@@ -97,17 +95,15 @@ func (b *Builder) Delete(tokenStr string) {
 	delete(b.hub, tokenStr)
 }
 
-
 var _singleBuilder *Builder
 var _singleBuilderOnce sync.Once
 
 //GetBuilder return singleton tokenBuilder object
 func GetBuilder() *Builder {
 
-	_singleBuilderOnce.Do(func () {
+	_singleBuilderOnce.Do(func() {
 
 		_singleBuilder = newBuilder()
 	})
 	return _singleBuilder
 }
-

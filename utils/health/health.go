@@ -9,6 +9,5 @@ func MonitorHealth(ctx context.Context, handle Handle) {
 	handle()
 }
 
-
 //Handle 健康检查有问题后调用
 type Handle func()

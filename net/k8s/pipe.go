@@ -11,21 +11,19 @@ import (
 
 //Pipe ConnHandler for client conn
 type Pipe struct {
+	ctx  context.Context
+	pipe tg.PipeClient
 
-	ctx 		context.Context
-	pipe 		tg.PipeClient
-
-	recvChan 	chan *pb.Message
-	stream 		tg.Pipe_LinkClient		//NOTE: 
+	recvChan chan *pb.Message
+	stream   tg.Pipe_LinkClient //NOTE:
 }
-
 
 func newPipe(ctx context.Context, pipe tg.PipeClient) *Pipe {
 
 	return &Pipe{
-		ctx: 		ctx,
-		pipe: 		pipe,
-		recvChan: 	make(chan *pb.Message),
+		ctx:      ctx,
+		pipe:     pipe,
+		recvChan: make(chan *pb.Message),
 	}
 }
 
@@ -42,13 +40,13 @@ func (p *Pipe) Send(msg *pb.Message) (err error) {
 	switch t {
 	case pb.TypeGET:
 		if msg, err = p.pipe.Donce(p.ctx, msg); err != nil {
-			p.recvChan <- msg		//NOTE: TypeGET消息转送到Recv 接口
+			p.recvChan <- msg //NOTE: TypeGET消息转送到Recv 接口
 		}
 	case pb.TypePOST:
 		_, err = p.pipe.Donce(p.ctx, msg)
 	case pb.TypeSTREAM:
 		err = p.sendByLink(msg)
-	default: 			
+	default:
 		err = errors.New("cann't operate message type undefined")
 	}
 	if err != nil {
@@ -60,13 +58,12 @@ func (p *Pipe) Send(msg *pb.Message) (err error) {
 //Recv 将消息转换到此接口
 func (p *Pipe) Recv() (msg *pb.Message, err error) {
 
-	var ok bool 
-	if msg, ok = <- p.recvChan; !ok {
+	var ok bool
+	if msg, ok = <-p.recvChan; !ok {
 		err = errors.New("k8s client read chan closed")
 	}
 	return
 }
-
 
 func (p *Pipe) sendByLink(msg *pb.Message) (err error) {
 
@@ -84,10 +81,10 @@ func (p *Pipe) sendByLink(msg *pb.Message) (err error) {
 	return
 }
 
-
 func (p *Pipe) loopReadFromLink(stream tg.Pipe_LinkClient) {
 
-	L: for {
+L:
+	for {
 		select {
 		case <-p.ctx.Done():
 			break L
@@ -101,5 +98,3 @@ func (p *Pipe) loopReadFromLink(stream tg.Pipe_LinkClient) {
 		}
 	}
 }
-
-

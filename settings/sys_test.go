@@ -2,10 +2,10 @@ package settings
 
 import (
 	"testing"
+
 	"github.com/hiank/conf"
 	"gotest.tools/v3/assert"
 )
-
 
 func TestDefaultValue(t *testing.T) {
 
@@ -14,7 +14,6 @@ func TestDefaultValue(t *testing.T) {
 	assert.Equal(t, GetSys().MessageGo, 1000)
 	assert.Equal(t, GetSys().ClearInterval, 10)
 }
-
 
 func TestCustomValue(t *testing.T) {
 

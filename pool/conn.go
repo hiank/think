@@ -13,59 +13,59 @@ import (
 
 //conn 用于管理连接
 type conn struct {
-	*tk.Token   		//NOTE：用于维护生命周期
-	rw 		IO 				//NOTE: 读写Message
-	hub 	*MessageHub		//NOTE: 待发送 MessageHub
+	*tk.Token             //NOTE：用于维护生命周期
+	rw        IO          //NOTE: 读写Message
+	hub       *MessageHub //NOTE: 待发送 MessageHub
 
-	exit 	chan error		//NOTE: 退出指令，当读或写消息出错后，通知此chan，用于退出Listen，并结束Conn
+	exit chan error //NOTE: 退出指令，当读或写消息出错后，通知此chan，用于退出Listen，并结束Conn
 }
 
 //newConn 构建新的conn
 func newConn(tok *tk.Token, rw IO) *conn {
 
 	c := &conn{
-		Token: 	tok,
-		rw: 	rw,
-		exit: 	make(chan error),
+		Token: tok,
+		rw:    rw,
+		exit:  make(chan error),
 	}
 	c.hub = NewMessageHub(tok, c)
-	c.hub.LockReq() <- false				//NOTE: 不需要加锁等待，所有待处理的数据可以立即执行
+	c.hub.LockReq() <- false //NOTE: 不需要加锁等待，所有待处理的数据可以立即执行
 	return c
 }
-
 
 //Listen 开启监听，每个conn 只有第一次调用，才生效
 //一切正常的话，会阻塞在读消息通道中
 func (c *conn) Listen(readHandler MessageHandler) error {
 
 	select {
-	case <-c.Done(): return errors.New("conn tokend " + c.ToString() + " Done")
+	case <-c.Done():
+		return errors.New("conn tokend " + c.ToString() + " Done")
 	default:
 	}
 
-	go c.loopRead(readHandler)			//NOTE: 起一个读协程
-	err := <- c.exit
+	go c.loopRead(readHandler) //NOTE: 起一个读协程
+	err := <-c.exit
 	c.Cancel()
 	return err
 }
-
 
 //Handle 发送消息
 func (c *conn) Handle(msg *Message) error {
 
 	select {
-	case <-msg.Done(): return errors.New("message's context was done")		//NOTE: 要发送的消息绑定的context 关闭了
-	case <-c.Done(): return errors.New("conn's context was done")
+	case <-msg.Done():
+		return errors.New("message's context was done") //NOTE: 要发送的消息绑定的context 关闭了
+	case <-c.Done():
+		return errors.New("conn's context was done")
 	default:
 	}
-	if err := c.rw.Send(msg.Message); err != nil {		//NOTE: 发送失败，人物连接出了问题，退出[此处可能需要优化]
+	if err := c.rw.Send(msg.Message); err != nil { //NOTE: 发送失败，人物连接出了问题，退出[此处可能需要优化]
 		c.exit <- err
 		return err
 	}
-	c.ResetTimer()								//NOTE: 发送成功的话，重置超时定时器
+	c.ResetTimer() //NOTE: 发送成功的话，重置超时定时器
 	return nil
 }
-
 
 //Send 发送消息，同步
 func (c *conn) Send(msg *Message) error {
@@ -75,14 +75,14 @@ func (c *conn) Send(msg *Message) error {
 	return <-errChan
 }
 
-
 //loopRead 循环读消息
 func (c *conn) loopRead(handler MessageHandler) {
 
-	L: for {
+L:
+	for {
 
 		select {
-		case <-c.Done(): 
+		case <-c.Done():
 			c.exit <- errors.New("conn's token Done")
 			break L
 		default:
@@ -92,17 +92,15 @@ func (c *conn) loopRead(handler MessageHandler) {
 			c.exit <- err
 			break L
 		}
-		c.ResetTimer()				//NOTE: 收到消息成功时，重置超时定时器
+		c.ResetTimer() //NOTE: 收到消息成功时，重置超时定时器
 		if err = handler.Handle(NewMessage(msg, c.Derive())); err != nil {
-			glog.Warning("conn tokend " + c.ToString(), err)
+			glog.Warning("conn tokend "+c.ToString(), err)
 		}
 	}
 }
- 
 
 //IO 收发接口
 type IO interface {
-	Recv() (*pb.Message, error) 	//NOTE: 接收Message
-	Send(*pb.Message) error     	//NOTE: 发送Message
+	Recv() (*pb.Message, error) //NOTE: 接收Message
+	Send(*pb.Message) error     //NOTE: 发送Message
 }
-

@@ -19,13 +19,12 @@ func TestCloseWS(t *testing.T) {
 	}()
 
 	go func() {
-		<- time.After(time.Second)
-		net.GetRuntime().Close()	
+		<-time.After(time.Second)
+		net.GetRuntime().Close()
 	}()
-	err := <- exit
+	err := <-exit
 	assert.Equal(t, err, http.ErrServerClosed)
 }
-
 
 type testK8sHandler struct {
 	k8s.IgnoreStream
@@ -42,9 +41,9 @@ func TestCloseK8s(t *testing.T) {
 	}()
 
 	go func() {
-		<- time.After(time.Second)
+		<-time.After(time.Second)
 		net.GetRuntime().Close()
 	}()
-	err := <- exit
+	err := <-exit
 	assert.Equal(t, err, nil)
 }

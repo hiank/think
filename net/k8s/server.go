@@ -19,17 +19,16 @@ import (
 
 //Server k8s server
 type Server struct {
-
-	handler 	MessageHandler
-	*pool.Pool			//NOTE: server 包含一个连接池，用于处理服务端的连接
+	handler    MessageHandler
+	*pool.Pool //NOTE: server 包含一个连接池，用于处理服务端的连接
 }
 
 //newServer instantiate a Server
 func newServer(ctx context.Context, msgHandler MessageHandler) *Server {
 
-	return &Server {
-		handler : msgHandler,
-		Pool 	: pool.NewPool(context.WithValue(ctx, pool.CtxKeyRecvHandler, msgHandler)),
+	return &Server{
+		handler: msgHandler,
+		Pool:    pool.NewPool(context.WithValue(ctx, pool.CtxKeyRecvHandler, msgHandler)),
 	}
 }
 
@@ -54,7 +53,7 @@ func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, e
 	case <-ctx.Done():
 		err = http.ErrServerClosed
 	default:
-		t, _ := pb.GetServerType(req.GetData())		//NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
+		t, _ := pb.GetServerType(req.GetData()) //NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
 		switch t {
 		case pb.TypeGET:
 			res, err = s.handler.HandleGet(req)
@@ -65,11 +64,10 @@ func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, e
 	return
 }
 
-
 var _singleServer *Server
 
 //Writer 服务端写消息对象
-type Writer int 
+type Writer int
 
 //Handle 实现pool.MessageHandler
 func (w Writer) Handle(msg *pool.Message) error {
@@ -81,7 +79,6 @@ func (w Writer) Handle(msg *pool.Message) error {
 	_singleServer.Pool.Post(msg)
 	return nil
 }
-
 
 // ListenAndServe start a PipeServer
 func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (err error) {
@@ -104,6 +101,6 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler MessageHandler) (
 	defer _singleServer.Close()
 
 	tg.RegisterPipeServer(grpcServer, _singleServer)
-	go health.MonitorHealth(ctx, func(){grpcServer.Stop()})
+	go health.MonitorHealth(ctx, func() { grpcServer.Stop() })
 	return grpcServer.Serve(lis)
 }

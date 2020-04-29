@@ -1,6 +1,5 @@
 package pool_test
 
-
 import (
 	"container/list"
 	"testing"
@@ -13,12 +12,12 @@ func TestListRemove(t *testing.T) {
 
 	queue := list.New()
 	// queue.PushBack(1)
-	for i:=0; i<10; i++ {
+	for i := 0; i < 10; i++ {
 		queue.PushBack(i)
 	}
 
 	num := 0
-	element:=queue.Front()
+	element := queue.Front()
 	for element != nil {
 
 		tmp := element
@@ -35,7 +34,7 @@ func TestListRemove2(t *testing.T) {
 
 	queue := list.New()
 	// queue.PushBack(1)
-	for i:=0; i<10; i++ {
+	for i := 0; i < 10; i++ {
 		queue.PushBack(i)
 	}
 
@@ -55,10 +54,9 @@ func TestChan(t *testing.T) {
 			num++
 		}
 	}()
-	ok <- true			//NOTE：这个地方证明，chan 写入也是会阻塞的
+	ok <- true //NOTE：这个地方证明，chan 写入也是会阻塞的
 	assert.Equal(t, num, 1)
 }
-
 
 func TestChanCloseThenRead(t *testing.T) {
 
@@ -72,17 +70,14 @@ func TestChanCloseThenRead(t *testing.T) {
 //test pool api Has
 func TestHas(t *testing.T) {
 
-
 }
 
 //test pool api Post
 func TestPost(t *testing.T) {
 
-
 }
 
 //test pool api PostAndWait
 func TestPostAndWait(t *testing.T) {
-
 
 }

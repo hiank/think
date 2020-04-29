@@ -11,10 +11,9 @@ import (
 
 //ClientHub 管理所有client
 type ClientHub struct {
-
-	mtx 	sync.RWMutex					//NOTE: 读写锁，因为client 可能会被异步创建，所以需要
-	ctx 	context.Context
-	hub 	map[string]*Client				//NOTE: 用于保存client
+	mtx sync.RWMutex //NOTE: 读写锁，因为client 可能会被异步创建，所以需要
+	ctx context.Context
+	hub map[string]*Client //NOTE: 用于保存client
 }
 
 //NewClientHub 构建一个全新的ClientHub 用于处理消息，将消息转发到相关k8s 服务中
@@ -22,8 +21,8 @@ type ClientHub struct {
 func NewClientHub(ctx context.Context) *ClientHub {
 
 	return &ClientHub{
-		ctx 	: ctx,
-		hub 	: make(map[string]*Client),
+		ctx: ctx,
+		hub: make(map[string]*Client),
 	}
 }
 
@@ -36,7 +35,7 @@ func (ch *ClientHub) Handle(msg *pool.Message) error {
 		return err
 	}
 
-	client, ok := ch.findClient(name)//ch.hub[name]
+	client, ok := ch.findClient(name) //ch.hub[name]
 	if !ok {
 		ch.mtx.Lock()
 		defer ch.mtx.Unlock()
@@ -46,7 +45,6 @@ func (ch *ClientHub) Handle(msg *pool.Message) error {
 	client.Push(msg)
 	return nil
 }
-
 
 func (ch *ClientHub) findClient(name string) (client *Client, ok bool) {
 

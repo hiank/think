@@ -17,16 +17,15 @@ import (
 
 //Server websocket server
 type Server struct {
-
-	upgrader *websocket.Upgrader	//NOTE: use default options
-	*pool.Pool						//NOTE: 连接池
+	upgrader   *websocket.Upgrader //NOTE: use default options
+	*pool.Pool                     //NOTE: 连接池
 }
 
 func newServer(ctx context.Context, msgHandler pool.MessageHandler) *Server {
 
-	return &Server {
-		upgrader 	: new(websocket.Upgrader),
-		Pool 		: pool.NewPool(context.WithValue(ctx, pool.CtxKeyRecvHandler, msgHandler)),
+	return &Server{
+		upgrader: new(websocket.Upgrader),
+		Pool:     pool.NewPool(context.WithValue(ctx, pool.CtxKeyRecvHandler, msgHandler)),
 	}
 }
 
@@ -34,13 +33,13 @@ func newServer(ctx context.Context, msgHandler pool.MessageHandler) *Server {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	tokenArr := r.Header["Token"]
-	if  len(tokenArr) == 0 {
-		http.Error(w, "Non token component of the query", http.StatusNonAuthoritativeInfo)		//NOTE: 没有包含token
+	if len(tokenArr) == 0 {
+		http.Error(w, "Non token component of the query", http.StatusNonAuthoritativeInfo) //NOTE: 没有包含token
 		return
 	}
 	tokenStr := tokenArr[0]
 	if !s.auth(tokenStr) {
-		http.Error(w, "token auth fataled", http.StatusUnauthorized)		//NOTE: token 认证失败
+		http.Error(w, "token auth fataled", http.StatusUnauthorized) //NOTE: token 认证失败
 		return
 	}
 
@@ -52,7 +51,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tok, err := token.GetBuilder().Get(tokenStr)
 	robust.Panic(err)
 
-	robust.Panic(s.Listen(tok, &Handler{Conn:c, tokenStr: tokenStr}))
+	robust.Panic(s.Listen(tok, &Handler{Conn: c, tokenStr: tokenStr}))
 }
 
 //auth 认证token
@@ -61,11 +60,10 @@ func (s *Server) auth(tokenStr string) bool {
 	return true
 }
 
-
-var _singleServer *Server		//NOTE: 全局唯一的websocket server
+var _singleServer *Server //NOTE: 全局唯一的websocket server
 
 //Writer 写消息对象
-type Writer int 
+type Writer int
 
 //Handle 实现pool.MessageHandler
 func (w Writer) Handle(msg *pool.Message) error {
@@ -92,7 +90,7 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler pool.MessageHandl
 
 	http.Handle("/ws", _singleServer)
 	server := &http.Server{Addr: utils.WithPort(ip, settings.GetSys().WsPort)}
-	go health.MonitorHealth(ctx, func(){server.Close()})
+	go health.MonitorHealth(ctx, func() { server.Close() })
 	return server.ListenAndServe()
 	// return http.ListenAndServe(utils.WithPort(ip, settings.GetSys().WsPort), nil)
 }

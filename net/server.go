@@ -8,7 +8,6 @@ import (
 	"github.com/hiank/think/pool"
 )
 
-
 //ServeK8s 启动一个k8s服务，同一个进程只能有一个k8s服务
 func ServeK8s(ip string, msgHandler k8s.MessageHandler) error {
 
@@ -21,4 +20,3 @@ func ServeWS(ip string) error {
 
 	return ws.ListenAndServe(GetRuntime().Context, ip, k8s.NewClientHub(context.WithValue(GetRuntime().Context, pool.CtxKeyRecvHandler, new(ws.Writer))))
 }
-

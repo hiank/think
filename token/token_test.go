@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+
 	"gotest.tools/v3/assert"
 )
 
@@ -16,7 +17,7 @@ func TestMapDelete(t *testing.T) {
 	m["1"] = 10
 
 	delete(m, "1")
-	delete(m, "2")		//NOTE: 测试删除不存在的元素
+	delete(m, "2") //NOTE: 测试删除不存在的元素
 	t.Log(m)
 }
 
@@ -24,7 +25,7 @@ func TestOnceDo(t *testing.T) {
 
 	var once sync.Once
 	num := 0
-	onceFunc := func ()  {
+	onceFunc := func() {
 		num++
 	}
 	once.Do(onceFunc)
@@ -32,8 +33,8 @@ func TestOnceDo(t *testing.T) {
 	assert.Equal(t, num, 1)
 
 	num2 := 0
-	once.Do(func ()  {
-	
+	once.Do(func() {
+
 		num++
 		num2++
 	})
@@ -41,12 +42,11 @@ func TestOnceDo(t *testing.T) {
 	assert.Equal(t, num, 1)
 }
 
-
 func TestAsyncOnceDo(t *testing.T) {
 
 	num := 0
-	onceFunc := func ()  {
-		
+	onceFunc := func() {
+
 		time.Sleep(1000)
 		num++
 	}
@@ -54,24 +54,24 @@ func TestAsyncOnceDo(t *testing.T) {
 	ch := make(chan int, 2)
 	var once sync.Once
 
-	go func ()  {
-		
+	go func() {
+
 		once.Do(onceFunc)
 		t.Log("1")
 		assert.Equal(t, num, 1)
 		ch <- 1
 	}()
 
-	go func () {
-		
+	go func() {
+
 		once.Do(onceFunc)
 		t.Log("2")
 		assert.Equal(t, num, 1)
 		ch <- 2
 	}()
 
-	<- ch
-	<- ch
+	<-ch
+	<-ch
 	t.Log("3")
 }
 
@@ -93,8 +93,8 @@ func TestContextDone(t *testing.T) {
 
 	num, wait := 0, new(sync.WaitGroup)
 	wait.Add(2)
-	doneFunc := func ()  {
-		
+	doneFunc := func() {
+
 		<-ctx.Done()
 		num++
 		wait.Done()
@@ -102,7 +102,7 @@ func TestContextDone(t *testing.T) {
 	go doneFunc()
 	go doneFunc()
 
-	go func ()  {
+	go func() {
 		<-time.After(time.Second)
 		cancel()
 	}()
@@ -118,20 +118,20 @@ func TestConextCancel(t *testing.T) {
 	// ctx1, cancel1 := context.WithCancel(ctx)
 	wait := new(sync.WaitGroup)
 	wait.Add(1)
-	go func (ctx context.Context) {
+	go func(ctx context.Context) {
 
 		ctx1, cancel1 := context.WithCancel(ctx)
 		select {
 		case <-ctx1.Done():
 			t.Log("2", ctx1.Done())
 			cancel1()
-			cancel1()				//NOTE: 经过测试，cancel 可以多次调用。父Context关闭，子Context 可以接收到Done
-		// case <-ctx.Done():
-		// 	t.Log("1", ctx.Err())
-		// 	cancel1()
+			cancel1() //NOTE: 经过测试，cancel 可以多次调用。父Context关闭，子Context 可以接收到Done
+			// case <-ctx.Done():
+			// 	t.Log("1", ctx.Err())
+			// 	cancel1()
 		}
 		wait.Done()
-	} (ctx)
+	}(ctx)
 
 	<-time.After(time.Second)
 
@@ -144,12 +144,11 @@ func TestListRemove(t *testing.T) {
 	queue := list.New()
 	element := queue.PushBack(1)
 	queue.Init()
-	queue.Remove(element)		//NOTE: 测试表明，经过Init 之后，某个已知的element 状态不会重置，导致再删的时候，会错乱
+	queue.Remove(element) //NOTE: 测试表明，经过Init 之后，某个已知的element 状态不会重置，导致再删的时候，会错乱
 
 	queue.PushBack(2)
 	assert.Equal(t, queue.Len(), 0)
 }
-
 
 func TestTokenCancel(t *testing.T) {
 

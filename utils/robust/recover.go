@@ -4,9 +4,9 @@ import "github.com/golang/glog"
 
 //处理异常等级
 const (
-	Info 	= iota
+	Info = iota
 	Warning
-	Error 
+	Error
 	Fatal
 	Exit
 )
@@ -16,11 +16,16 @@ func Recover(level int, arr ...ErrorHandle) {
 
 	if r := recover(); r != nil {
 		switch level {
-		case Info:		glog.Info(r)
-		case Warning:	glog.Warning(r)
-		case Error:		glog.Error(r)
-		case Fatal:		glog.Fatal(r)
-		case Exit:		glog.Exit(r)
+		case Info:
+			glog.Info(r)
+		case Warning:
+			glog.Warning(r)
+		case Error:
+			glog.Error(r)
+		case Fatal:
+			glog.Fatal(r)
+		case Exit:
+			glog.Exit(r)
 		}
 		for _, handle := range arr {
 			handle(r)
