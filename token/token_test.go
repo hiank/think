@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hiank/think/settings"
 	"gotest.tools/v3/assert"
 )
 
@@ -152,39 +153,86 @@ func TestListRemove(t *testing.T) {
 
 func TestTokenCancel(t *testing.T) {
 
-	tk, _ := newToken(context.WithValue(context.Background(), IdentityKey, 1001))
+	tk, _ := newToken(context.WithValue(context.Background(), IdentityKey, "1001"))
 	derivedToken := tk.Derive()
-	// assert.Equal(t, derivedToken.Value(contextKey(1)).(int), 1002)
-	assert.Equal(t, derivedToken.Value(IdentityKey).(int), 1001)
+	assert.Equal(t, derivedToken.Value(IdentityKey).(string), "1001")
 
-	// assert.Equal(t, tk.queue.Len(), 1)
-	// tk.Cancel()
-
-	// assert.Equal(t, tk.queue.Len(), 1)		//NOTE: 监听goroutine 中将删除元素，所以此时并没有立即删除
-	// time.Sleep(time.Microsecond)
-
-	// assert.Equal(t, tk.queue.Len(), 0)		//NOTE: 等待一定时间后，元素被删除
+	tok := GetBuilder().Get("test")
+	tok.Cancel()
+	tok1, ok := GetBuilder().Find("test")
+	assert.Equal(t, ok, false)
+	assert.Equal(t, tok1, nilToken)
+	// assert.Equal(t, )
 }
 
-// func TestBuilder(t *testing.T) {
+func TestTokenDerive(t *testing.T) {
 
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	token.InitBuilder(ctx)
-// 	defer token.ReleaseBuilder()
-// 	tokenObj, _, err := token.Get("2001")
-// 	if err != nil {
-// 		t.Log(err)
+	tok := GetBuilder().Get("test")
+	tok1 := tok.Derive()
+	tok1.Cancel()
+	tok2, ok := GetBuilder().Find("test") //NOTE: 此处表明派生的token关闭后并不影响父token的状态
+	assert.Equal(t, tok2, tok)
+	assert.Equal(t, ok, true)
+
+	tok1 = tok.Derive()
+	go func() {
+		tok.Cancel()
+	}()
+	select {
+	case <-tok1.Done():
+		assert.Assert(t, true) //NOTE: 此处表明，父token关闭后，派生的token也会收到Done消息
+	}
+}
+
+//基于定时器的测试可能发生概率性的报错，这个注意一下
+func TestTokenTimeout(t *testing.T) {
+
+	settings.GetSys().TimeOut = 100
+	GetBuilder().Get("test")
+	// tok := GetBuilder().
+	<-time.After(time.Millisecond * 80)
+	tok1, ok := GetBuilder().Find("test")
+	assert.Assert(t, ok)
+	assert.Assert(t, tok1 != nilToken)
+
+	<-time.After(time.Millisecond * 40)
+
+	tok1, ok = GetBuilder().Find("test")
+	assert.Assert(t, !ok)
+	assert.Assert(t, tok1 == nilToken)
+}
+
+// 这不是一个稳定的测试，因为基于定时器，容易出现误差，导致偶发的错误
+// 当需要测试定时器逻辑时，可打开这个方法单独测试，其余时间建议关闭，避免偶发性的报错
+// 当前错误的发生可能是与时间量级相关的，当前测试时间是微米级的，如果扩大为s级别，偶发性的错误应该不再出现[未验证]
+// func TestTokenResetTimer(t *testing.T) {
+
+// 	settings.GetSys().TimeOut = 100
+// 	GetBuilder().Get("test1")
+	
+// 	<-time.After(time.Millisecond * 90)
+
+// 	tok, ok := GetBuilder().Find("test1")
+// 	assert.Assert(t, ok)
+
+// 	tok.ResetTimer()
+// 	<-time.After(time.Millisecond * 110)
+// 	tok1, ok := GetBuilder().Find("test1")
+// 	assert.Assert(t, !ok)
+// 	assert.Equal(t, tok1, nilToken)
+
+// 	tok1 = GetBuilder().Get("test1")
+// 	<-time.After(time.Millisecond * 50)
+// 	for i:=0; i<100; i++ {
+// 		go tok1.ResetTimer()
 // 	}
+// 	<-time.After(time.Millisecond * 90)
+// 	tok2, ok := GetBuilder().Find("test1")
+// 	assert.Assert(t, ok)
+// 	assert.Equal(t, tok1, tok2)
 
-// 	t.Log(tokenObj.ToString())
-// 	go func() {
-
-// 		tokenObj.Cancel()
-// 		// t.Log()
-// 		<-time.After(time.Second)
-// 		cancel()
-// 	}()
-
-// 	<-ctx.Done()
-// 	t.Log("passed test")
+// 	<-time.After(time.Millisecond * 20)
+// 	tok2, ok = GetBuilder().Find("test1")
+// 	assert.Assert(t, !ok)
+// 	assert.Equal(t, tok2, nilToken)
 // }

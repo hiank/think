@@ -12,7 +12,6 @@ func TestDefaultValue(t *testing.T) {
 	assert.Equal(t, GetSys().WsPort, uint16(8022))
 	assert.Equal(t, GetSys().K8sPort, uint16(8026))
 	assert.Equal(t, GetSys().MessageGo, 1000)
-	assert.Equal(t, GetSys().ClearInterval, 10)
 }
 
 func TestCustomValue(t *testing.T) {
