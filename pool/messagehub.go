@@ -3,7 +3,6 @@ package pool
 import (
 	"container/list"
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/hiank/think/pb"
@@ -97,10 +96,8 @@ func (mh *MessageHub) fork(num *int, loopReqs <-chan *messageReq, completeReq ch
 			default:
 				completeReq <- true
 			}
-			fmt.Print("-")
 		}()
 		*num++
-		fmt.Print("+")
 	}
 }
 
