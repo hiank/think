@@ -41,9 +41,7 @@ func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 	msg, err = ls.Recv()
 	robust.Panic(err)
 
-	tok, err := token.GetBuilder().Get(msg.GetToken())
-	robust.Panic(err)
-	return s.Listen(tok, ls)
+	return s.Listen(token.GetBuilder().Get(msg.GetToken()), ls)
 }
 
 //Donce respond TypeGET | TypePOST message

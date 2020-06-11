@@ -48,10 +48,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	robust.Panic(err)
 	defer c.Close()
 
-	tok, err := token.GetBuilder().Get(tokenStr)
-	robust.Panic(err)
-
-	robust.Panic(s.Listen(tok, &Handler{Conn: c, tokenStr: tokenStr}))
+	// conn, err := s.Build(token.GetBuilder().Get(tokenStr), &Handler{Conn: c, tokenStr: tokenStr})
+	// robust.Panic(err)
+	robust.Panic(s.Listen(token.GetBuilder().Get(tokenStr), &Handler{Conn: c, tokenStr: tokenStr}))
 }
 
 //auth 认证token

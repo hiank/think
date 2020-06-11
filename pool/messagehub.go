@@ -3,16 +3,22 @@ package pool
 import (
 	"container/list"
 	"context"
+	"fmt"
+	"sync"
 
 	"github.com/hiank/think/pb"
+	"github.com/hiank/think/settings"
 	tk "github.com/hiank/think/token"
 )
 
 //MessageHub 集中处理*pb.Message，顺序handle
 type MessageHub struct {
-	handler MessageHandler   //NOTE: 处理消息
-	req     chan *messageReq //NOTE: 待处理的消息管道
-	lock    chan bool
+	ctx        context.Context
+	handler    MessageHandler   //NOTE: 处理消息
+	req        chan *messageReq //NOTE: 待处理的消息管道
+	hub        *list.List       //NOTE: 用于缓存待处理的请求
+	activeOnce sync.Once        //NOTE: 只会执行一次激活操作
+	activeReq  chan bool
 }
 
 //messageReq 用于管道传递
@@ -40,50 +46,116 @@ func NewMessage(msg *pb.Message, tok *tk.Token) *Message {
 func NewMessageHub(ctx context.Context, handler MessageHandler) *MessageHub {
 
 	mh := &MessageHub{
-		handler: handler,
-		req:     make(chan *messageReq),
-		lock:    make(chan bool),
+		ctx:       ctx,
+		handler:   handler,
+		hub:       list.New(),
+		req:       make(chan *messageReq, settings.GetSys().MessageHubReqLen),
+		activeReq: make(chan bool, 1),
 	}
-	go mh.loop(ctx)
+	go mh.loop()
 	return mh
 }
 
-func (mh *MessageHub) loop(ctx context.Context) {
-
-	locked, hub, waited, wait := true, list.New(), false, make(chan bool)
-	handle := func() {
-
-		if locked || waited || (hub.Len() == 0) { //NOTE: 锁住 或 等待中 或 无消息
-			return
-		}
-		waited = true
-		go func(req *messageReq) {
-
-			req.err <- mh.handler.Handle(req.Message)
-			wait <- false
-		}(hub.Remove(hub.Front()).(*messageReq))
-	}
+func (mh *MessageHub) loop() {
 
 L:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-mh.ctx.Done():
 			break L
-		case locked = <-mh.lock:
-			handle()
-		case waited = <-wait:
-			handle()
-		case msg := <-mh.req:
-			hub.PushBack(msg)
-			handle()
+		case <-mh.activeReq:
+			go mh.loopHandle()
+			break L //NOTE: 激活之后放弃此循环，执行loopHandle循环
+		case req := <-mh.req:
+			mh.hub.PushBack(req)
 		}
 	}
 }
 
-//LockReq 用于锁定或解锁 Handle
-func (mh *MessageHub) LockReq() chan<- bool {
+func (mh *MessageHub) remoteReq(loopReqs chan *messageReq) (req chan<- *messageReq) {
+	if mh.hub.Len() > 0 {
+		req = loopReqs
+	}
+	return
+}
 
-	return mh.lock
+func (mh *MessageHub) remoteVal() (msgReq *messageReq) {
+	if mh.hub.Len() > 0 {
+		msgReq = mh.hub.Front().Value.(*messageReq)
+	}
+	return
+}
+
+func (mh *MessageHub) fork(num *int, loopReqs <-chan *messageReq, completeReq chan<- bool) {
+
+	maxNum := 100
+	if *num < maxNum && len(loopReqs) > 0 {
+		go func() {
+			mh.syncHandle(loopReqs)
+			select {
+			case <-mh.ctx.Done():
+			default:
+				completeReq <- true
+			}
+			fmt.Print("-")
+		}()
+		*num++
+		fmt.Print("+")
+	}
+}
+
+func (mh *MessageHub) loopHandle() {
+
+	num, loopReqs, completeReq := 0, make(chan *messageReq, 10), make(chan bool, 10)
+	defer close(loopReqs) //NOTE: 此处需要关闭接收channel，避免此MessageHub关闭后，还未结束的处理goroutine中向此channel发送请求导致堵塞
+	// defer close(completeReq)
+L:
+	for {
+		select {
+		case <-mh.ctx.Done():
+			break L
+		case req := <-mh.req:
+			if mh.hub.Len() > 0 || len(loopReqs) == cap(loopReqs) { //NOTE: 如果负载已满
+				mh.hub.PushBack(req)
+				break
+			}
+			loopReqs <- req
+			mh.fork(&num, loopReqs, completeReq)
+		case mh.remoteReq(loopReqs) <- mh.remoteVal():
+			mh.hub.Remove(mh.hub.Front())
+			mh.fork(&num, loopReqs, completeReq)
+		case <-completeReq:
+			num--
+		}
+	}
+}
+
+//syncHandle 处理消息请求
+//这个方法很可能会耗时较多，调用者视情况确定是否需要另起goroutine
+func (mh *MessageHub) syncHandle(loopReqs <-chan *messageReq) {
+
+L:
+	for {
+		select {
+		case msgReq, ok := <-loopReqs:
+			if !ok {
+				break L
+			}
+			if err := mh.handler.Handle(msgReq.Message); err != nil {
+				msgReq.err <- err
+			}
+		default:
+			break L
+		}
+	}
+}
+
+//DoActive 激活此messagehub
+func (mh *MessageHub) DoActive() {
+
+	mh.activeOnce.Do(func() {
+		mh.activeReq <- true
+	})
 }
 
 //PushWithBack 将消息推送到hub中
@@ -103,23 +175,4 @@ func (mh *MessageHub) Push(msg *Message) {
 //MessageHandler Message处理接口
 type MessageHandler interface {
 	Handle(*Message) error //NOTE: 处理Message
-}
-
-//MessageHandlerTypeFunc 函数形式的MessageHandler
-type MessageHandlerTypeFunc func(*Message) error
-
-//Handle MessageHub
-func (mhf MessageHandlerTypeFunc) Handle(msg *Message) error {
-
-	return mhf(msg)
-}
-
-//MessageHandlerTypeChan chan形式的MessageHandler
-type MessageHandlerTypeChan chan<- *Message
-
-//Handle MessageHub
-func (mhc MessageHandlerTypeChan) Handle(msg *Message) error {
-
-	mhc <- msg
-	return nil
 }
