@@ -105,7 +105,7 @@ func (mh *MessageHub) loopHandle() {
 
 	num, loopReqs, completeReq := 0, make(chan *messageReq, 10), make(chan bool, 10)
 	defer close(loopReqs) //NOTE: 此处需要关闭接收channel，避免此MessageHub关闭后，还未结束的处理goroutine中向此channel发送请求导致堵塞
-	// defer close(completeReq)
+
 L:
 	for {
 		select {
