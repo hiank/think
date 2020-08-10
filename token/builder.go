@@ -25,7 +25,7 @@ type Builder struct {
 func newBuilder() *Builder {
 
 	builder := &Builder{
-		ctx:   context.Background(),
+		ctx:   BackgroundLife().Context,
 		hub:   make(map[string]*Token),
 		rmReq: make(chan *Token, settings.GetSys().TokDonedLen), //NOTE: 设置缓存，避免清理token 阻塞
 		req:   make(chan *tokenReq, settings.GetSys().TokReqLen),
