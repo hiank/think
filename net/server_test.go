@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hiank/think/token"
+
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/k8s"
 	"gotest.tools/assert"
@@ -20,7 +22,7 @@ func TestCloseWS(t *testing.T) {
 
 	go func() {
 		<-time.After(time.Second)
-		net.GetRuntime().Close()
+		token.BackgroundLife().Kill()
 	}()
 	err := <-exit
 	assert.Equal(t, err, http.ErrServerClosed)
@@ -42,7 +44,7 @@ func TestCloseK8s(t *testing.T) {
 
 	go func() {
 		<-time.After(time.Second)
-		net.GetRuntime().Close()
+		token.BackgroundLife().Kill()
 	}()
 	err := <-exit
 	assert.Equal(t, err, nil)

@@ -3,7 +3,6 @@ module github.com/hiank/think
 go 1.14
 
 require (
-	github.com/go-redis/redis/v7 v7.4.0
 	github.com/go-redis/redis/v8 v8.0.0-beta.7
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.4.2
