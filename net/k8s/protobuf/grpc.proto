@@ -2,14 +2,8 @@ syntax = "proto3";
 
 import "message.proto";
 
-
-message Void {
-
-}
-
 service Pipe {
 
-    rpc Link(stream Message) returns (stream Message);
-    rpc Get(Message) returns (Message);
-    rpc Post(Message) returns (Void);
+    rpc Link(stream Message) returns (stream Message);      //NOTE: 连接消息
+    rpc Donce(Message) returns (Message);                   //NOTE: 执行一次，'Get','Post' 类型消息通过这个api 交互
 }

@@ -7,11 +7,9 @@
 ## API
 
 - [Builder](#builder)
-  - [Get](#get)
   - [Find](#find)
-  - [Build](#build)
-  - [Delete](#delete)
-  - [Cancel](#cancel)
+  - [Get](#get)
+  - [removeReq](#removeReq)
 
 - [Token](#token)
   - [Derive](#derive)
@@ -21,50 +19,42 @@
 
 ## Builder
 
-### Get
-
-**Param**: `string`
-
-**Return**: `*Token`, `error`
-
-用于通过`string` key 获取`Token`
-- 如果`Token` 已存在，则直接返回
-- 构建`Token`
-  - 构建成果，存储并返回结果
-  - 构建失败，返回错误
+- `Builder`自构建始，整个程序活动期间都将存在，不会被消除。当前版本只支持两个方法，Get 和 removeReq
+- 使用chan 带缓存方式避免调用goroutine 阻塞，缓存大小可配置
 
 ### Find
+- **Param**: `string`
+- **Return**: `*Token`, `bool`
 
-**Param**: `string`
+用于判断及查找主`Token`，如果主`Token`已经找不到了，可能要丢弃处理。否则可能会派生一个`Token`与相关资源绑定
 
-**Return**: `*Token`, `bool`
+### Get
 
-用于通过`string` key 查找已构建的`Token`
-- 找到，返回结果
-- 未找到，返回`false`
+- **Param**: `string`
+- **Return**: `*Token`
 
-### Build
+用于通过`string` key 获取`Token`，使用通信的方式获取值，避免数据竞争[为了与`removeReq`表现一致，没有使用读写锁，而使用了chan 来同步]
+当前的方法必然能返回一个`*Token`
 
-**Parem**: `string`
+### removeReq
 
-**Return**: `*Token`, `error`
+- **Return**: `chan<- *Token`
 
-用于通过`string` key 构建`Token` 并存储
-- 已存在`Token`，返回错误
-- 不存在`Token`，构建`Token` 并存储，返回此`Token`
-
-
-### Delete
-
-**Parem**: `string`
-
-用于通过`string` key 删除存储的`Token`
-
-### Cancel
-
-用于清除`Builder`，当进程结束时才可以调用此方法，调用后，单例`Builder` 将被置为`nil`，并且无法重新构建。
+删除管道写入的*Token. 避免大量token失效时，请求被等待而挂起
 
 ## Token
+
+分为主`Token`和派生`Token`，主`Token`与用户切实相关，所以只会在用于连接建立后才构建此`Token`，其余场景可直接引用或使用派生的`Token`
+1. 主`Token`:
+    - 受`Builder`维护管理，失效后须通知`Builder`以删除引用[`Cancel`方法将执行此操作]
+    - 有超时处理，超时后将自调用`Cancel`方法进行清理
+    - 可派生子`Token`，特性参加下述说明
+    - 提供清理函数`Cancel`，将关闭关联的Context，以广播通知所有监听此`Token`状态的相关方法；所有派生的`Token`将一并收到此关闭消息
+2. 派生`Token`:
+    - 由主`Token`或其它派生`Token`调用`Derive`方法构建得来
+    - 生命周期上限为派生出此派生`Token`的`Token`
+    - 不执行超时监听
+    - 对此`Token`的关闭操作不影响父`Token` 
 
 ### Derive
 

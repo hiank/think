@@ -2,61 +2,27 @@ package token
 
 import (
 	"testing"
-	"time"
+
 	"gotest.tools/v3/assert"
-	// is "gotest.tools/assert/cmp"
 )
 
+var nilToken *Token
 
-
-func TestGet(t *testing.T) {
-
-	_, err := GetBuilder().Get("TestGet")
-	if err != nil {
-		assert.Assert(t, false)
-		return
-	}
-	// assert.Assert(t, false)
+func TestGetBuilderOnce(t *testing.T) {
+	assert.Equal(t, GetBuilder(), GetBuilder())
 }
 
-
-func TestFind(t *testing.T) {
-
-	_, ok := GetBuilder().Find("TestFind")
-	assert.Assert(t, !ok)
-
-	GetBuilder().Build("TestFind")
-	_, ok = GetBuilder().Find("TestFind")
-	assert.Assert(t, ok)
+func TestBuilderGet(t *testing.T) {
+	assert.Assert(t, GetBuilder().Get("test") != nilToken)
+	assert.Equal(t, GetBuilder().Get("test"), GetBuilder().Get("test"))
 }
 
-func TestBuild(t *testing.T) {
-
-	_, err := GetBuilder().Build("TestBuild")
-	assert.Assert(t, err == nil)
-	_, err = GetBuilder().Build("TestBuild")
-	assert.Assert(t, err != nil)
-}
-
-func TestDelete(t *testing.T) {
-
-	GetBuilder().Build("TestDelete")
-	_, ok := GetBuilder().Find("TestDelete")
-	assert.Assert(t, ok)
-	GetBuilder().Delete("TestDelete")
-	_, ok = GetBuilder().Find("TestDelete")
-	assert.Assert(t, !ok)
-}
-
-
-//NOTE: 测试单例调用
-func TestCancel(t *testing.T) {
-
-	var nilVal *Builder
-
-	assert.Assert(t, GetBuilder() != nilVal)
-	GetBuilder().Cancel()
-
-	time.Sleep(1000)			//NOTE: 需要等待监听goroutine 处理ctx.Done()
-	assert.Equal(t, GetBuilder(), nilVal)
+func TestBuilderFind(t *testing.T) {
+	tok, ok := GetBuilder().Find("test1")
+	assert.Equal(t, ok, false)
+	assert.Equal(t, tok, nilToken)
+	tok1 := GetBuilder().Get("test1")
+	tok, ok = GetBuilder().Find("test1")
+	assert.Equal(t, tok, tok1)
+	assert.Equal(t, ok, true)
 }

@@ -1,118 +1,90 @@
+//Conn 在Listen 之前也可以接受Send 调用，但会返回一个error
+//未Listen 之前 发送的消息将存于缓存 hub 中
+
 package pool
 
 import (
-	"github.com/golang/glog"
-	"context"
-	"github.com/hiank/think/token"
 	"errors"
-	"container/list"
+
+	"github.com/golang/glog"
 	"github.com/hiank/think/pb"
+	tk "github.com/hiank/think/token"
 )
 
-//Conn pool中维护的Conn
+//Conn 用于管理连接
 type Conn struct {
-
-	*list.Element
-	Timer
-
-	key 	string			//NOTE: 
-	tk 		*token.Token
-	ch 		ConnHandler
+	*tk.Token             //NOTE：用于维护生命周期
+	rw        IO          //NOTE: 读写Message
+	hub       *MessageHub //NOTE: 待发送 MessageHub
 }
 
-//newDefaultConn 创建一个新的默认Conn
-func newDefaultConn(key string, t *token.Token, h ConnHandler) *Conn {
+//newConn 构建新的conn
+func newConn(tok *tk.Token, rw IO) *Conn {
 
-	conn := &Conn {
-
-		tk 		: t,
-		ch 		: h,
-		key 	: key,
+	c := &Conn{
+		Token: tok,
+		rw:    rw,
 	}
-	conn.Timer = &DefaultTimer{}
-	conn.SetInterval(600)
-	return conn
+	c.hub = NewMessageHub(tok, c)
+	c.hub.DoActive() //NOTE: 不需要加锁等待，所有待处理的数据可以立即执行
+	return c
 }
 
-//NewConn 新建一个Conn，会用到tokenStr绑定的Token，这个Token 出现异常导致Done的情况下，所有tokenStr 绑定的Token 都会Done
-//如果Token 已存在，将释放原来Token资源
-func NewConn(key, tokenStr string, h ConnHandler) (*Conn, error) {
+//Listen 开启监听，每个conn 只有第一次调用，才生效
+//一切正常的话，会阻塞在读消息通道中
+func (c *Conn) Listen(readHandler MessageHandler) (err error) {
 
-	t, ok, err := token.Get(tokenStr)
-	if err != nil {
-		return nil, err
-	}
-	if ok {
-		t.Cancel()			//NOTE: 释放旧的Token资源
-	}
-	if t, err = token.Build(tokenStr); err != nil { 
-		return nil, err
-	}
-	v1, v2, v3 := token.Get(tokenStr)
-	glog.Infoln("NewConn : ", v1, v2, v3)
-	return newDefaultConn(key, t, h), nil
-}
-
-//NewConnWithDerivedToken 使用派生Token 生成的Conn，如果与grpc服务连接的Conn，生命周期独立，连接异常断开 不会影响到其它使用了这个tokenStr 的代码
-func NewConnWithDerivedToken(key, tokenStr string, h ConnHandler) (*Conn, error) {
-
-	t, ok, err := token.Get(tokenStr)
-	glog.Infoln("NewConnWithDerivedToken : ", t, ok, err)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {		//NOTE: 必须存在已建立的token，才能生成派生Token
-		return nil, errors.New("not exist main tokened '" + tokenStr + "', cann't create derived token")
-	}
-	return newDefaultConn(key, t.Derive(), h), nil
-}
-
-//GetKey 获得Conn关键字，用于分类
-func (conn *Conn) GetKey() string {
-
-	return conn.key
-}
-
-//GetToken 获得conn 的Token
-func (conn *Conn) GetToken() *token.Token {
-
-	return conn.tk
-}
-
-//Send 发送消息
-func (conn *Conn) Send(msg *pb.Message) (err error) {
-
-	select {
-	case <-conn.tk.Done():		//NOTE: 这个Token 被关闭了[或者是整个应用被关闭了]
-		err = errors.New("Token " + conn.tk.ToString() + " cancelled")
-	default:
-		err = conn.ch.WriteMessage(conn.GetToken().WithValue("key", conn.GetKey()), msg)
+	var msg *pb.Message
+L:
+	for {
+		select {
+		case <-c.Done():
+			err = errors.New("Conn's token Done")
+			break L
+		default:
+			if msg, err = c.rw.Recv(); err != nil {
+				c.Cancel() //NOTE: 此处调用，用于移除绑定的token
+				break L
+			}
+			c.ResetTimer() //NOTE: 收到消息成功时，重置超时定时器
+			if err := readHandler.Handle(NewMessage(msg, c.Derive())); err != nil {
+				glog.Warning("Conn tokened "+c.ToString(), err)
+			}
+		}
 	}
 	return
 }
 
-//Recv 接收消息
-func (conn *Conn) Recv() (msg *pb.Message, err error) {
+//Handle 发送消息
+func (c *Conn) Handle(msg *Message) error {
 
 	select {
-	case <-conn.tk.Done():		//NOTE: 这个Token 被关闭了[或者是整个应用被关闭了]
-		err = errors.New("Token " + conn.tk.ToString() + " cancelled")
+	case <-msg.Done():
+		return errors.New("message's context was done") //NOTE: 要发送的消息绑定的context 关闭了
+	case <-c.Done():
+		return errors.New("Conn's context was done")
 	default:
-		msg, err = conn.ch.ReadMessage(conn.GetToken().WithValue("key", conn.GetKey()))
 	}
-	return
+	if err := c.rw.Send(msg.Message); err != nil { //NOTE: 发送失败，连接出了问题，退出[此处可能需要优化]
+		c.Cancel()
+		return err
+	}
+	c.ResetTimer() //NOTE: 发送成功的话，重置超时定时器
+	return nil
 }
 
+//Send 发送消息，同步
+func (c *Conn) Send(msg *Message) error {
 
-//ConnHandler 数据读写接口
-type ConnHandler interface {
-
-	ReadMessage(ctxWithKeyToken context.Context) (*pb.Message, error)			//NOTE: 读取Message，传入key token信息，用于构建或处理msg
-	WriteMessage(ctxWithKeyToken context.Context, msg *pb.Message) error 		//NOTE: 写入Message，传入key token信息，用于构建货处理msg
+	errChan := make(chan error)
+	c.hub.PushWithBack(msg, errChan)
+	return <-errChan
 }
 
+//IO 收发接口
+type IO interface {
+	Recv() (*pb.Message, error) //NOTE: 接收Message
+	Send(*pb.Message) error     //NOTE: 发送Message
+}
 
-// //IgnoreHandleContext 忽略处理Context
-// type IgnoreHandleContext int
-// //HandleContext 实现HandleContext 方法
-// func (ihc IgnoreHandleContext) HandleContext(context.Context) {}
+type connBuilder func() *Conn

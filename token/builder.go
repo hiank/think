@@ -1,86 +1,119 @@
 package token
 
 import (
-	// "github.com/golang/glog"
-	"errors"
-	"sync"
 	"context"
+	"sync"
+
+	"github.com/hiank/think/settings"
 )
+
+//tokenReq 构建请求
+type tokenReq struct {
+	tokenStr  string
+	tok       chan<- *Token
+	withBuild bool //NOTE: 如果没有找到时，是否需要构建
+}
 
 //Builder 用于构建Token
 type Builder struct {
-
-	ctx 	context.Context				//NOTE: Builder 的基础Context
-	Cancel 	context.CancelFunc			//NOTE: 需要关闭时调用，关闭所有token
-
-	hub 	map[string]*Token 			//NOTE: map[tokenStr]*Token
-	rw		sync.RWMutex				//NOTE: 读写锁
+	ctx   context.Context   //NOTE: Builder 的基础Context
+	hub   map[string]*Token //NOTE: map[tokenStr]*Token
+	rmReq chan *Token       //NOTE: 已Done 的token
+	req   chan *tokenReq    //NOTE: 请求构建token
 }
 
-//Find to get *Token with string key
-func (b *Builder) Find(tokenStr string) (*Token, bool) {
+func newBuilder() *Builder {
 
-	b.rw.RLock()
-	defer b.rw.RUnlock()
-
-	token, ok := b.hub[tokenStr]
-	return token, ok
-}
-
-
-//Build build a *Token with string key
-//Deprecated: Use Get instead
-func (b *Builder) Build(tokenStr string) (token *Token, err error) {
-
-	b.rw.Lock()
-	defer b.rw.Unlock()
-
-	if _, ok := b.hub[tokenStr]; ok {
-		err = errors.New("token '" + tokenStr + "' existed in cluster")
-		return
+	builder := &Builder{
+		ctx:   BackgroundLife().Context,
+		hub:   make(map[string]*Token),
+		rmReq: make(chan *Token, settings.GetSys().TokDonedLen), //NOTE: 设置缓存，避免清理token 阻塞
+		req:   make(chan *tokenReq, settings.GetSys().TokReqLen),
 	}
-	token, _ = newToken(context.WithValue(b.ctx, ContextKey("token"), tokenStr))		//NOTE: 此处一定不会触发error
-	b.hub[tokenStr] = token
-	return
+	go builder.healthMonitoring()
+	return builder
+}
+
+//healthMonitoring 监测状态
+func (b *Builder) healthMonitoring() {
+
+	for {
+		select {
+		case tok := <-b.rmReq: //NOTE: 已Done 的token
+			b.delete(tok)
+		case req := <-b.req:
+			b.response(req)
+		}
+	}
+}
+
+//removeReq 删除请求
+func (b *Builder) removeReq() chan<- *Token {
+
+	return b.rmReq
 }
 
 //Get get *Token and if cann't find the *Token, then Build one and return
-func (b *Builder) Get(tokenStr string) (*Token, error) {
+func (b *Builder) Get(tokenStr string) *Token {
 
-	if tk, ok := b.Find(tokenStr); ok {
-		return tk, nil				//NOTE: already owned tk, back it 
+	tokRes := make(chan *Token)
+	b.req <- &tokenReq{
+		tokenStr:  tokenStr,
+		tok:       tokRes,
+		withBuild: true,
 	}
-	return b.Build(tokenStr)		//NOTE: 
+	return <-tokRes
 }
 
+//Find 查找Token
+func (b *Builder) Find(tokenStr string) (tok *Token, ok bool) {
 
-//Delete delete *Token with string key
-func (b *Builder) Delete(tokenStr string) {
-
-	b.rw.Lock()
-	defer b.rw.Unlock()
-
-	delete(b.hub, tokenStr)
+	tokRes := make(chan *Token)
+	b.req <- &tokenReq{
+		tokenStr:  tokenStr,
+		tok:       tokRes,
+		withBuild: false,
+	}
+	tok, ok = <-tokRes
+	return
 }
 
+//response 处理请求，注意这个是在专门的goroutine 中执行的，不存在数据竞争问题
+func (b *Builder) response(req *tokenReq) {
 
-var builder *Builder
-var once sync.Once
+	tok, ok := b.hub[req.tokenStr]
+	if !ok {
+		if !req.withBuild {
+			close(req.tok)
+			return
+		}
+		tok, _ = newToken(context.WithValue(b.ctx, IdentityKey, req.tokenStr)) //NOTE: 此处一定不会触发error
+		b.hub[req.tokenStr] = tok
+	}
+	req.tok <- tok
+}
+
+//delete 删除传入的token
+func (b *Builder) delete(tok *Token) {
+
+	if tok == nil {
+		return
+	}
+	str := tok.ToString()
+	// if b.hub[tok.ToString()] == tok {
+	delete(b.hub, str)
+	// }
+}
+
+var _singleBuilder *Builder
+var _singleBuilderOnce sync.Once
 
 //GetBuilder return singleton tokenBuilder object
 func GetBuilder() *Builder {
 
-	once.Do(func () {
+	_singleBuilderOnce.Do(func() {
 
-		builder = &Builder {
-			hub : make(map[string]*Token),
-		}
-		builder.ctx, builder.Cancel = context.WithCancel(context.Background())
-		go func ()  {			
-			<- builder.ctx.Done()
-			builder = nil
-		}()			//NOTE: 如果builder Cancel 被调用，则清空builder
+		_singleBuilder = newBuilder()
 	})
-	return builder
+	return _singleBuilder
 }
-
