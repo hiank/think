@@ -3,7 +3,10 @@ package pool
 import (
 	"container/list"
 	"context"
+	"strings"
 	"sync"
+
+	"github.com/golang/protobuf/ptypes"
 
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/settings"
@@ -39,6 +42,15 @@ func NewMessage(msg *pb.Message, tok *tk.Token) *Message {
 		Message: msg,
 		Token:   tok,
 	}
+}
+
+//Name 获得消息名
+func (msg *Message) Name() (name string, err error) {
+
+	if name, err = ptypes.AnyMessageName(msg.GetData()); err == nil {
+		name = name[strings.LastIndexByte(name, '_')+1:]
+	}
+	return
 }
 
 //NewMessageHub 构建新的 MessageHub
