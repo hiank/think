@@ -6,8 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang/protobuf/ptypes"
-
 	"github.com/hiank/think/pb"
 	"github.com/hiank/think/settings"
 	tk "github.com/hiank/think/token"
@@ -44,10 +42,21 @@ func NewMessage(msg *pb.Message, tok *tk.Token) *Message {
 	}
 }
 
-//Name 获得消息名
-func (msg *Message) Name() (name string, err error) {
+//ServerName 获取服务名，用于定向到微服务
+//服务名约定为全小写
+func (msg *Message) ServerName() (key string, err error) {
 
-	if name, err = ptypes.AnyMessageName(msg.GetData()); err == nil {
+	if key, err = pb.AnyMessageNameTrimed(msg.GetData()); err == nil {
+		key = key[strings.IndexByte(key, '_')+1:]
+		key = strings.ToLower(key)
+	}
+	return
+}
+
+//ProtoName 获取协议名
+func (msg *Message) ProtoName() (name string, err error) {
+
+	if name, err = pb.AnyMessageNameTrimed(msg.GetData()); err == nil {
 		name = name[strings.LastIndexByte(name, '_')+1:]
 	}
 	return

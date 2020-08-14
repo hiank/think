@@ -1,7 +1,6 @@
 package pb
 
 import (
-	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 
@@ -26,25 +25,13 @@ func AnyEncode(anyMsg *any.Any) (buf []byte, err error) {
 	return proto.Marshal(anyMsg)
 }
 
-func messageNameTrimed(anyMsg *any.Any) (messageName string, err error) {
+//AnyMessageNameTrimed 处理后的any.Any 消息名，去掉可能包含的包名
+func AnyMessageNameTrimed(anyMsg *any.Any) (messageName string, err error) {
 
-	if messageName, err = ptypes.AnyMessageName(anyMsg); err != nil {
-		glog.Warningf("get any message name error : %v\n", err)
-		return
-	}
-	if dotIdx := strings.LastIndexByte(messageName, '.'); dotIdx != -1 {
-		messageName = messageName[dotIdx+1:] //NOTE: 协议可能包含包名，此处截掉包名
-	}
-	return
-}
-
-// GetServerKey 通过message name 获得服务名
-func GetServerKey(anyMsg *any.Any) (name string, err error) {
-
-	messageName, err := messageNameTrimed(anyMsg)
-	if err == nil {
-		glog.Infoln("messageName : ", messageName)
-		name = strings.ToLower(messageName[2:strings.IndexByte(messageName, '_')]) //NOTE: 前两位用于保存消息类型
+	if messageName, err = ptypes.AnyMessageName(anyMsg); err == nil {
+		if dotIdx := strings.LastIndexByte(messageName, '.'); dotIdx != -1 {
+			messageName = messageName[dotIdx+1:] //NOTE: 协议可能包含包名，此处截掉包名
+		}
 	}
 	return
 }
@@ -60,7 +47,7 @@ const (
 // GetServerType 获得服务类型
 func GetServerType(anyMsg *any.Any) (t int, err error) {
 
-	messageName, err := messageNameTrimed(anyMsg)
+	messageName, err := AnyMessageNameTrimed(anyMsg)
 	if err != nil {
 		return TypeUndefined, err
 	}
