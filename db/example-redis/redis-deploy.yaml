@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-cl-deploy
+  namespace: think
+  labels:
+    app: redis-cl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-cl
+  template:
+    metadata:
+      labels:
+        app: redis-cl
+        redis-client: "true"
+    spec:
+      containers:
+      - name: redis-cl
+        image: hiank/redis-cl:v0.0.4
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        envFrom:
+        - configMapRef:
+            name: env
+        ports:
+        - containerPort: 20221

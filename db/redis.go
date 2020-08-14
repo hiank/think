@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"github.com/go-redis/redis/v8"
@@ -31,12 +32,11 @@ func newRedisClient(ctx context.Context, rdbName string) *RedisClient {
 		glog.Error(err)
 		return nil
 	}
-
 	return &RedisClient{
 		ctx: ctx,
 		rdb: redis.NewClient(&redis.Options{
 			Addr:     addr,
-			Password: "",
+			Password: os.Getenv("REDIS_PASSWORD"),
 			DB:       0,
 		}),
 	}
