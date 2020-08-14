@@ -3,6 +3,7 @@ package pool
 import (
 	"container/list"
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/hiank/think/pb"
@@ -39,6 +40,26 @@ func NewMessage(msg *pb.Message, tok *tk.Token) *Message {
 		Message: msg,
 		Token:   tok,
 	}
+}
+
+//ServerName 获取服务名，用于定向到微服务
+//服务名约定为全小写
+func (msg *Message) ServerName() (key string, err error) {
+
+	if key, err = pb.AnyMessageNameTrimed(msg.GetData()); err == nil {
+		key = key[strings.IndexByte(key, '_')+1:]
+		key = strings.ToLower(key)
+	}
+	return
+}
+
+//ProtoName 获取协议名
+func (msg *Message) ProtoName() (name string, err error) {
+
+	if name, err = pb.AnyMessageNameTrimed(msg.GetData()); err == nil {
+		name = name[strings.LastIndexByte(name, '_')+1:]
+	}
+	return
 }
 
 //NewMessageHub 构建新的 MessageHub

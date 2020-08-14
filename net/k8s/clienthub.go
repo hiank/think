@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
-	"github.com/hiank/think/pb"
 	"github.com/hiank/think/pool"
 )
 
@@ -29,7 +28,7 @@ func NewClientHub(ctx context.Context) *ClientHub {
 //Handle 实现 pool.MessageHandler，用于处理转发到k8s 的消息
 func (ch *ClientHub) Handle(msg *pool.Message) error {
 
-	name, err := pb.GetServerKey(msg.GetData())
+	name, err := msg.ServerName()
 	if err != nil {
 		glog.Warningln("cann't operate msg : ", err)
 		return err

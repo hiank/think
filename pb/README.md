@@ -16,7 +16,7 @@
 
 - [AnyDecode([]byte) (*any.Any, error)](#AnyDecode)
 - [AnyEncode(*any.Any) ([]byte, error)](#AnyEncode)
-- [GetServerKey(*any.Any) (string, error)](#GetServerKey)
+- [AnyMessageNameTrimed(*any.Any) (string, error)](#AnyMessageNameTrimed)
 - [GetServerType(*any.Any) (int, error)](#GetServerType)
 
 
@@ -28,9 +28,9 @@
 
 将Any 消息编码为[]byte 消息
 
-## `GetServerKey`
+## `AnyMessageNameTrimed`
 
-获取服务关键字，用于区别管理不同的服务，这个一般是k8s需要，用来建立不同的client
+获取处理过的any.Any 消息名，去掉可能包含的报名
 
 ## `GetServerType`
 
