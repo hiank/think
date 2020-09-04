@@ -42,6 +42,7 @@ const (
 	TypeGET              //NOTE: get消息，需要一个返回
 	TypePOST             //NOTE: post消息
 	TypeSTREAM           //NOTE: 流消息
+	TypeMQ               //NOTE: 消息队列
 )
 
 // GetServerType 获得服务类型
@@ -59,6 +60,8 @@ func GetServerType(anyMsg *any.Any) (t int, err error) {
 		t = TypePOST
 	case 'S':
 		t = TypeSTREAM
+	case 'M':
+		t = TypeMQ
 	default:
 		t = TypeUndefined
 	}

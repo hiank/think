@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hiank/think/net/rpc"
 	"github.com/hiank/think/token"
 
 	"github.com/hiank/think/net"
-	"github.com/hiank/think/net/k8s"
 	"gotest.tools/assert"
 )
 
@@ -29,9 +29,9 @@ func TestCloseWS(t *testing.T) {
 }
 
 type testK8sHandler struct {
-	k8s.IgnoreStream
-	k8s.IgnoreGet
-	k8s.IgnorePost
+	rpc.IgnoreStream
+	rpc.IgnoreGet
+	rpc.IgnorePost
 }
 
 func TestCloseK8s(t *testing.T) {
@@ -39,7 +39,7 @@ func TestCloseK8s(t *testing.T) {
 	exit := make(chan error)
 
 	go func() {
-		exit <- net.ServeK8s("127.0.0.1", &testK8sHandler{})
+		exit <- net.ServeRPC("127.0.0.1", &testK8sHandler{})
 	}()
 
 	go func() {

@@ -194,3 +194,20 @@ func (mh *MessageHub) Push(msg *Message) {
 type MessageHandler interface {
 	Handle(*Message) error //NOTE: 处理Message
 }
+
+//MessageHandlerTypeChan chan type MessageHandler
+type MessageHandlerTypeChan chan<- *Message
+
+//Handle MessageHub
+func (mhc MessageHandlerTypeChan) Handle(msg *Message) error {
+	mhc <- msg
+	return nil
+}
+
+//MessageHandlerTypeFunc 函数形式的MessageHandler
+type MessageHandlerTypeFunc func(*Message) error
+
+//Handle MessageHub
+func (mhf MessageHandlerTypeFunc) Handle(msg *Message) error {
+	return mhf(msg)
+}
