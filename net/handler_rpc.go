@@ -54,7 +54,7 @@ var _rpcMsgChan chan *rpcVal
 var _rpcLoopOnce sync.Once
 
 //RPCHandle 处理消息
-func RPCHandle(msg *pool.Message) error {
+func rpcHandle(msg *pool.Message) error {
 
 	_rpcLoopOnce.Do(func() {
 		_rpcMsgChan = make(chan *rpcVal)

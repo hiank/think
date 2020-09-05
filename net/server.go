@@ -39,9 +39,9 @@ func (wh wsRecvHandler) Handle(msg *pool.Message) error {
 	case pb.TypePOST:
 		fallthrough
 	case pb.TypeSTREAM:
-		return RPCHandle(msg)
+		return rpcHandle(msg)
 	case pb.TypeMQ:
-		return MQHandle(msg)
+		return mqHandle(msg)
 	}
 	name, err := pb.AnyMessageNameTrimed(msg.GetData())
 	if err == nil {

@@ -15,15 +15,23 @@ import (
 var _singleMQClient *mq.Client
 var _singleMQClientOnce sync.Once
 
-//MQHandle 处理消息队列
-func MQHandle(msg *pool.Message) (err error) {
+//MQInstance mq实例
+func MQInstance() *mq.Client {
 
 	_singleMQClientOnce.Do(func() {
-		_singleMQClient, err = mq.TryNewClient("")
+		_singleMQClient, _ = mq.TryNewClient("")
 	})
-	if _singleMQClient == nil {
+	return _singleMQClient
+}
+
+//mqHandle 处理消息队列
+func mqHandle(msg *pool.Message) (err error) {
+
+	mqClient := MQInstance()
+	if mqClient == nil {
 		return errors.New("cann't connect to nats")
 	}
+
 	data, err := pb.AnyEncode(msg.GetData())
 	if err != nil {
 		return
@@ -32,5 +40,5 @@ func MQHandle(msg *pool.Message) (err error) {
 	if err != nil {
 		return
 	}
-	return _singleMQClient.Publish(name, data)
+	return mqClient.Publish(name, data)
 }
