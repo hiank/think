@@ -1,6 +1,7 @@
 package mq
 
 import (
+	"github.com/hiank/think/utils/robust"
 	"github.com/nats-io/nats.go"
 )
 
@@ -9,16 +10,14 @@ type Client struct {
 	*nats.Conn
 }
 
-//TryNewClient 尝试创建一个Client，如果连接失败的话，会创建失败
-func TryNewClient(url string) (c *Client, err error) {
+//TryNewClient 尝试创建一个Client，如果连接失败的话，抛出异常，注意处理异常
+func TryNewClient(url string) *Client {
 
-	var nc *nats.Conn
-	if nc, err = nats.Connect(url); err == nil {
-		c = &Client{
-			Conn: nc,
-		}
+	nc, err := nats.Connect(url)
+	robust.Panic(err)
+	return &Client{
+		Conn: nc,
 	}
-	return
 }
 
 // func (c *Client)

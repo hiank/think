@@ -3,8 +3,9 @@
 package net
 
 import (
-	"errors"
 	"sync"
+
+	"github.com/hiank/think/utils/robust"
 
 	"github.com/hiank/think/pb"
 
@@ -15,11 +16,12 @@ import (
 var _singleMQClient *mq.Client
 var _singleMQClientOnce sync.Once
 
-//MQInstance mq实例
-func MQInstance() *mq.Client {
+//TryMQ mq实例
+//如果实例构建失败，会抛出异常，调用者注意处理异常
+func TryMQ() *mq.Client {
 
 	_singleMQClientOnce.Do(func() {
-		_singleMQClient, _ = mq.TryNewClient("")
+		_singleMQClient = mq.TryNewClient("")
 	})
 	return _singleMQClient
 }
@@ -27,10 +29,10 @@ func MQInstance() *mq.Client {
 //mqHandle 处理消息队列
 func mqHandle(msg *pool.Message) (err error) {
 
-	mqClient := MQInstance()
-	if mqClient == nil {
-		return errors.New("cann't connect to nats")
-	}
+	defer robust.Recover(robust.Error, robust.ErrorHandle(func(e interface{}) {
+		err = e.(error)
+	}))
+	mqClient := TryMQ()
 
 	data, err := pb.AnyEncode(msg.GetData())
 	if err != nil {
