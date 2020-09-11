@@ -5,8 +5,9 @@ import (
 	"os"
 	"sync"
 
+	"github.com/hiank/think/utils/robust"
+
 	"github.com/go-redis/redis/v8"
-	"github.com/golang/glog"
 	"github.com/hiank/think/net/k8s"
 	"github.com/hiank/think/token"
 )
@@ -17,73 +18,40 @@ const (
 	RdbSlave  = "redis-slave"
 )
 
-// RedisClient redis db client
-type RedisClient struct {
-	ctx context.Context
-	rdb *redis.Client
-}
-
-// newRedisClient new redis db client
+// tryRedisClient new redis db client
 // note: 这个函数可能是个耗时函数
-func newRedisClient(ctx context.Context, rdbName string) *RedisClient {
+func tryRedisClient(ctx context.Context, rdbName string) *redis.Client {
 
-	addr, err := k8s.ServiceNameWithPort(context.Background(), k8s.TypeKubIn, rdbName, "redis")
-	if err != nil {
-		glog.Error(err)
-		return nil
-	}
-	return &RedisClient{
-		ctx: ctx,
-		rdb: redis.NewClient(&redis.Options{
-			Addr:     addr,
-			Password: os.Getenv("REDIS_PASSWORD"),
-			DB:       0,
-		}),
-	}
+	addr, err := k8s.ServiceNameWithPort(ctx, k8s.TypeKubIn, rdbName, "redis")
+	robust.Panic(err)
+	return redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
+	})
 }
 
-//Get get value by key
-func (rc *RedisClient) Get(key string) *redis.StringCmd {
-
-	return rc.rdb.Get(rc.ctx, key)
-}
-
-//Set set value with key
-func (rc *RedisClient) Set(key string, val interface{}) *redis.StatusCmd {
-
-	return rc.rdb.Set(rc.ctx, key, val, 0)
-}
-
-var _singleRedisMaster *RedisClient
+var _singleRedisMaster *redis.Client
 var _singleRedisMasterOnce sync.Once
 
-// RedisMaster redis-master in k8s
-func RedisMaster() *RedisClient {
+// TryRedisMaster redis-master in k8s
+// k8s没有需要的redis 服务时，会抛出异常
+func TryRedisMaster() *redis.Client {
 
 	_singleRedisMasterOnce.Do(func() {
-		_singleRedisMaster = newRedisClient(token.BackgroundLife().Context, RdbMaster)
-		go func() {
-			<-_singleRedisMaster.ctx.Done()
-			_singleRedisMaster = nil
-			_singleRedisMasterOnce = sync.Once{}
-		}()
+		_singleRedisMaster = tryRedisClient(token.BackgroundLife().Context, RdbMaster)
 	})
 	return _singleRedisMaster
 }
 
-var _singleRedisSlave *RedisClient
+var _singleRedisSlave *redis.Client
 var _singleRedisSlaveOnce sync.Once
 
-// RedisSlave redis-slave in k8s
-func RedisSlave() *RedisClient {
+// TryRedisSlave redis-slave in k8s
+func TryRedisSlave() *redis.Client {
 
 	_singleRedisSlaveOnce.Do(func() {
-		_singleRedisSlave = newRedisClient(token.BackgroundLife().Context, RdbSlave)
-		go func() {
-			<-_singleRedisSlave.ctx.Done()
-			_singleRedisSlave = nil
-			_singleRedisSlaveOnce = sync.Once{}
-		}()
+		_singleRedisSlave = tryRedisClient(token.BackgroundLife().Context, RdbSlave)
 	})
 	return _singleRedisSlave
 }

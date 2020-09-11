@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -11,19 +12,20 @@ func main() {
 
 	flag.Parse()
 
-	status := db.RedisMaster().Set("testInt", 1)
+	ctx := context.Background()
+
+	status := db.TryRedisMaster().Set(ctx, "testInt", 1, 0)
 	if status.Err() != nil {
 		panic(status.Err())
 	}
 
-	val, err := db.RedisMaster().Get("testInt").Result()
+	val, err := db.TryRedisMaster().Get(ctx, "testInt").Result()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("result : ", val)
 
-
-	val, err = db.RedisSlave().Get("testInt").Result()
+	val, err = db.TryRedisSlave().Get(ctx, "testInt").Result()
 	if err != nil {
 		panic(err)
 	}
