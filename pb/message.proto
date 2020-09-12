@@ -9,5 +9,4 @@ message Message {
 
     string token                = 1;        //NOTE: 绑定的token
     google.protobuf.Any data    = 2;        //NTOE: 实际的数据
-    repeated string aimTokens   = 3;        //NOTE: 扩展的token绑定
 }

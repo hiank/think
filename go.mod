@@ -12,6 +12,7 @@ require (
 	github.com/nats-io/nats.go v1.10.0
 	github.com/stretchr/testify v1.6.1
 	google.golang.org/grpc v1.30.0
+	google.golang.org/protobuf v1.24.0
 	gotest.tools v2.2.0+incompatible
 	gotest.tools/v3 v3.0.2
 	k8s.io/apimachinery v0.19.0

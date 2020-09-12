@@ -19,7 +19,7 @@ func TestCloseWS(t *testing.T) {
 	exit := make(chan error)
 
 	go func() {
-		exit <- net.ServeWS("127.0.0.1")
+		exit <- net.ServeWSDefault("127.0.0.1")
 	}()
 
 	go func() {

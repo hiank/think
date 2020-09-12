@@ -1,29 +1,12 @@
 package pb
 
 import (
-	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 
 	"strings"
 
 	"github.com/golang/protobuf/ptypes/any"
 )
-
-// AnyDecode used to unmarshal net data to expect data
-func AnyDecode(msg []byte) (a *any.Any, err error) {
-
-	a = &any.Any{}
-	if err = proto.Unmarshal(msg, a); err != nil {
-		a = nil
-	}
-	return
-}
-
-// AnyEncode used to marshal data to net data
-func AnyEncode(anyMsg *any.Any) (buf []byte, err error) {
-
-	return proto.Marshal(anyMsg)
-}
 
 //AnyMessageNameTrimed 处理后的any.Any 消息名，去掉可能包含的包名
 func AnyMessageNameTrimed(anyMsg *any.Any) (messageName string, err error) {

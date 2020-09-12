@@ -48,8 +48,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	robust.Panic(err)
 	defer c.Close()
 
-	// conn, err := s.Build(token.GetBuilder().Get(tokenStr), &Handler{Conn: c, tokenStr: tokenStr})
-	// robust.Panic(err)
 	robust.Panic(s.Listen(token.GetBuilder().Get(tokenStr), &Handler{Conn: c, tokenStr: tokenStr}))
 }
 
@@ -91,5 +89,4 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler pool.MessageHandl
 	server := &http.Server{Addr: utils.WithPort(ip, settings.GetSys().WsPort)}
 	go health.MonitorHealth(ctx, func() { server.Close() })
 	return server.ListenAndServe()
-	// return http.ListenAndServe(utils.WithPort(ip, settings.GetSys().WsPort), nil)
 }

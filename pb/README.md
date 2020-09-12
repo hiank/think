@@ -14,19 +14,8 @@
 
 ## API
 
-- [AnyDecode([]byte) (*any.Any, error)](#AnyDecode)
-- [AnyEncode(*any.Any) ([]byte, error)](#AnyEncode)
 - [AnyMessageNameTrimed(*any.Any) (string, error)](#AnyMessageNameTrimed)
 - [GetServerType(*any.Any) (int, error)](#GetServerType)
-
-
-## `AnyDecode`
-
-将[]byte 消息编码为Any 消息
-
-## `AnyEncode`
-
-将Any 消息编码为[]byte 消息
 
 ## `AnyMessageNameTrimed`
 

@@ -16,11 +16,17 @@ func ServeRPC(ip string, msgHandler rpc.MessageHandler) error {
 	return rpc.ListenAndServe(token.BackgroundLife().Context, ip, msgHandler)
 }
 
-//ServeWS 启动一个ws服务，同一个进程只能有一个ws服务
-//收到的消息交给k8s ClientHub 来处理
-func ServeWS(ip string) error {
+//ServeWS 启动一个ws服务
+func ServeWS(ip string, msgHandler pool.MessageHandler) error {
 
-	return ws.ListenAndServe(token.BackgroundLife().Context, ip, wsRecvHandler(1))
+	return ws.ListenAndServe(token.BackgroundLife().Context, ip, msgHandler)
+}
+
+//ServeWSDefault 启动一个默认消息处理的ws服务
+//默认的MessageHandler 根据消息名起始标志调用mq 或rpc 转发消息
+func ServeWSDefault(ip string) error {
+
+	return ServeWS(ip, wsRecvHandler(1))
 }
 
 //wsRecvHandler 处理ws服务收到的消息

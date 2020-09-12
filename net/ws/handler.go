@@ -1,10 +1,11 @@
 package ws
 
 import (
-	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/pb"
+	"github.com/hiank/think/utils/robust"
+	"google.golang.org/protobuf/proto"
 )
 
 //Handler 将websocket conn 的读写，转换为pool.ConnHandler 的读写
@@ -16,33 +17,28 @@ type Handler struct {
 //Recv 读消息，实现frame.Conn
 func (c *Handler) Recv() (msg *pb.Message, err error) {
 
-	_, buf, err := c.ReadMessage() //NOTE: 从websocket 读取消息
-	if err != nil {
-		return
-	}
+	defer robust.Recover(robust.Warning)
 
-	glog.Infoln("ws conn read message :", buf)
-	var a *any.Any
-	if a, err = pb.AnyDecode(buf); err == nil {
-		glog.Infoln("ws conn any decode :", a)
-		msg = &pb.Message{Token: c.tokenStr, Data: a}
-	}
+	_, buf, err := c.ReadMessage() //NOTE: 从websocket 读取消息
+	robust.Panic(err)
+
+	a := new(any.Any)
+	err = proto.Unmarshal(buf, a)
+	robust.Panic(err)
+
+	msg = &pb.Message{Token: c.tokenStr, Data: a}
 	return
 }
 
 //Send Writer
 func (c *Handler) Send(msg *pb.Message) (err error) {
 
-	var buf []byte
-	if buf, err = pb.AnyEncode(msg.GetData()); err != nil {
-		glog.Warning(err)
-		return
-	}
+	defer robust.Recover(robust.Warning)
+
+	buf, err := proto.Marshal(msg.GetData())
+	robust.Panic(err)
+
 	err = c.WriteMessage(websocket.BinaryMessage, buf)
-	switch err {
-	case nil:
-	default: //NOTE:	处理错误
-		glog.Warning(err)
-	}
+	robust.Panic(err)
 	return
 }

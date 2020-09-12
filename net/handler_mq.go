@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/hiank/think/utils/robust"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hiank/think/pb"
 
@@ -30,17 +31,14 @@ func TryMQ() *mq.Client {
 func mqHandle(msg *pool.Message) (err error) {
 
 	defer robust.Recover(robust.Error, robust.ErrorHandle(func(e interface{}) {
-		err = e.(error)
+		err = e.(error) //NOTE: TryMQ() 可能会抛出异常，此处针对这个可能性，设置返回值
 	}))
-	mqClient := TryMQ()
 
-	data, err := pb.AnyEncode(msg.GetData())
-	if err != nil {
-		return
-	}
+	data, err := proto.Marshal(msg.GetData())
+	robust.Panic(err)
+
 	name, err := pb.AnyMessageNameTrimed(msg.GetData())
-	if err != nil {
-		return
-	}
-	return mqClient.Publish(name, data)
+	robust.Panic(err)
+
+	return TryMQ().Publish(name, data)
 }
