@@ -5,8 +5,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/hiank/think/utils/robust"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/net/k8s"
 	"github.com/hiank/think/token"
@@ -22,10 +20,8 @@ const (
 // note: 这个函数可能是个耗时函数
 func tryRedisClient(ctx context.Context, rdbName string) *redis.Client {
 
-	addr, err := k8s.ServiceNameWithPort(ctx, k8s.TypeKubIn, rdbName, "redis")
-	robust.Panic(err)
 	return redis.NewClient(&redis.Options{
-		Addr:     addr,
+		Addr:     k8s.TryServiceURL(ctx, k8s.TypeKubIn, rdbName, "redis"),
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       0,
 	})

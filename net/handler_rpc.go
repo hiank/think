@@ -10,6 +10,7 @@ import (
 	"github.com/hiank/think/net/ws"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/token"
+	"github.com/hiank/think/utils/robust"
 
 	"github.com/hiank/think/net/rpc"
 )
@@ -22,32 +23,35 @@ type rpcVal struct {
 //rpcLoop loop to operate msg
 func rpcLoop(ctx context.Context, sChan <-chan *rpcVal) {
 
-	var val *rpcVal
-	var err error
 	hub := make(map[string]*rpc.Client)
 L:
 	for {
 		select {
 		case <-ctx.Done():
 			break L
-		case val = <-sChan:
-			name, err := val.ServerName()
-			if err != nil {
-				break
-			}
-			client, ok := hub[name]
-			if !ok {
-				addr, err := k8s.ServiceNameWithPort(ctx, k8s.TypeKubIn, name+"service", "grpc")
-				if err != nil {
-					break
-				}
-				client = rpc.NewClient(context.WithValue(ctx, pool.CtxKeyRecvHandler, new(ws.Writer)), addr)
-				hub[name] = client
-			}
-			client.Push(val.Message)
+		case val := <-sChan:
+			val.res <- rpcPush(ctx, val, hub)
 		}
-		val.res <- err
 	}
+}
+
+func rpcPush(ctx context.Context, val *rpcVal, hub map[string]*rpc.Client) (err error) {
+
+	defer robust.Recover(robust.Warning, func(e interface{}) {
+		err = e.(error)
+	})
+
+	name, err := val.ServerName()
+	robust.Panic(err)
+
+	client, ok := hub[name]
+	if !ok {
+		addr := k8s.TryServiceURL(ctx, k8s.TypeKubIn, name+"service", "grpc")
+		client = rpc.NewClient(context.WithValue(ctx, pool.CtxKeyRecvHandler, new(ws.Writer)), addr)
+		hub[name] = client
+	}
+	client.Push(val.Message)
+	return nil
 }
 
 var _rpcMsgChan chan *rpcVal
