@@ -26,14 +26,11 @@ func ServeWS(ip string, msgHandler pool.MessageHandler) error {
 //默认的MessageHandler 根据消息名起始标志调用mq 或rpc 转发消息
 func ServeWSDefault(ip string) error {
 
-	return ServeWS(ip, wsRecvHandler(1))
+	return ServeWS(ip, pool.MessageHandlerTypeFunc(HandleWS))
 }
 
-//wsRecvHandler 处理ws服务收到的消息
-type wsRecvHandler int
-
-//Handle implement pool.MessageHandler
-func (wh wsRecvHandler) Handle(msg *pool.Message) error {
+//HandleWS implement pool.MessageHandler
+func HandleWS(msg *pool.Message) error {
 
 	t, err := pb.GetServerType(msg.GetData())
 	if err != nil {
