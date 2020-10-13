@@ -4,6 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
+
+	"github.com/hiank/think/net/k8s"
 
 	"github.com/hiank/think/db"
 )
@@ -14,18 +17,24 @@ func main() {
 
 	ctx := context.Background()
 
-	status := db.TryRedisMaster().Set(ctx, "testInt", 1, 0)
+	ar := db.NewAutoRedis(ctx, &db.RedisConf{
+		MasterURL: k8s.TryServiceURL(ctx, k8s.TypeKubIn, "redis-master", ""),
+		SlaveURL:  k8s.TryServiceURL(ctx, k8s.TypeKubIn, "redis-slave", ""),
+		Password:  os.Getenv("REDIS_PASSWORD"),
+		DB:        0,
+	})
+	status := ar.TryMaster().Set(ctx, "testInt", 1, 0)
 	if status.Err() != nil {
 		panic(status.Err())
 	}
 
-	val, err := db.TryRedisMaster().Get(ctx, "testInt").Result()
+	val, err := ar.TryMaster().Get(ctx, "testInt").Result()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("result : ", val)
 
-	val, err = db.TryRedisSlave().Get(ctx, "testInt").Result()
+	val, err = ar.TrySlave().Get(ctx, "testInt").Result()
 	if err != nil {
 		panic(err)
 	}
