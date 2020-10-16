@@ -62,7 +62,7 @@ func TestPoolListen(t *testing.T) {
 	wait, notice := make(chan bool), make(chan bool)
 	go func(wait chan bool) {
 		close(wait)
-		pool.Listen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
+		pool.AutoListen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
 			time.Sleep(time.Millisecond * 100)
 			notice <- true
 			return nil
@@ -105,7 +105,7 @@ func TestPoolListenOverThenConnDeleted(t *testing.T) {
 	wait, errChan := make(chan bool), make(chan error)
 	go func(wait chan bool) {
 		close(wait)
-		errChan <- pool.Listen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
+		errChan <- pool.AutoListen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
 			return nil
 		}))
 	}(wait)

@@ -16,99 +16,101 @@ type messageReq struct {
 //MessageHub 集中处理Message，顺序handle
 type MessageHub struct {
 	ctx        context.Context
-	handler    MessageHandler //NOTE: 处理消息
-	mtx        sync.RWMutex   //NOTE: 待处理消息缓存读写锁
-	reqList    *list.List     //NOTE: 存储待处理消息
-	notice     chan bool      //NOTE: 通知处理协程，有新消息
-	activeOnce sync.Once      //NOTE: 只会执行一次激活操作
+	handler    MessageHandler   //NOTE: 处理消息
+	cacheReq   chan *messageReq //NOTE: 请求存储，对于无法即可处理的消息，需要缓存起来先，无缓存
+	workChan   chan *messageReq //NOTE: 工作管道，每个工作线程尝试从这里读取请求，无缓存
+	limit      chan byte        //NOTE: 限定工作线程，带缓冲，缓存值是工作线程的最大值
+	activeOnce sync.Once        //NOTE: 只会执行一次激活操作
+	notice     chan byte        //NOTE: 激活通知
 }
 
 //NewMessageHub 构建新的 MessageHub
 func NewMessageHub(ctx context.Context, handler MessageHandler) *MessageHub {
 
 	mh := &MessageHub{
-		ctx:     ctx,
-		handler: handler,
-		reqList: list.New(),
+		ctx:      ctx,
+		handler:  handler,
+		workChan: make(chan *messageReq),
+		cacheReq: make(chan *messageReq),
+		notice:   make(chan byte, 1),
 	}
+	go mh.loop()
 	return mh
 }
 
-func (mh *MessageHub) loopHandle() {
+func (mh *MessageHub) loop() {
 
-	num, max, mtx := 0, 100, new(sync.Mutex)
+	cache := list.New()
 L:
 	for {
+		workChan, val := mh.loopAutoWork(cache)
 		select {
 		case <-mh.ctx.Done():
 			break L
-		case <-mh.notice: //NOTE: notice缓存为1，调用者需要注意阻塞
-			needNum := mh.safeLen() //NOTE: 这个地方使用读锁不会有问题，因为不存在多个goroutine 同时执行这个指令
-			mtx.Lock()
-			if needNum > max-num {
-				needNum = max - num
-			}
-			num += needNum
-			mtx.Unlock()
-			for ; needNum > 0; needNum-- {
-				go func() {
-					mh.syncHandle()
-					mtx.Lock()
-					defer mtx.Unlock()
-					num--
-				}()
-			}
+		case workChan <- val: //NOTE: 尝试将缓存中第一个数据写入工作管道，成功的话，删掉第一个数据
+			cache.Remove(cache.Front())
+		case req := <-mh.cacheReq:
+			cache.PushBack(req)
+		case <-mh.notice:
+			mh.limit = make(chan byte, 100)
 		}
 	}
 }
 
-func (mh *MessageHub) safePushBack(req *messageReq) {
-	mh.mtx.Lock()
-	defer mh.mtx.Unlock()
-	mh.reqList.PushBack(req)
-}
+//loopAutoWork 循环处理缓存中的消息，如果负载已满，则返回工作管道及缓存中的第一个数据
+func (mh *MessageHub) loopAutoWork(cache *list.List) (chan<- *messageReq, *messageReq) {
 
-//safeShift 安全的方式删除并获取最前面的数据
-//NOTE: 需要注意，如果是用读锁先获得list 长度，会有风险
-//      当list长度为1，多个线程读取值，可能导致多个线程的到的数都为1，导致删除错误
-func (mh *MessageHub) safeShift() (rlt *messageReq) {
-
-	mh.mtx.Lock()
-	defer mh.mtx.Unlock()
-	if mh.reqList.Len() > 0 {
-		rlt = mh.reqList.Remove(mh.reqList.Front()).(*messageReq)
+	for cache.Len() > 0 {
+		val := cache.Front().Value.(*messageReq)
+		if !mh.autoWork(val) { //NOTE: 如果负载已满，则设置工作管道可写，并跳出此循环
+			return mh.workChan, val
+		}
+		cache.Remove(cache.Front())
 	}
-	return
+	return nil, nil
 }
 
-func (mh *MessageHub) safeLen() int {
-	mh.mtx.RLock()
-	defer mh.mtx.RUnlock()
-	return mh.reqList.Len()
-}
+func (mh *MessageHub) handle(req *messageReq) {
 
-//syncHandle 处理消息请求
-//这个方法很可能会耗时较多，调用者视情况确定是否需要另起goroutine
-func (mh *MessageHub) syncHandle() {
-
-	req := mh.safeShift()
-	for ; req != nil; req = mh.safeShift() {
+L:
+	for {
 		err := mh.handler.Handle(req.Message)
+		ticker := time.NewTicker(time.Second)
 		select {
 		case req.rlt <- err:
-		case <-time.After(time.Millisecond): //NOTE: 避免长时间阻塞
+		case <-ticker.C: //NOTE: 避免长时间阻塞
+		}
+		ticker.Reset(time.Second * 10)
+		select {
+		case req = <-mh.workChan:
+		case <-ticker.C:
+			break L
 		}
 	}
+	<-mh.limit
 }
 
 //DoActive 激活此messagehub
 func (mh *MessageHub) DoActive() {
 
 	mh.activeOnce.Do(func() {
-		mh.notice = make(chan bool, 1) //NOTE: 缓存为1，只需要接收一个通知
-		mh.notice <- true              //NOTE: 通知处理消息，处理携程起来后，notice 一定是会被激活一次的。注意这个放在loopHandle进入的地方，可能会出现notice被Push写入，导致阻塞
-		go mh.loopHandle()
+		mh.notice <- 0
 	})
+}
+
+func (mh *MessageHub) autoWork(req *messageReq) (suc bool) {
+
+	select {
+	case mh.workChan <- req: //NOTE: 尝试写入工作管道
+	default:
+		select {
+		case mh.limit <- 0: //NOTE: 尝试启动一个工作协程，如果工作协程数限制未到的话
+			go mh.handle(req)
+		default: //NOTE: 以上都无法完成，表明负载已满，暂时无法处理
+			return false
+		}
+	}
+	return true
 }
 
 //Push 推送消息，会返回一个错误chan，用于追踪推送结果
@@ -117,10 +119,9 @@ func (mh *MessageHub) DoActive() {
 func (mh *MessageHub) Push(msg Message) <-chan error {
 
 	rlt := make(chan error)
-	mh.safePushBack(&messageReq{msg, rlt})
-	select {
-	case mh.notice <- true: //NOTE: 激活之前，mh.notice 为nil，会阻塞. 激活之后，只接收一个通知，其余忽略
-	default: //NOTE: 激活之前，mh.notice阻塞，逻辑上会走这里
+	req := &messageReq{msg, rlt}
+	if !mh.autoWork(req) { //NOTE: 如果负载已满，则将消息存入缓存
+		mh.cacheReq <- req
 	}
 	return rlt
 }

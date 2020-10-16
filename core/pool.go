@@ -25,9 +25,11 @@ func NewPool(ctx context.Context) *Pool {
 //AutoListen 自动化Listen，会创建并添加MessageHub，并在监听结束时删除此MessageHub
 func (pool *Pool) AutoListen(conn Conn, handler MessageHandler) (err error) {
 
-	if err = pool.Add(conn.GetKey(), NewMessageHub(pool.ctx, MessageHandlerTypeFunc(conn.Send))); err != nil {
+	msgHub := NewMessageHub(pool.ctx, MessageHandlerTypeFunc(conn.Send))
+	if err = pool.Add(conn.GetKey(), msgHub); err != nil {
 		return //NOTE: 如果是多线程自动创建监听，可能会出现多次设置的问题(比如rpc中，收到数据查找相应client，Get方法是读锁，存在多个线程同时没找到MessageHub的可能，然后都启用监听)
 	}
+	msgHub.DoActive()
 	err = pool.Listen(conn, handler)
 	pool.Del(conn.GetKey()) //NOTE: 接收端检测到连接出了问题，删除连接
 	return

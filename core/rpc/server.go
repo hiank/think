@@ -10,13 +10,15 @@ import (
 
 	"github.com/hiank/think/core/pb"
 	tg "github.com/hiank/think/core/rpc/pb"
+
 	"github.com/hiank/think/settings"
 	"google.golang.org/grpc"
 )
 
 type linkConn struct {
-	key string
-	ls  tg.Pipe_LinkServer
+	key     string
+	ls      tg.Pipe_LinkServer
+	recvNum int
 }
 
 func (lc *linkConn) GetKey() string {
@@ -26,12 +28,12 @@ func (lc *linkConn) GetKey() string {
 
 func (lc *linkConn) Send(msg core.Message) error {
 
-	return nil
+	return lc.ls.Send(&pb.Message{Key: msg.GetKey(), Value: msg.GetValue()})
 }
 
 func (lc *linkConn) Recv() (core.Message, error) {
 
-	return nil, nil
+	return lc.ls.Recv()
 }
 
 //Server k8s server
@@ -58,7 +60,7 @@ func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 	msg, err := ls.Recv()
 	core.Panic(err)
 
-	return s.Listen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
+	return s.AutoListen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
 }
 
 //Donce respond TypeGET | TypePOST message
@@ -73,7 +75,7 @@ func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, e
 		case pb.TypeGET:
 			res, err = s.handler.HandleGet(req)
 		case pb.TypePOST:
-			err = s.handler.HandlePost(req)
+			res, err = new(pb.Message), s.handler.HandlePost(req)
 		}
 	}
 	return

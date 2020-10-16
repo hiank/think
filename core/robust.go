@@ -1,6 +1,8 @@
 package core
 
-import "github.com/golang/glog"
+import (
+	"github.com/golang/glog"
+)
 
 //Panic 抛出异常
 func Panic(err error) {

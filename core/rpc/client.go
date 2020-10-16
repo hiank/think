@@ -14,7 +14,7 @@ import (
 //Client k8s 客户端，每一个服务对应一个Client，连接池不关心
 type Client struct {
 	context.Context
-	Close    context.CancelFunc
+	cancel   context.CancelFunc
 	pipePool *core.Pool //NOTE: 每个Client 包含一组pipe
 	key      string     //NOTE: 用于标识
 	recv     chan core.Message
@@ -28,10 +28,10 @@ func NewClient(ctx context.Context, key string) *Client {
 	ctx, cancel := context.WithCancel(ctx)
 	client := &Client{
 		Context:  ctx,
-		Close:    cancel,
+		cancel:   cancel,
 		pipePool: core.NewPool(ctx),
 		key:      key,
-		recv:     make(chan core.Message, 10),
+		recv:     make(chan core.Message),
 	}
 	return client
 }
@@ -39,7 +39,17 @@ func NewClient(ctx context.Context, key string) *Client {
 //Dial 建立，需要检测返回cc 的状态
 func (c *Client) Dial(addr string) (cc *grpc.ClientConn, err error) {
 
-	return grpc.DialContext(c.Context, addr, grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name)) //NOTE: block 为阻塞知道ready，insecure 为不需要验证的
+	if cc, err = grpc.DialContext(c.Context, addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name)); err == nil { //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		c.cc = cc
+	}
+	return
+}
+
+//Close 关闭Client
+func (c *Client) Close() {
+
+	c.cancel()
+	close(c.recv)
 }
 
 //GetKey 实现core.MessageHandler，返回的是服务名
@@ -52,15 +62,16 @@ func (c *Client) GetKey() string {
 func (c *Client) Send(msg core.Message) error {
 
 	key := msg.GetKey()
-	return <-c.pipePool.AutoOne(key, func() (msgHub *core.MessageHub) {
+	return <-c.pipePool.AutoOne(key, func() *core.MessageHub {
 
-		msgHub = core.NewMessageHub(c.Context, core.MessageHandlerTypeChan(c.recv))
+		pipe := newPipe(c.Context, key, tg.NewPipeClient(c.cc))
+		msgHub := core.NewMessageHub(c.Context, core.MessageHandlerTypeFunc(pipe.Send))
 		go func() {
 			msgHub.DoActive()
-			// c.pipePool.Listen(&Pipe{pipe: tg.NewPipeClient(c.cc)}, nil)
-			c.pipePool.Listen(newPipe(c.Context, tg.NewPipeClient(c.cc)), nil)
+			c.pipePool.Listen(pipe, core.MessageHandlerTypeChan(c.recv))
+			c.pipePool.Del(key)
 		}()
-		return
+		return msgHub
 	}).Push(msg)
 }
 

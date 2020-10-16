@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hiank/think/net/k8s"
+	"github.com/hiank/think/core/k8s"
 
 	"github.com/hiank/think/db"
 )
