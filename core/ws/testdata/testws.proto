@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+option go_package = "github.com/hiank/think/core/ws/td";
+
+message Request {
+    string value = 1;
+}

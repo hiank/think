@@ -14,6 +14,7 @@ import (
 //Server websocket server
 type Server struct {
 	upgrader   *websocket.Upgrader //NOTE: use default options
+	handler    core.MessageHandler //NOTE: 用于处理收到的消息
 	*core.Pool                     //NOTE: 连接池
 }
 
@@ -21,6 +22,7 @@ func newServer(ctx context.Context, msgHandler core.MessageHandler) *Server {
 
 	return &Server{
 		upgrader: new(websocket.Upgrader),
+		handler:  msgHandler,
 		Pool:     core.NewPool(ctx), //context.WithValue(ctx, core.CtxKeyRecvHandler, msgHandler)),
 	}
 }
@@ -39,12 +41,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer core.Recover(core.Warning)
 	c, err := s.upgrader.Upgrade(w, r, nil)
-	core.Panic(err)
-	defer c.Close()
-
-	// core.Panic(s.Listen(token.GetBuilder().Get(tokenStr), &Handler{Conn: c, tokenStr: tokenStr}))
+	if err == nil {
+		defer c.Close()
+		err = s.AutoListen(&conn{Conn: c, tokenStr: tokenStr}, s.handler)
+	}
+	glog.Warning(err)
 }
 
 //auth 认证token
@@ -61,7 +63,7 @@ type Writer int
 //Handle 实现pool.MessageHandler
 func (w Writer) Handle(msg core.Message) error {
 
-	if _singleServer != nil {
+	if _singleServer == nil {
 		glog.Fatalf("websocket server not started, please start a websocket server first. (use 'ListenAndServe' function to do this.)")
 	}
 	return <-_singleServer.Push(msg)
@@ -78,10 +80,13 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler core.MessageHandl
 	}
 
 	_singleServer = newServer(ctx, msgHandler)
-	// defer _singleServer.Close()
+	defer func() {
+		_singleServer = nil
+	}()
 
-	http.Handle("/ws", _singleServer)
-	server := &http.Server{Addr: core.WithPort(ip, settings.GetSys().WsPort)}
+	httpHandler := http.NewServeMux()
+	httpHandler.Handle("/ws", _singleServer)
+	server := &http.Server{Addr: core.WithPort(ip, settings.GetSys().WsPort), Handler: httpHandler}
 	go func() {
 		<-ctx.Done()
 		server.Close()
