@@ -3,9 +3,16 @@ package settings
 import (
 	"testing"
 
+	"github.com/golang/glog"
+
 	"github.com/hiank/conf"
 	"gotest.tools/v3/assert"
 )
+
+//testLoadGlog
+func testLoadGlog() {
+	glog.Infoln("for repair error from --logtostderr")
+}
 
 func TestDefaultValue(t *testing.T) {
 

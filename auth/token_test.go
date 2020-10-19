@@ -7,10 +7,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/golang/glog"
+
 	"gotest.tools/v3/assert"
 
 	"github.com/hiank/think/auth"
 )
+
+//testLoadGlog 用于引入glog，规避--logtostderr 报错的问题
+func testLoadGlog() {
+	glog.Infoln("for repair error from --logtostderr")
+}
 
 func testTryGet(t *testing.T, key string, wait *sync.WaitGroup) {
 

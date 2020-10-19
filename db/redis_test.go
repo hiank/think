@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/golang/glog"
 	"github.com/hiank/think/db"
 	"gotest.tools/assert"
 )
@@ -15,6 +16,10 @@ var (
 	redisServerBin, _  = filepath.Abs(filepath.Join("testdata", "redis", "src", "redis-server"))
 	redisServerConf, _ = filepath.Abs(filepath.Join("testdata", "redis", "redis.conf"))
 )
+
+func testLoadGlog() {
+	glog.Infoln("for repair error from --logtostderr")
+}
 
 func redisDir(port string) (string, error) {
 	dir, err := filepath.Abs(filepath.Join("testdata", "instances", port))
