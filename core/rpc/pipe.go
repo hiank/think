@@ -16,6 +16,7 @@ import (
 //Pipe ConnHandler for client conn
 type Pipe struct {
 	ctx      context.Context
+	cancel   context.CancelFunc
 	pipe     tg.PipeClient
 	key      string
 	recvChan chan core.Message
@@ -26,8 +27,10 @@ type Pipe struct {
 
 func newPipe(ctx context.Context, key string, pipe tg.PipeClient) *Pipe {
 
+	ctx, cancel := context.WithCancel(ctx)
 	return &Pipe{
 		ctx:      ctx,
+		cancel:   cancel,
 		pipe:     pipe,
 		key:      key,
 		recvChan: make(chan core.Message),
@@ -74,6 +77,13 @@ func (p *Pipe) Recv() (msg core.Message, err error) {
 		return msg, nil
 	}
 	return nil, errors.New("k8s client read chan closed")
+}
+
+//Close 关闭
+func (p *Pipe) Close() error {
+
+	p.cancel()
+	return io.EOF
 }
 
 func (p *Pipe) sendByLink(msg *pb.Message) (err error) {

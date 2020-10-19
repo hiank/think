@@ -46,7 +46,6 @@ func (rh *rpcHandler) Handle(msg core.Message) (err error) {
 		msgHub = core.NewMessageHub(rh.ctx, core.MessageHandlerTypeFunc(client.Send))
 		go func() {
 			if cc, err := client.Dial(k8s.TryServiceURL(rh.ctx, k8s.TypeKubIn, name+"service", "grpc")); err == nil {
-				msgHub.DoActive()
 				rh.Listen(client, rh.recvHandler)
 				cc.Close()
 			}

@@ -38,6 +38,11 @@ func (lc *linkConn) Recv() (core.Message, error) {
 	return lc.ls.Recv()
 }
 
+//Close 由发送端负责关闭，所以此方法不做更多处理
+func (lc *linkConn) Close() error {
+	return nil
+}
+
 //Server k8s server
 type Server struct {
 	tg.UnimplementedPipeServer
@@ -57,11 +62,11 @@ func newServer(ctx context.Context, msgHandler ReadHandler) *Server {
 //Link operate 'stream' type message
 func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 
-	msg, err := ls.Recv()
+	msg, err := ls.Recv() //NOTE: 第一个消息用于传入关键字信息
 	if err != nil {
 		return
 	}
-	return s.AutoListen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
+	return s.Listen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
 }
 
 //Donce respond TypeGET | TypePOST message
@@ -76,7 +81,7 @@ func (s *Server) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, e
 		case pb.TypeGET:
 			res, err = s.handler.HandleGet(req)
 		case pb.TypePOST:
-			res, err = new(pb.Message), s.handler.HandlePost(req)
+			res, err = new(pb.Message), s.handler.HandlePost(req) //NOTE: 如果返回的res 为nil，会导致一些问题，所以返回一个空消息
 		}
 	}
 	return

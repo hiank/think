@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -22,32 +21,23 @@ func NewPool(ctx context.Context) *Pool {
 	}
 }
 
-//AutoListen 自动化Listen，会创建并添加MessageHub，并在监听结束时删除此MessageHub
-func (pool *Pool) AutoListen(conn Conn, handler MessageHandler) (err error) {
-
-	msgHub := NewMessageHub(pool.ctx, MessageHandlerTypeFunc(conn.Send))
-	if err = pool.Add(conn.GetKey(), msgHub); err != nil {
-		return //NOTE: 如果是多线程自动创建监听，可能会出现多次设置的问题(比如rpc中，收到数据查找相应client，Get方法是读锁，存在多个线程同时没找到MessageHub的可能，然后都启用监听)
-	}
-	msgHub.DoActive()
-	err = pool.Listen(conn, handler)
-	pool.Del(conn.GetKey()) //NOTE: 接收端检测到连接出了问题，删除连接
-	return
-}
-
 //Listen 监听Conn
 //@param handler 收到消息处理者
-func (pool *Pool) Listen(conn Conn, handler MessageHandler) (err error) {
+//conn.Close would called after loop Recv
+func (pool *Pool) Listen(conn Conn, handler MessageHandler) error {
+
+	pool.AutoOne(conn.GetKey(), func() *MessageHub {
+		return NewMessageHub(pool.ctx, MessageHandlerTypeFunc(conn.Send))
+	}).activate() //NOTE: 确保存在对应的MessageHub，并激活
 
 L:
 	for {
 		select {
 		case <-pool.ctx.Done():
-			err = errors.New("Conn's token Done")
 			break L
 		default:
-			var msg Message
-			if msg, err = conn.Recv(); err != nil {
+			msg, err := conn.Recv()
+			if err != nil {
 				break L
 			}
 			if err := handler.Handle(msg); err != nil {
@@ -55,7 +45,8 @@ L:
 			}
 		}
 	}
-	return
+	pool.Del(conn.GetKey()) //NOTE: 接收端检测到连接出了问题，删除连接
+	return conn.Close()     //NOTE: conn的关闭，放在读协程中处理
 }
 
 //Push 通过此Pool 推送消息

@@ -24,7 +24,8 @@ type MessageHandler interface {
 
 //Conn 连接句柄
 type Conn interface {
-	GetKey() string //NOTE: 消息关键字，与Conn及Service 的key对应
-	Recv() (Message, error)
-	Send(Message) error
+	GetKey() string         //NOTE: 消息关键字，与Conn及Service 的key对应
+	Recv() (Message, error) //NOTE: 收消息
+	Send(Message) error     //NOTE: 发消息
+	Close() error           //NOTE: 关闭
 }

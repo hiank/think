@@ -2,9 +2,10 @@ package core_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,9 +29,10 @@ func (tm *testMessage) GetValue() *any.Any {
 }
 
 type testConn struct {
-	recvChan <-chan core.Message
+	recvChan chan core.Message
 	sendChan chan<- core.Message
 	key      string
+	once     sync.Once
 }
 
 func (tc *testConn) GetKey() string {
@@ -42,12 +44,19 @@ func (tc *testConn) Recv() (core.Message, error) {
 	if msg, ok := <-tc.recvChan; ok {
 		return msg, nil
 	}
-	return nil, errors.New("here recv error")
+	return nil, io.EOF
 }
 
 func (tc *testConn) Send(msg core.Message) error {
 
 	tc.sendChan <- msg
+	return nil
+}
+
+func (tc *testConn) Close() error {
+	tc.once.Do(func() {
+		close(tc.recvChan)
+	})
 	return nil
 }
 
@@ -62,7 +71,7 @@ func TestPoolListen(t *testing.T) {
 	wait, notice := make(chan bool), make(chan bool)
 	go func(wait chan bool) {
 		close(wait)
-		pool.AutoListen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
+		pool.Listen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
 			time.Sleep(time.Millisecond * 100)
 			notice <- true
 			return nil
@@ -97,7 +106,8 @@ func TestPoolAddDelGetSafe(t *testing.T) {
 
 func TestPoolListenOverThenConnDeleted(t *testing.T) {
 
-	pool, recvChan := core.NewPool(context.Background()), make(chan core.Message)
+	ctx, cancel := context.WithCancel(context.Background())
+	pool, recvChan := core.NewPool(ctx), make(chan core.Message)
 	conn := &testConn{
 		recvChan: recvChan,
 		key:      "test",
@@ -105,7 +115,7 @@ func TestPoolListenOverThenConnDeleted(t *testing.T) {
 	wait, errChan := make(chan bool), make(chan error)
 	go func(wait chan bool) {
 		close(wait)
-		errChan <- pool.AutoListen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
+		errChan <- pool.Listen(conn, core.MessageHandlerTypeFunc(func(core.Message) error {
 			return nil
 		}))
 	}(wait)
@@ -114,7 +124,9 @@ func TestPoolListenOverThenConnDeleted(t *testing.T) {
 	assert.Assert(t, ok, "监听后，自动加入缓存")
 
 	// recvChan <- nil
-	close(recvChan)
+	// close(recvChan)
+	cancel()
+	recvChan <- nil
 
 	// time.Sleep(time.Millisecond * 10)
 	t.Log(<-errChan)
@@ -126,13 +138,13 @@ func TestPoolPush(t *testing.T) {
 
 	pool := core.NewPool(context.Background())
 	err := <-pool.Push(&testMessage{key: "test1"})
-	// t.Log(err)
 	assert.Assert(t, err != nil, "没有对应MessageHub时，Push 会返回错误")
 
-	hub := core.NewMessageHub(context.Background(), core.MessageHandlerTypeFunc(func(msg core.Message) error {
-		return errors.New("test error")
-	}))
-	hub.DoActive()
-	pool.Add("test1", hub)
-	assert.Equal(t, (<-pool.Push(&testMessage{key: "test1"})).Error(), "test error", "处理结果必须正确返回给调用方")
+	// wait := make(chan bool, 1)
+	// go func() {
+	// 	wait <- true
+	// 	pool.Listen(nil, nil)
+	// }()
+	// <-wait
+	// assert.Equal(t, (<-pool.Push(&testMessage{key: "test1"})).Error(), "test error", "处理结果必须正确返回给调用方")
 }

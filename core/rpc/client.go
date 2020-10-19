@@ -66,11 +66,7 @@ func (c *Client) Send(msg core.Message) error {
 
 		pipe := newPipe(c.Context, key, tg.NewPipeClient(c.cc))
 		msgHub := core.NewMessageHub(c.Context, core.MessageHandlerTypeFunc(pipe.Send))
-		go func() {
-			msgHub.DoActive()
-			c.pipePool.Listen(pipe, core.MessageHandlerTypeChan(c.recv))
-			c.pipePool.Del(key)
-		}()
+		go c.pipePool.Listen(pipe, core.MessageHandlerTypeChan(c.recv))
 		return msgHub
 	}).Push(msg)
 }

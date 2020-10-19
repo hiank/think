@@ -90,8 +90,8 @@ L:
 	<-mh.limit
 }
 
-//DoActive 激活此messagehub
-func (mh *MessageHub) DoActive() {
+//activate 激活此messagehub
+func (mh *MessageHub) activate() {
 
 	mh.activeOnce.Do(func() {
 		mh.notice <- 0

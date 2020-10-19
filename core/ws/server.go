@@ -44,15 +44,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	c, err := s.upgrader.Upgrade(w, r, nil)
 	if err == nil {
-		err = s.AutoListen(&conn{Conn: c, tokenStr: tokenStr}, s.handler)
-		if err = c.Close(); err == nil {
-			_, _, err = c.ReadMessage()
-			if err != nil {
-				glog.Warning(err)
-			}
-		}
+		err = s.Listen(&conn{Conn: c, tokenStr: tokenStr}, s.handler)
 	}
-	if err != io.EOF {
+	if err != nil && err != io.EOF {
 		glog.Warning(err)
 	}
 }

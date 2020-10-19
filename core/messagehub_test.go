@@ -39,7 +39,7 @@ func TestDoActive(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 
-	mh.DoActive()
+	mh.activate()
 	cnt := 0
 
 	for {
