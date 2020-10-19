@@ -3,6 +3,8 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"io"
+	"sync"
 
 	"github.com/hiank/think/core"
 	tg "github.com/hiank/think/core/rpc/pb"
@@ -19,6 +21,7 @@ type Client struct {
 	key      string     //NOTE: 用于标识
 	recv     chan core.Message
 	cc       *grpc.ClientConn
+	once     sync.Once
 }
 
 //NewClient 构建新的 Client，service 包含端口号
@@ -46,10 +49,13 @@ func (c *Client) Dial(addr string) (cc *grpc.ClientConn, err error) {
 }
 
 //Close 关闭Client
-func (c *Client) Close() {
+func (c *Client) Close() error {
 
-	c.cancel()
-	close(c.recv)
+	c.once.Do(func() {
+		c.cancel()
+		close(c.recv)
+	})
+	return io.EOF
 }
 
 //GetKey 实现core.MessageHandler，返回的是服务名

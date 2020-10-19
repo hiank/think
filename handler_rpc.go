@@ -38,19 +38,20 @@ func (rh *rpcHandler) Handle(msg core.Message) (err error) {
 			glog.Warning(err)
 		}
 	}()
-	name := k8s.TryServerNameFromPBAny(msg.GetValue())
 
-	return <-rh.AutoOne(name, func() (msgHub *core.MessageHub) {
+	name := k8s.TryServerNameFromPBAny(msg.GetValue())
+	return <-rh.AutoOne(name, func() *core.MessageHub {
 
 		client := rpc.NewClient(rh.ctx, name)
-		msgHub = core.NewMessageHub(rh.ctx, core.MessageHandlerTypeFunc(client.Send))
+		msgHub := core.NewMessageHub(rh.ctx, core.MessageHandlerTypeFunc(client.Send))
 		go func() {
-			if cc, err := client.Dial(k8s.TryServiceURL(rh.ctx, k8s.TypeKubIn, name+"service", "grpc")); err == nil {
-				rh.Listen(client, rh.recvHandler)
-				cc.Close()
+			if _, err := client.Dial(k8s.TryServiceURL(rh.ctx, k8s.TypeKubIn, name+"service", "grpc")); err != nil {
+				rh.Del(name)
+				glog.Warning(err)
+				return
 			}
-			rh.Del(name)
+			rh.Listen(client, rh.recvHandler)
 		}()
-		return
+		return msgHub
 	}).Push(msg)
 }
