@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -43,10 +44,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	c, err := s.upgrader.Upgrade(w, r, nil)
 	if err == nil {
-		defer c.Close()
 		err = s.AutoListen(&conn{Conn: c, tokenStr: tokenStr}, s.handler)
+		if err = c.Close(); err == nil {
+			_, _, err = c.ReadMessage()
+			if err != nil {
+				glog.Warning(err)
+			}
+		}
 	}
-	glog.Warning(err)
+	if err != io.EOF {
+		glog.Warning(err)
+	}
 }
 
 //auth 认证token

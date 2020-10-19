@@ -29,11 +29,13 @@ func TryServiceURL(ctx context.Context, clusterType int, serviceName string, por
 	case TypeKubOut:
 		fallthrough
 	default:
-		core.Panic(errors.New("don't support type other than TypeKubIn"))
+		panic(errors.New("don't support type other than TypeKubIn"))
 	}
 
 	service, err := clientset.CoreV1().Services("think").Get(ctx, serviceName, meta_v1.GetOptions{})
-	core.Panic(err)
+	if err != nil {
+		panic(err)
+	}
 
 	for _, p := range service.Spec.Ports {
 
@@ -44,8 +46,7 @@ func TryServiceURL(ctx context.Context, clusterType int, serviceName string, por
 			return core.WithPort(serviceName, uint16(p.Port))
 		}
 	}
-	core.Panic(errors.New("cann't find grpc service port for " + serviceName))
-	return ""
+	panic(errors.New("cann't find grpc service port for " + serviceName))
 }
 
 //*****************************in-cluster-client-configuration*******************************//
@@ -59,11 +60,12 @@ func TryInClientset() *kubernetes.Clientset {
 	_inclientsetOnce.Do(func() {
 
 		config, err := rest.InClusterConfig()
-		core.Panic(err)
-
-		// creates the clientset
-		_inclientset, err = kubernetes.NewForConfig(config)
-		core.Panic(err)
+		if err != nil {
+			panic(err)
+		}
+		if _inclientset, err = kubernetes.NewForConfig(config); err != nil {
+			panic(err)
+		}
 	})
 	return _inclientset
 }

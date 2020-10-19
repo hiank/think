@@ -5,6 +5,8 @@ package think
 import (
 	"context"
 
+	"github.com/golang/glog"
+
 	"github.com/hiank/think/core"
 	"github.com/hiank/think/core/k8s"
 	"github.com/hiank/think/core/rpc"
@@ -30,10 +32,12 @@ func newRPCHandler(ctx context.Context, recvHandler core.MessageHandler) *rpcHan
 //将msg转发到指定client
 func (rh *rpcHandler) Handle(msg core.Message) (err error) {
 
-	defer core.Recover(core.Warning, func(r interface{}) {
-		err = r.(error)
-	})
-
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+			glog.Warning(err)
+		}
+	}()
 	name := k8s.TryServerNameFromPBAny(msg.GetValue())
 
 	return <-rh.AutoOne(name, func() (msgHub *core.MessageHub) {

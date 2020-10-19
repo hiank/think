@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/ptypes/any"
-	"github.com/hiank/think/core"
 	"github.com/hiank/think/core/pb"
 )
 
@@ -12,8 +11,10 @@ import (
 func TryServerNameFromPBAny(msg *any.Any) string {
 
 	key, err := pb.AnyMessageNameTrimed(msg)
-	core.Panic(err)
+	if err != nil {
+		panic(err)
+	}
+
 	key = key[strings.IndexByte(key, '_')+1:]
-	key = strings.ToLower(key)
-	return key
+	return strings.ToLower(key)
 }

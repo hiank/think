@@ -1,7 +1,6 @@
 package mq
 
 import (
-	"github.com/hiank/think/core"
 	"github.com/nats-io/nats.go"
 )
 
@@ -14,7 +13,10 @@ type Client struct {
 func TryNewClient(url string) *Client {
 
 	nc, err := nats.Connect(url)
-	core.Panic(err)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Client{
 		Conn: nc,
 	}

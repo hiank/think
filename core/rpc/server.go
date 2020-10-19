@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/golang/glog"
+
 	"github.com/hiank/think/core"
 
 	"github.com/hiank/think/core/pb"
@@ -55,11 +57,10 @@ func newServer(ctx context.Context, msgHandler ReadHandler) *Server {
 //Link operate 'stream' type message
 func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 
-	defer core.Recover(core.Warning)
-
 	msg, err := ls.Recv()
-	core.Panic(err)
-
+	if err != nil {
+		return
+	}
 	return s.AutoListen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
 }
 
@@ -89,9 +90,8 @@ type Writer int
 //Handle 实现pool.MessageHandler
 func (w Writer) Handle(msg core.Message) error {
 
-	defer core.Recover(core.Fatal)
 	if _singleServer == nil {
-		core.Panic(errors.New("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)"))
+		glog.Fatalln(errors.New("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)"))
 	}
 	return <-_singleServer.Push(msg)
 }
@@ -99,23 +99,21 @@ func (w Writer) Handle(msg core.Message) error {
 // ListenAndServe start a PipeServer
 func ListenAndServe(ctx context.Context, ip string, msgHandler ReadHandler) (err error) {
 
-	defer func() {
-		core.Recover(core.Fatal)
-		_singleServer = nil
-	}()
-
-	if _singleServer != nil {
-		err = errors.New("k8s server existed, cann't start another one")
-		core.Panic(err)
+	if _singleServer != nil { //NOTE: 一个时刻只能存在一个服务
+		return errors.New("k8s server existed, cann't start another one")
 	}
 
 	lis, err := new(net.ListenConfig).Listen(ctx, "tcp", core.WithPort(ip, settings.GetSys().K8sPort))
-	core.Panic(err)
+	if err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	_singleServer = newServer(ctx, msgHandler)
-	defer cancel() //NOTE: 清理这个服务，按需执行
-
+	defer func() {
+		cancel() //NOTE: 清理这个服务，按需执行
+		_singleServer = nil
+	}()
 	grpcServer := grpc.NewServer()
 	defer grpcServer.Stop()
 
