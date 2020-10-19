@@ -8,8 +8,6 @@ import (
 	"github.com/hiank/think/core/pb"
 	"github.com/hiank/think/core/rpc"
 	"github.com/hiank/think/core/ws"
-	"github.com/hiank/think/token"
-	// "github.com/hiank/think/token"
 )
 
 //ServeRPC 启动一个k8s服务，同一个进程只能有一个k8s服务
@@ -21,7 +19,7 @@ func ServeRPC(ip string, msgHandler rpc.ReadHandler) error {
 //ServeWS 启动一个ws服务
 func ServeWS(ip string, msgHandler core.MessageHandler) error {
 
-	return ws.ListenAndServe(token.BackgroundLife().Context, ip, msgHandler)
+	return ws.ListenAndServe(context.Background(), ip, msgHandler)
 }
 
 //ServeWSDefault 启动一个默认消息处理的ws服务
