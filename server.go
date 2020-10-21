@@ -17,8 +17,14 @@ func ServeRPC(ip string, msgHandler rpc.ReadHandler) error {
 	return rpc.ListenAndServe(context.Background(), ip, msgHandler)
 }
 
-//ServeWS 启动一个ws服务
-func ServeWS(ip string) (err error) {
+//ServeWS 启用一个ws服务
+func ServeWS(ip string, msgHandler core.MessageHandler) error {
+
+	return ws.ListenAndServe(context.Background(), ip, msgHandler)
+}
+
+//ServeWSDefault 启动一个ws服务 默认方式
+func ServeWSDefault(ip string) (err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -27,7 +33,7 @@ func ServeWS(ip string) (err error) {
 	}()
 	ctx := context.Background()
 	mqHandler, rpcHandler := &MQHandler{mq.TryNewClient("")}, NewRPCHandler(ctx, new(ws.Writer))
-	return ws.ListenAndServe(context.Background(), ip, core.MessageHandlerTypeFunc(func(msg core.Message) error {
+	return ServeWS(ip, core.MessageHandlerTypeFunc(func(msg core.Message) error {
 		t, err := pb.GetServerType(msg.GetValue())
 		if err != nil {
 			return err
