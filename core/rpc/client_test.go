@@ -100,63 +100,38 @@ func TestClient(t *testing.T) {
 	t.Run("TypeLink", func(t *testing.T) {
 
 		arr := [10000]int{}
-
 		num := len(arr)
-
 		go func() {
-
 			notice, noticeBefore := make(chan bool), make(chan bool)
-
 			for i := 0; i < num; i++ {
-
 				go func(i int) {
-
 					noticeBefore <- true
-
 					send(&td.S_Example{Value: strconv.Itoa(i)})
-
 					notice <- true
 				}(i)
 			}
-
 			var sendCnt, beforeCnt int
 		L:
 			for {
 				select {
 				case <-noticeBefore:
-
 					beforeCnt++
 				case <-notice:
 					sendCnt++
-
 				case <-time.After(time.Second * 18):
 					break L
 				}
 			}
 			t.Log("sendCnt", sendCnt, beforeCnt)
 		}()
-		// go func() {
 
-		// 	for i := 0; i < num; i++ {
-		// 		send(&td.S_Example{Value: strconv.Itoa(i)})
-		// 	}
-		// }()
-		// go func() {
-		// 	time.Sleep(time.Second * 20)
-		// 	// t.Log("before client close")
-		// 	client.Close()
-		// }()
 		var recvCnt int
 		for {
-
 			recvMsg, err := client.Recv()
-
 			if err != nil {
 				break
 			}
-			// assert.Assert(t, err == nil, "需要正确收到消息", err)
 			val := new(td.S_Example)
-
 			err = ptypes.UnmarshalAny(recvMsg.GetValue(), val)
 
 			assert.Assert(t, err == nil, "需要能正确收到消息", err)
@@ -176,4 +151,83 @@ func TestClient(t *testing.T) {
 	})
 	cancel()
 	wait.Wait()
+}
+
+func TestClientClose(t *testing.T) {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// testLink(t, "")
+
+	waitServe := new(sync.WaitGroup)
+	waitServe.Add(1)
+	go startOneServer(ctx, waitServe, new(testClientReadHandler))
+
+	client := rpc.NewClient(ctx, "test")
+	_, err := client.Dial(fmt.Sprintf("localhost:%v", settings.GetSys().K8sPort))
+	assert.Assert(t, err, nil, "必须能成功连上服务端")
+
+	a, _ := ptypes.MarshalAny(&td.S_Example{Value: "moreKey"})
+	err = client.Send(&pb.Message{Key: "token", Value: a})
+	assert.Assert(t, err, nil, "需要能成功发送消息", err)
+
+	recvMsg, err := client.Recv()
+	assert.Assert(t, err, nil, "需要能成功收到消息", err)
+
+	val := new(td.S_Example)
+	err = ptypes.UnmarshalAny(recvMsg.GetValue(), val)
+	assert.Assert(t, err == nil, "需要能正确收到消息", err)
+	assert.Equal(t, "moreKey", val.GetValue())
+
+	client.Close()
+
+	time.Sleep(time.Second)
+
+	cancel()
+	waitServe.Wait()
+}
+
+func TestMultiClientContainSomeToken(t *testing.T) {
+
+	wait, maxNum := new(sync.WaitGroup), 200
+	wait.Add(maxNum)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var testLink = func(t *testing.T, moreKey string) {
+
+		client := rpc.NewClient(ctx, "test")
+		_, err := client.Dial(fmt.Sprintf("localhost:%v", settings.GetSys().K8sPort))
+		assert.Assert(t, err, nil, "必须能成功连上服务端")
+
+		a, _ := ptypes.MarshalAny(&td.S_Example{Value: moreKey})
+		err = client.Send(&pb.Message{Key: "token", Value: a})
+		assert.Assert(t, err, nil, "需要能成功发送消息", err)
+
+		recvMsg, err := client.Recv()
+		assert.Assert(t, err, nil, "需要能成功收到消息", err)
+
+		val := new(td.S_Example)
+		err = ptypes.UnmarshalAny(recvMsg.GetValue(), val)
+		assert.Assert(t, err == nil, "需要能正确收到消息", err)
+		assert.Equal(t, moreKey, val.GetValue())
+
+		client.Close()
+
+		time.Sleep(time.Second)
+		wait.Done()
+	}
+	// testLink(t, "")
+
+	waitServe := new(sync.WaitGroup)
+	waitServe.Add(1)
+	go startOneServer(ctx, waitServe, new(testClientReadHandler))
+
+	for i := 0; i < maxNum; i++ {
+		go testLink(t, strconv.Itoa(i))
+	}
+
+	// time.Sleep(time.Second * 5)
+	wait.Wait()
+
+	cancel()
+	waitServe.Wait()
 }

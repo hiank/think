@@ -3,8 +3,10 @@ package rpc
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/golang/glog"
 
@@ -18,9 +20,18 @@ import (
 )
 
 type linkConn struct {
-	key     string
-	ls      tg.Pipe_LinkServer
-	recvNum int
+	key   string
+	token string
+	ls    tg.Pipe_LinkServer
+}
+
+func newLinkConn(key string, token string, ls tg.Pipe_LinkServer) *linkConn {
+
+	return &linkConn{
+		key:   key,
+		token: token,
+		ls:    ls,
+	}
 }
 
 func (lc *linkConn) GetKey() string {
@@ -30,12 +41,15 @@ func (lc *linkConn) GetKey() string {
 
 func (lc *linkConn) Send(msg core.Message) error {
 
-	return lc.ls.Send(&pb.Message{Key: msg.GetKey(), Value: msg.GetValue()})
+	return lc.ls.Send(&pb.Message{Key: lc.token, Value: msg.GetValue()})
 }
 
-func (lc *linkConn) Recv() (core.Message, error) {
+func (lc *linkConn) Recv() (msg core.Message, err error) {
 
-	return lc.ls.Recv()
+	if msg, err = lc.ls.Recv(); err == nil {
+		msg = &pb.Message{Key: lc.key, Value: msg.GetValue()}
+	}
+	return
 }
 
 //Close 由发送端负责关闭，所以此方法不做更多处理
@@ -66,7 +80,13 @@ func (s *Server) Link(ls tg.Pipe_LinkServer) (err error) {
 	if err != nil {
 		return
 	}
-	return s.Listen(&linkConn{key: msg.GetKey(), ls: ls}, s.handler)
+	lc := newLinkConn(s.randomKey(), msg.GetKey(), ls)
+	return s.Listen(lc, s.handler)
+}
+
+func (s *Server) randomKey() string {
+
+	return strconv.Itoa(rand.Int())
 }
 
 //Donce respond TypeGET | TypePOST message

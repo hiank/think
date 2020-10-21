@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/golang/glog"
 )
@@ -30,23 +31,18 @@ func (pool *Pool) Listen(conn Conn, handler MessageHandler) error {
 		return NewMessageHub(pool.ctx, MessageHandlerTypeFunc(conn.Send))
 	}).activate() //NOTE: 确保存在对应的MessageHub，并激活
 
-L:
-	for {
-		select {
-		case <-pool.ctx.Done():
-			break L
-		default:
-			msg, err := conn.Recv()
-			if err != nil {
-				break L
-			}
-			if err := handler.Handle(msg); err != nil {
-				glog.Warningf("message %v handle error\n", msg)
-			}
+	delay := time.Minute * 5
+	ticker := time.NewTicker(delay) //NOTE: 5分钟未收到消息，则自动删除连接
+
+	go LoopRecv(ticker, delay, conn.Recv, func(msg Message) {
+		if err := handler.Handle(msg); err != nil {
+			glog.Warningf("message %v handle error\n", msg)
 		}
-	}
+	})
+
+	err := HealthLock(pool.ctx, ticker, conn.Close)
 	pool.Del(conn.GetKey()) //NOTE: 接收端检测到连接出了问题，删除连接
-	return conn.Close()     //NOTE: conn的关闭，放在读协程中处理
+	return err
 }
 
 //Push 通过此Pool 推送消息
