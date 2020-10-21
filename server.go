@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/hiank/think/core"
+	"github.com/hiank/think/core/mq"
 	"github.com/hiank/think/core/pb"
 	"github.com/hiank/think/core/rpc"
 	"github.com/hiank/think/core/ws"
@@ -17,38 +18,34 @@ func ServeRPC(ip string, msgHandler rpc.ReadHandler) error {
 }
 
 //ServeWS 启动一个ws服务
-func ServeWS(ip string, msgHandler core.MessageHandler) error {
+func ServeWS(ip string) (err error) {
 
-	return ws.ListenAndServe(context.Background(), ip, msgHandler)
-}
-
-//ServeWSDefault 启动一个默认消息处理的ws服务
-//默认的MessageHandler 根据消息名起始标志调用mq 或rpc 转发消息
-func ServeWSDefault(ip string) error {
-
-	return ServeWS(ip, core.MessageHandlerTypeFunc(HandleWS))
-}
-
-//HandleWS implement pool.MessageHandler
-func HandleWS(msg core.Message) error {
-
-	t, err := pb.GetServerType(msg.GetValue())
-	if err != nil {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+	ctx := context.Background()
+	mqHandler, rpcHandler := &MQHandler{mq.TryNewClient("")}, NewRPCHandler(ctx, new(ws.Writer))
+	return ws.ListenAndServe(context.Background(), ip, core.MessageHandlerTypeFunc(func(msg core.Message) error {
+		t, err := pb.GetServerType(msg.GetValue())
+		if err != nil {
+			return err
+		}
+		switch t {
+		case pb.TypeGET:
+			fallthrough
+		case pb.TypePOST:
+			fallthrough
+		case pb.TypeSTREAM:
+			return rpcHandler.Handle(msg)
+		case pb.TypeMQ:
+			return mqHandler.Handle(msg) //mqHandle(msg)
+		}
+		name, err := pb.AnyMessageNameTrimed(msg.GetValue())
+		if err == nil {
+			err = errors.New("no method handle message: " + name)
+		}
 		return err
-	}
-	switch t {
-	case pb.TypeGET:
-		fallthrough
-	case pb.TypePOST:
-		fallthrough
-	case pb.TypeSTREAM:
-		// return rpcHandle(msg)
-	case pb.TypeMQ:
-		return mqHandle(msg)
-	}
-	name, err := pb.AnyMessageNameTrimed(msg.GetValue())
-	if err == nil {
-		err = errors.New("no method handle message: " + name)
-	}
-	return err
+	}))
 }

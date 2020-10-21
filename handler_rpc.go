@@ -12,16 +12,17 @@ import (
 	"github.com/hiank/think/core/rpc"
 )
 
-//rpcHandler 处理rpc请求消息
-type rpcHandler struct {
+//RPCHandler 处理rpc请求消息
+type RPCHandler struct {
 	*core.Pool
 	ctx         context.Context
 	recvHandler core.MessageHandler
 }
 
-func newRPCHandler(ctx context.Context, recvHandler core.MessageHandler) *rpcHandler {
+//NewRPCHandler new RPCHandler instance
+func NewRPCHandler(ctx context.Context, recvHandler core.MessageHandler) *RPCHandler {
 
-	return &rpcHandler{
+	return &RPCHandler{
 		Pool:        core.NewPool(ctx),
 		ctx:         ctx,
 		recvHandler: recvHandler,
@@ -30,7 +31,7 @@ func newRPCHandler(ctx context.Context, recvHandler core.MessageHandler) *rpcHan
 
 //Handle 实现core.MessageHandler
 //将msg转发到指定client
-func (rh *rpcHandler) Handle(msg core.Message) (err error) {
+func (rh *RPCHandler) Handle(msg core.Message) (err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
