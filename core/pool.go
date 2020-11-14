@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 )
 
 //Pool 池，集中处理Conn及消息
@@ -36,7 +36,7 @@ func (pool *Pool) Listen(conn Conn, handler MessageHandler) error {
 
 	go LoopRecv(ticker, delay, conn.Recv, func(msg Message) {
 		if err := handler.Handle(msg); err != nil {
-			glog.Warningf("message %v handle error\n", msg)
+			klog.Warningf("message %v handle error\n", msg)
 		}
 	})
 

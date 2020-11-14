@@ -3,15 +3,14 @@ package settings
 import (
 	"testing"
 
-	"github.com/golang/glog"
-
 	"github.com/hiank/conf"
 	"gotest.tools/v3/assert"
+	"k8s.io/klog/v2"
 )
 
 //testLoadGlog
 func testLoadGlog() {
-	glog.Infoln("for repair error from --logtostderr")
+	klog.Infoln("for repair error from --logtostderr")
 }
 
 func TestDefaultValue(t *testing.T) {

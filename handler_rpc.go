@@ -5,7 +5,7 @@ package think
 import (
 	"context"
 
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 
 	"github.com/hiank/think/core"
 	"github.com/hiank/think/core/k8s"
@@ -36,7 +36,7 @@ func (rh *RPCHandler) Handle(msg core.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
-			glog.Warning(err)
+			klog.Warning(err)
 		}
 	}()
 
@@ -48,7 +48,7 @@ func (rh *RPCHandler) Handle(msg core.Message) (err error) {
 		go func() {
 			if _, err := client.Dial(k8s.TryServiceURL(rh.ctx, k8s.TypeKubIn, name+"service", "grpc")); err != nil {
 				rh.Del(name)
-				glog.Warning(err)
+				klog.Warning(err)
 				return
 			}
 			rh.Listen(client, rh.recvHandler)

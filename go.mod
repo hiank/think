@@ -4,7 +4,6 @@ go 1.14
 
 require (
 	github.com/go-redis/redis/v8 v8.3.1
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.4.3
 	github.com/gorilla/websocket v1.4.2
 	github.com/hiank/conf v0.0.2
@@ -17,5 +16,6 @@ require (
 	gotest.tools/v3 v3.0.3
 	k8s.io/apimachinery v0.19.3
 	k8s.io/client-go v0.19.3
+	k8s.io/klog/v2 v2.2.0
 	k8s.io/utils v0.0.0-20201015054608-420da100c033 // indirect
 )

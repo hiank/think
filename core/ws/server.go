@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/golang/glog"
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/core"
 	"github.com/hiank/think/settings"
+	"k8s.io/klog/v2"
 )
 
 //Server websocket server
@@ -47,7 +47,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.Listen(&conn{Conn: c, tokenStr: tokenStr}, s.handler)
 	}
 	if err != nil && err != io.EOF {
-		glog.Warning(err)
+		klog.Warning(err)
 	}
 }
 
@@ -66,7 +66,7 @@ type Writer int
 func (w Writer) Handle(msg core.Message) error {
 
 	if _singleServer == nil {
-		glog.Fatalf("websocket server not started, please start a websocket server first. (use 'ListenAndServe' function to do this.)")
+		klog.Fatalf("websocket server not started, please start a websocket server first. (use 'ListenAndServe' function to do this.)")
 	}
 	return <-_singleServer.Push(msg)
 }
@@ -77,7 +77,7 @@ func ListenAndServe(ctx context.Context, ip string, msgHandler core.MessageHandl
 
 	if _singleServer != nil {
 		err = errors.New("websocket server existed, cann't start another one")
-		glog.Fatal(err)
+		klog.Fatal(err)
 		return
 	}
 

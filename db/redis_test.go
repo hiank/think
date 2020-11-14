@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/golang/glog"
 	"github.com/hiank/think/db"
 	"gotest.tools/assert"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 )
 
 func testLoadGlog() {
-	glog.Infoln("for repair error from --logtostderr")
+	klog.Infoln("for repair error from --logtostderr")
 }
 
 func redisDir(port string) (string, error) {

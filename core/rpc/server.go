@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/golang/glog"
-
 	"github.com/hiank/think/core"
+	"k8s.io/klog/v2"
 
 	"github.com/hiank/think/core/pb"
 	tg "github.com/hiank/think/core/rpc/pb"
@@ -116,7 +115,7 @@ type Writer int
 func (w Writer) Handle(msg core.Message) error {
 
 	if _singleServer == nil {
-		glog.Fatalln(errors.New("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)"))
+		klog.Fatalln(errors.New("k8s server not started, please start a k8s server first. (use 'ListenAndServe' function to do this.)"))
 	}
 	return <-_singleServer.Push(msg)
 }
