@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+import "message.proto";
+
+option go_package = "github.com/hiank/think/net/rpc/pb";
+
+service Pipe {
+
+    rpc Link(stream Message) returns (stream Message);      //NOTE: 连接消息, 第一个参数是token
+    rpc Donce(Message) returns (Message);                   //NOTE: 执行一次，'Get','Post' 类型消息通过这个api 交互
+}

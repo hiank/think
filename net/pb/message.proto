@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/hiank/think/net/pb";
+
+//Message 用于服务间传输的消息，为了绑定Token，所以不直接传输data。服务名可直接通过data 获取，所以不再使用Key字段
+message Message {
+    string key                      = 1;        //NOTE: 关键字，用于标识消息发送目标
+    uint64 senderUid                = 2;        //NOTE: 发送者uid，如果是服务端发送，不填此参数 
+    repeated uint64 receiverUids    = 3;        //NOTE: 接收者uid组，如果是全服发送，不填此参数，解析为全服发送
+    google.protobuf.Any value       = 4;        //NTOE: 实际的数据
+}
