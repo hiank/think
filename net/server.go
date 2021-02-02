@@ -21,6 +21,19 @@ type Accepter interface {
 	Accept() (Conn, error)
 }
 
+//ChanAccepter chan方式的Accepter
+type ChanAccepter <-chan Conn
+
+//Accept 建立连接
+func (ca ChanAccepter) Accept() (conn Conn, err error) {
+
+	conn, ok := <-ca
+	if !ok {
+		err = io.EOF
+	}
+	return
+}
+
 //Server 服务
 type Server struct {
 	ctx         context.Context

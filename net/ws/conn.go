@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"io"
 	"strconv"
 
 	"github.com/golang/protobuf/ptypes/any"
@@ -9,9 +10,27 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+//Reader interface for websocket.Conn's ReadMessage
+type Reader interface {
+	ReadMessage() (messageType int, p []byte, err error)
+}
+
+//Writer interface for websocket.Conn's WriterMessage
+type Writer interface {
+	WriteMessage(messageType int, data []byte) error
+}
+
+//ReadWriteCloser interface websocket.Conn
+type ReadWriteCloser interface {
+	Reader
+	Writer
+	io.Closer
+}
+
 //conn 将websocket conn 的读写，转换为pool.ConnHandler 的读写
 type conn struct {
-	*websocket.Conn
+	// *websocket.Conn
+	ReadWriteCloser
 	uid uint64
 }
 

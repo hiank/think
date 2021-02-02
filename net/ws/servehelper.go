@@ -14,13 +14,20 @@ type ServeHelper struct {
 	server   *http.Server
 	upgrader *websocket.Upgrader //NOTE: use default options
 	connChan chan net.Conn
+	net.Accepter
 }
 
 //NewServeHelper 新建一个ServeHelper
 func NewServeHelper(addr string) *ServeHelper {
 
+	ch := make(chan net.Conn, 8)
 	helper := &ServeHelper{
-		connChan: make(chan net.Conn, 8),
+		upgrader: &websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}, //new(websocket.Upgrader),
+		connChan: ch,
+		Accepter: net.ChanAccepter(ch),
 	}
 
 	httpHandler := http.NewServeMux()
@@ -44,10 +51,11 @@ func (helper *ServeHelper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, err := helper.upgrader.Upgrade(w, r, nil)
-	if err == nil {
-		helper.connChan <- &conn{Conn: c, uid: uid}
-	}
-	if err != nil && err != io.EOF {
+	switch err {
+	case nil:
+		helper.connChan <- &conn{ReadWriteCloser: c, uid: uid}
+	case io.EOF:
+	default:
 		klog.Warning(err)
 	}
 }
@@ -56,16 +64,6 @@ func (helper *ServeHelper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (helper *ServeHelper) auth(tokenStr string) (uint64, bool) {
 
 	return 1001, true
-}
-
-//Accept 通过连接
-func (helper *ServeHelper) Accept() (conn net.Conn, err error) {
-
-	var ok bool
-	if conn, ok = <-helper.connChan; !ok {
-		err = io.EOF
-	}
-	return
 }
 
 //ListenAndServe 启动服务

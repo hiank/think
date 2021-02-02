@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"io"
 	"net/http"
 
 	"net"
@@ -68,6 +67,7 @@ func (ps *PipeServer) mustEmbedUnimplementedPipeServer() {}
 
 //ServeHelper websocket连接核心
 type ServeHelper struct {
+	tnet.Accepter
 	ctx        context.Context
 	close      context.CancelFunc
 	pipeServer *PipeServer
@@ -79,24 +79,15 @@ type ServeHelper struct {
 func NewServeHelper(ctx context.Context, addr string, handler DonceHandler) *ServeHelper {
 
 	ctx, close := context.WithCancel(ctx)
-	connChan := make(chan tnet.Conn, 8)
+	ch := make(chan tnet.Conn, 8)
 	return &ServeHelper{
 		ctx:        ctx,
 		close:      close,
-		connChan:   connChan,
+		connChan:   ch,
 		addr:       addr,
-		pipeServer: &PipeServer{ctx: ctx, connChan: connChan, handler: handler},
+		Accepter:   tnet.ChanAccepter(ch),
+		pipeServer: &PipeServer{ctx: ctx, connChan: ch, handler: handler},
 	}
-}
-
-//Accept 通过连接
-func (helper *ServeHelper) Accept() (conn tnet.Conn, err error) {
-
-	var ok bool
-	if conn, ok = <-helper.connChan; !ok {
-		err = io.EOF
-	}
-	return
 }
 
 //ListenAndServe 启动服务
