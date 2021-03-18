@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	net1 "github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	tg "github.com/hiank/think/net/rpc/pb"
 	td "github.com/hiank/think/net/rpc/testdata"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
@@ -107,7 +107,7 @@ func (tp *testPipeServer) Link(pls tg.Pipe_LinkServer) error {
 		case io.EOF:
 			return err
 		case nil:
-			name, _ := ptypes.AnyMessageName(msg.GetValue())
+			name := string(msg.GetValue().MessageName().Name()) //ptypes.AnyMessageName(msg.GetValue())
 			if name[:2] == "S_" {
 				msg.Key += "_STREAM"
 				pls.Send(msg)
@@ -118,7 +118,7 @@ func (tp *testPipeServer) Link(pls tg.Pipe_LinkServer) error {
 
 func (tp *testPipeServer) Donce(ctx context.Context, msg *pb.Message) (*pb.Message, error) {
 
-	name, _ := ptypes.AnyMessageName(msg.GetValue())
+	name := string(msg.GetValue().MessageName().Name()) //ptypes.AnyMessageName(msg.GetValue())
 	name = name[:2]
 	switch name {
 	case "P_":
@@ -138,7 +138,7 @@ func TestPipeSendError(t *testing.T) {
 		err := c.Send(msg)
 		assert.Assert(t, err != nil, "Message's Value is nil, should get error: message is nil")
 
-		msg.Value, _ = ptypes.MarshalAny(&td.TEST_Example{})
+		msg.Value, _ = anypb.New(&td.TEST_Example{})
 		err = c.Send(msg)
 		assert.Equal(t, err.Error(), "cann't operate message type undefined", "只能处理 G_ | P_ | S_ 开头的消息")
 
@@ -160,7 +160,7 @@ func TestPipeSend(t *testing.T) {
 
 		t.Run("Pipe: Stream", func(t *testing.T) {
 			msg := &pb.Message{Key: "Stream"}
-			msg.Value, _ = ptypes.MarshalAny(&td.S_Example{})
+			msg.Value, _ = anypb.New(&td.S_Example{})
 			err := c.Send(msg)
 			assert.Assert(t, err == nil, "")
 
@@ -175,7 +175,7 @@ func TestPipeSend(t *testing.T) {
 
 		t.Run("Pipe: Get", func(t *testing.T) {
 			msg := &pb.Message{Key: "Get"}
-			msg.Value, _ = ptypes.MarshalAny(&td.G_Example{})
+			msg.Value, _ = anypb.New(&td.G_Example{})
 			err := c.Send(msg)
 			assert.Assert(t, err == nil, "")
 
@@ -189,7 +189,7 @@ func TestPipeSend(t *testing.T) {
 		t.Run("Pipe: Post", func(t *testing.T) {
 
 			msg := &pb.Message{Key: "Post"}
-			msg.Value, _ = ptypes.MarshalAny(&td.P_Example{})
+			msg.Value, _ = anypb.New(&td.P_Example{})
 			err := c.Send(msg)
 			assert.Assert(t, err == nil, "")
 

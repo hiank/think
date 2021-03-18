@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	tg "github.com/hiank/think/net/rpc/pb"
 	td "github.com/hiank/think/net/rpc/testdata"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
@@ -126,7 +126,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	t.Run("get", func(t *testing.T) {
 		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 		// if err == nil {
-		val, _ := ptypes.MarshalAny(&td.G_Example{})
+		val, _ := anypb.New(&td.G_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestGet", Value: val}
 		recvMsg, err := pipe.Donce(ctx, msg)
 		assert.Assert(t, err == nil, err)
@@ -138,7 +138,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 
 	t.Run("post", func(t *testing.T) {
 		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
-		val, _ := ptypes.MarshalAny(&td.P_Example{})
+		val, _ := anypb.New(&td.P_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestPost", Value: val}
 		recvMsg, err := pipe.Donce(ctx, msg)
 		assert.Assert(t, err == nil, err)
@@ -152,7 +152,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	t.Run("donce: not support message", func(t *testing.T) {
 
 		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
-		val, _ := ptypes.MarshalAny(&td.S_Example{})
+		val, _ := anypb.New(&td.S_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestStream", Value: val}
 		_, err := pipe.Donce(ctx, msg)
 		assert.Assert(t, err != nil, "不支持的数据类型，需返回错误")
@@ -161,7 +161,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 
 	t.Run("stream", func(t *testing.T) {
 		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
-		val, _ := ptypes.MarshalAny(&td.S_Example{})
+		val, _ := anypb.New(&td.S_Example{})
 		pipe := tg.NewPipeClient(cc)
 		msg := &pb.Message{Key: "TestStream", Value: val}
 		stream, err := pipe.Link(ctx)
@@ -182,13 +182,13 @@ func TestServeHelperListenAndServe(t *testing.T) {
 			}
 		}()
 
-		value1, _ := ptypes.MarshalAny(&td.S_Example{Value: "1"})
+		value1, _ := anypb.New(&td.S_Example{Value: "1"})
 		stream.Send(&pb.Message{Value: value1})
 
 		recvMsg, err := stream.Recv()
 		assert.Assert(t, err == nil, err)
 		var tmpVal1 td.S_Example
-		err = ptypes.UnmarshalAny(recvMsg.GetValue(), &tmpVal1)
+		err = recvMsg.GetValue().UnmarshalTo(&tmpVal1)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, tmpVal1.GetValue(), "1")
 

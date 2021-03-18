@@ -3,8 +3,9 @@ package pool_test
 import (
 	"testing"
 
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestLimitMux(t *testing.T) {
@@ -20,9 +21,9 @@ func TestListMux(t *testing.T) {
 
 	listMux := pool.NewListMux()
 	assert.Equal(t, listMux.Shift(), nil, "没有数据时，Shift返回nil")
-	listMux.Push("test1")
-	listMux.Push("test2")
-	assert.Equal(t, listMux.Shift().(string), "test1", "有数据时，Shift返回最前面数据")
-	assert.Equal(t, listMux.Shift().(string), "test2", "")
+	listMux.Push(&pb.Message{Key: "test1"})
+	listMux.Push(&pb.Message{Key: "test2"})
+	assert.Equal(t, listMux.Shift().(*pb.Message).GetKey(), "test1", "有数据时，Shift返回最前面数据")
+	assert.Equal(t, listMux.Shift().(*pb.Message).GetKey(), "test2", "")
 	assert.Equal(t, listMux.Shift(), nil, "")
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think/db"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 	"k8s.io/klog/v2"
 )
 

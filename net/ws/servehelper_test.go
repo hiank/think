@@ -6,13 +6,12 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	td "github.com/hiank/think/net/ws/testdata"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
@@ -137,7 +136,7 @@ func TestServeHelperServeHTTP(t *testing.T) {
 		wait := make(chan bool)
 		go func() {
 			conn, _, _ := testDial("localhost:10225", "HOPE")
-			anyData, _ := ptypes.MarshalAny(&td.Request{Value: "1"})
+			anyData, _ := anypb.New(&td.Request{Value: "1"})
 			buf, _ := proto.Marshal(anyData)
 			err := conn.WriteMessage(websocket.BinaryMessage, buf)
 			assert.Assert(t, err == nil, err)
@@ -145,12 +144,12 @@ func TestServeHelperServeHTTP(t *testing.T) {
 			_, buf, err = conn.ReadMessage()
 			assert.Assert(t, err == nil, err)
 			// ptypes.UnmarshalAny()
-			anyData = new(any.Any)
+			anyData = new(anypb.Any)
 			err = proto.Unmarshal(buf, anyData)
 			assert.Assert(t, err == nil, err)
 
 			var recvMsg td.Response
-			err = ptypes.UnmarshalAny(anyData, &recvMsg)
+			err = anyData.UnmarshalTo(&recvMsg)
 			assert.Assert(t, err == nil, err)
 			assert.Equal(t, recvMsg.GetValue(), "11")
 
@@ -163,11 +162,11 @@ func TestServeHelperServeHTTP(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 
 		var data td.Request
-		err = ptypes.UnmarshalAny(msg.GetValue(), &data)
+		err = msg.GetValue().UnmarshalTo(&data)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, data.GetValue(), "1")
 
-		anyData, _ := ptypes.MarshalAny(&td.Response{Value: data.GetValue() + "1"})
+		anyData, _ := anypb.New(&td.Response{Value: data.GetValue() + "1"})
 		// buf, _ := proto.Marshal(anyData)
 		err = conn.Send(&pb.Message{Key: "HOPE", Value: anyData})
 		assert.Assert(t, err == nil, err)

@@ -7,6 +7,7 @@ import (
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/set/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 //ServeHelper 服务核心方法
@@ -90,7 +91,7 @@ func (srv *Server) Send(msg *pb.Message) error {
 func (srv *Server) handleAccept(conn Conn) {
 
 	hub, _ := srv.hubPool.AutoHub(conn.Key()) //NOTE: 这里暂时没考虑重复连接的问题，后续需要完善
-	hub.SetHandler(pool.HandlerFunc(func(i interface{}) error {
+	hub.SetHandler(pool.HandlerFunc(func(i proto.Message) error {
 		return conn.Send(i.(*pb.Message))
 	}))
 	hub.Closer = conn.(io.Closer)

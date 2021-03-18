@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/protobuf/proto"
 )
 
 var hostname = os.Getenv("hostname")
@@ -100,7 +101,7 @@ func (p *Pipe) autoLinkClient() *net.Client {
 				c = &Conn{Sender: p.buildLinkSender(lc), Reciver: lc, Closer: net.CloserFunc(lc.CloseSend)}
 			}
 			return
-		}), pool.HandlerFunc(func(val interface{}) error {
+		}), pool.HandlerFunc(func(val proto.Message) error {
 			p.recvChan <- val.(*pb.Message)
 			return nil
 		}))

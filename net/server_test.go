@@ -9,6 +9,7 @@ import (
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/set/codes"
+	"google.golang.org/protobuf/proto"
 	"gotest.tools/v3/assert"
 )
 
@@ -26,7 +27,7 @@ func TestNewServer(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	helper := &testServerHelper{}
-	msgHandler := pool.HandlerFunc(func(i interface{}) error {
+	msgHandler := pool.HandlerFunc(func(i proto.Message) error {
 		return nil
 	})
 	srv := NewServer(ctx, helper, msgHandler)
@@ -208,7 +209,7 @@ func TestServerRecv(t *testing.T) {
 			connCh: connCh,
 			ctx:    ctx,
 		},
-		pool.HandlerFunc(func(i interface{}) error {
+		pool.HandlerFunc(func(i proto.Message) error {
 			handleCh <- i
 			return nil
 		}),

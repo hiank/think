@@ -4,10 +4,10 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net/pb"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 //Reader interface for websocket.Conn's ReadMessage
@@ -44,7 +44,7 @@ func (c *conn) Recv() (msg *pb.Message, err error) {
 
 	_, buf, err := c.ReadMessage()
 	if err == nil { //NOTE: 从websocket 读取消息
-		a := new(any.Any)
+		a := new(anypb.Any)
 		if err = proto.Unmarshal(buf, a); err == nil {
 			msg = &pb.Message{SenderUid: c.uid, Value: a}
 		}

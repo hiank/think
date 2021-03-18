@@ -9,6 +9,7 @@ import (
 
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
+	"google.golang.org/protobuf/proto"
 	"gotest.tools/v3/assert"
 )
 
@@ -19,7 +20,7 @@ func (tf *testClientFrame) Dial(ctx context.Context, target string) (Conn, error
 	return nil, errors.New("empty")
 }
 
-func (tf *testClientFrame) Handle(interface{}) error {
+func (tf *testClientFrame) Handle(proto.Message) error {
 	return nil
 }
 
@@ -69,7 +70,7 @@ func TestLoopRecv(t *testing.T) {
 			err = io.EOF
 		}
 		return
-	}), pool.HandlerFunc(func(val interface{}) error {
+	}), pool.HandlerFunc(func(val proto.Message) error {
 
 		msg := val.(*pb.Message)
 		assert.Equal(t, msg.GetKey(), "lvws")
@@ -81,38 +82,6 @@ func TestLoopRecv(t *testing.T) {
 
 	cancel()
 }
-
-// func TestLoopWork(t *testing.T) {
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-// 	// tr := &testHandleRecover{msgChan: make(chan *pb.Message)}
-// 	msgChan := make(chan *pb.Message)
-// 	var uid int
-// 	go func() {
-// 		msgChan <- &pb.Message{Key: "lvws", SenderUid: 128}
-// 		close(msgChan)
-// 	}()
-
-// 	loopWork(ctx, recvGetter(func() (msg *pb.Message, err error) {
-// 		msg, ok := <-msgChan
-// 		if !ok {
-// 			err = io.EOF
-// 		}
-// 		return
-// 	}), pool.HandlerFunc(func(val interface{}) error {
-
-// 		msg := val.(*pb.Message)
-// 		assert.Equal(t, msg.GetKey(), "lvws")
-// 		uid = int(msg.GetSenderUid())
-// 		return nil
-// 	}), CloserFunc(func() error {
-// 		return nil
-// 	}))
-
-// 	assert.Equal(t, uid, 128)
-
-// 	cancel()
-// }
 
 type testDialerFunc func(ctx context.Context, target string) (Conn, error)
 
@@ -163,7 +132,7 @@ func TestClientPush(t *testing.T) {
 			}),
 			Reciver: reciver,
 		}, nil
-	}), pool.HandlerFunc(func(i interface{}) error {
+	}), pool.HandlerFunc(func(i proto.Message) error {
 		outCh <- i.(*pb.Message)
 		return nil
 	}))

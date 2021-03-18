@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 )
 
 //LimitMux 限制器，用于限制
@@ -58,7 +60,7 @@ func NewListMux() *ListMux {
 }
 
 //Push 将数据安全的送到list中
-func (lm *ListMux) Push(val interface{}) {
+func (lm *ListMux) Push(val proto.Message) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 
@@ -66,12 +68,12 @@ func (lm *ListMux) Push(val interface{}) {
 }
 
 //Shift 取出最前面的数据
-func (lm *ListMux) Shift() (val interface{}) {
+func (lm *ListMux) Shift() (val proto.Message) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 
 	if ok := lm.cache.Len() > 0; ok {
-		val = lm.cache.Remove(lm.cache.Front())
+		val = lm.cache.Remove(lm.cache.Front()).(proto.Message)
 	}
 	return
 }
@@ -96,14 +98,14 @@ func NewHub(ctx context.Context, limit *LimitMux) *Hub {
 	}
 }
 
-func (hub *Hub) asyncLoopWork(res interface{}) {
+func (hub *Hub) asyncLoopWork(res proto.Message) {
 
 	if !hub.limit.Retain() {
 		hub.list.Push(res)
 		return
 	}
 
-	go func(res interface{}) {
+	go func(res proto.Message) {
 
 		for res != nil {
 			hub.handler.Handle(res)
@@ -113,23 +115,23 @@ func (hub *Hub) asyncLoopWork(res interface{}) {
 	}(res)
 }
 
-//loopWork 循环处理消息
-func (hub *Hub) loopWork(res interface{}) {
+// //loopWork 循环处理消息
+// func (hub *Hub) loopWork(res proto.Message) {
 
-	if !hub.limit.Retain() {
-		hub.list.Push(res)
-		return
-	}
+// 	if !hub.limit.Retain() {
+// 		hub.list.Push(res)
+// 		return
+// 	}
 
-	for res != nil {
-		hub.handler.Handle(res)
-		res = hub.list.Shift()
-	}
-	hub.limit.Release()
-}
+// 	for res != nil {
+// 		hub.handler.Handle(res)
+// 		res = hub.list.Shift()
+// 	}
+// 	hub.limit.Release()
+// }
 
 //Push 将资源送入Hub
-func (hub *Hub) Push(res interface{}) {
+func (hub *Hub) Push(res proto.Message) {
 
 	if hub.curHandler() == nil || hub.limit.Locked() {
 		hub.list.Push(res)
@@ -167,13 +169,13 @@ func (hub *Hub) SetHandler(handler Handler) {
 
 //Handler Hub的处理接口
 type Handler interface {
-	Handle(interface{}) error
+	Handle(proto.Message) error
 }
 
 //HandlerFunc 函数形式的Handler
-type HandlerFunc func(interface{}) error
+type HandlerFunc func(proto.Message) error
 
 //Handle 实现Handler的必要接口
-func (hf HandlerFunc) Handle(val interface{}) error {
+func (hf HandlerFunc) Handle(val proto.Message) error {
 	return hf(val)
 }

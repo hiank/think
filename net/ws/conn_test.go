@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/hiank/think/net/pb"
 	td "github.com/hiank/think/net/ws/testdata"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
@@ -41,13 +41,13 @@ func TestConn(t *testing.T) {
 		ch := make(chan []byte, 1)
 		c := &conn{ReadWriteCloser: &testRWC{ch: ch}}
 
-		anyData, _ := ptypes.MarshalAny(&td.Request{Value: "110"})
+		anyData, _ := anypb.New(&td.Request{Value: "110"})
 		buf, _ := proto.Marshal(anyData)
 		ch <- buf
 
 		var val td.Request
 		msg, _ := c.Recv()
-		ptypes.UnmarshalAny(msg.GetValue(), &val)
+		msg.GetValue().UnmarshalTo(&val)
 		assert.Equal(t, val.GetValue(), "110")
 	})
 
@@ -56,11 +56,11 @@ func TestConn(t *testing.T) {
 		ch := make(chan []byte, 1)
 		c := &conn{ReadWriteCloser: &testRWC{ch: ch}}
 
-		anyMsg, _ := ptypes.MarshalAny(&td.Response{Value: "loveWS"})
+		anyMsg, _ := anypb.New(&td.Response{Value: "loveWS"})
 		c.Send(&pb.Message{Value: anyMsg})
 
 		buf := <-ch
 		anyBuf, _ := proto.Marshal(anyMsg)
-		assert.Assert(t, bytes.Compare(buf, anyBuf) == 0)
+		assert.Assert(t, bytes.Equal(buf, anyBuf))
 	})
 }
