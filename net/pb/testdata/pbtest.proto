@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option go_package = "github.com/hiank/think/net/pb/testdata";
+
+message test1 {
+    string name = 1;
+}
+
+message test2 {
+    string hope = 1;
+}
+
+
+message anyTest1 {
+    string name = 1;
+}
+
+message anyTest2 {
+    string hope = 1;
+}
+
+message messageTest1 {
+    string key = 1;
+}

@@ -50,7 +50,7 @@ func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Messa
 	case <-ctx.Done():
 		err = http.ErrServerClosed
 	default:
-		t, _ := pb.GetServerType(req.GetValue()) //NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
+		t, _ := pb.GetServeType(req.GetValue()) //NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
 		switch t {
 		case pb.TypeGET:
 			res, err = ps.handler.HandleGet(req)

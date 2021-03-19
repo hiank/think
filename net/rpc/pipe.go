@@ -70,7 +70,7 @@ func (p *Pipe) Key() string {
 //about stream: 实际上，只需要有一个steam 就可以了，这个是某个token对应的pipe，每个token只需要使用一个steam 足够了
 func (p *Pipe) Send(msg *pb.Message) (err error) {
 
-	t, err := pb.GetServerType(msg.GetValue())
+	t, err := pb.GetServeType(msg.GetValue())
 	if err != nil {
 		return
 	}
