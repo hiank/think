@@ -1,16 +1,17 @@
 package pb
 
 import (
+	"github.com/hiank/think/pool"
 	"github.com/hiank/think/set/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var DefaultHandler = &liteHandler{handlerHub: make(map[string]MessageHandler)}
+var DefaultHandler = &liteHandler{handlerHub: make(map[string]pool.Handler)}
 
 //liteHandler 简易消息处理者
 type liteHandler struct {
-	handlerHub map[string]MessageHandler
+	handlerHub map[string]pool.Handler //MessageHandler
 }
 
 //Handle pool.MessageHandler 传入的消息
@@ -33,7 +34,7 @@ func (dh *liteHandler) Handle(msg proto.Message) (err error) {
 
 //Register 注册处理方法
 //非线程安全，建议只在初始化时调用
-func (dh *liteHandler) Register(emptyVal proto.Message, handler MessageHandler) error {
+func (dh *liteHandler) Register(emptyVal proto.Message, handler pool.Handler) error {
 	name := string(emptyVal.ProtoReflect().Descriptor().Name())
 	if _, ok := dh.handlerHub[name]; ok {
 		return codes.ErrorExistedMessageHandler
@@ -41,11 +42,4 @@ func (dh *liteHandler) Register(emptyVal proto.Message, handler MessageHandler) 
 
 	dh.handlerHub[name] = handler
 	return nil
-}
-
-//MessageHandler 处理proto.Message
-//NOTE: 如果是*any.Any消息，会先执行UnmarshalAny 然后Handle返回的消息
-type MessageHandler interface {
-	Handle(proto.Message) error
-	// UnmarshalAny(*any.Any) proto.Message
 }
