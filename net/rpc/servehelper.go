@@ -63,7 +63,7 @@ func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Messa
 	return
 }
 
-func (ps *PipeServer) mustEmbedUnimplementedPipeServer() {}
+// func (ps *PipeServer) mustEmbedUnimplementedPipeServer() {}
 
 //ServeHelper websocket连接核心
 type ServeHelper struct {

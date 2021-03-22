@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -116,15 +117,21 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	// go helper.ListenAndServe()
 
 	t.Run("server can be dial", func(t *testing.T) {
-		cc, err := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
-		assert.Assert(t, err == nil)
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+
+		cc, err := grpc.DialContext(ctxWithTimeout, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		assert.Assert(t, err == nil, err)
 		err = cc.Close()
-		assert.Assert(t, err == nil)
+		assert.Assert(t, err == nil, err)
 
 	})
 
 	t.Run("get", func(t *testing.T) {
-		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+
+		cc, _ := grpc.DialContext(ctxWithTimeout, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 		// if err == nil {
 		val, _ := anypb.New(&td.G_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestGet", Value: val}
@@ -137,7 +144,10 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	})
 
 	t.Run("post", func(t *testing.T) {
-		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+
+		cc, _ := grpc.DialContext(ctxWithTimeout, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 		val, _ := anypb.New(&td.P_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestPost", Value: val}
 		recvMsg, err := pipe.Donce(ctx, msg)
@@ -151,7 +161,9 @@ func TestServeHelperListenAndServe(t *testing.T) {
 
 	t.Run("donce: not support message", func(t *testing.T) {
 
-		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		cc, _ := grpc.DialContext(ctxWithTimeout, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 		val, _ := anypb.New(&td.S_Example{})
 		pipe, msg := tg.NewPipeClient(cc), &pb.Message{Key: "TestStream", Value: val}
 		_, err := pipe.Donce(ctx, msg)
@@ -160,7 +172,10 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	})
 
 	t.Run("stream", func(t *testing.T) {
-		cc, _ := grpc.DialContext(ctx, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+
+		cc, _ := grpc.DialContext(ctxWithTimeout, "localhost:10224", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 		val, _ := anypb.New(&td.S_Example{})
 		pipe := tg.NewPipeClient(cc)
 		msg := &pb.Message{Key: "TestStream", Value: val}

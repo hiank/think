@@ -7,36 +7,16 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	tg "github.com/hiank/think/net/rpc/pb"
 	"github.com/hiank/think/pool"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/protobuf/proto"
 )
 
 var hostname = os.Getenv("hostname")
-
-//Dialer grpc连接器
-//10秒钟超时
-var Dialer = dialerFunc(func(ctx context.Context, target string) (conn net.Conn, err error) {
-
-	cc, err := grpc.DialContext(ctx, target, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithBalancerName(roundrobin.Name), grpc.WithTimeout(time.Second*10)) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
-	if err == nil {
-		conn = newPipe(ctx, target, tg.NewPipeClient(cc))
-	}
-	return
-})
-
-type dialerFunc func(ctx context.Context, target string) (conn net.Conn, err error)
-
-func (df dialerFunc) Dial(ctx context.Context, target string) (conn net.Conn, err error) {
-	return df(ctx, target)
-}
 
 //Pipe ConnHandler for client conn
 type Pipe struct {
