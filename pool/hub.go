@@ -1,112 +1,41 @@
 package pool
 
 import (
-	"container/list"
 	"context"
 	"io"
 	"sync"
 
+	"github.com/hiank/think/set/codes"
 	"google.golang.org/protobuf/proto"
 )
-
-//LimitMux 限制器，用于限制
-type LimitMux struct {
-	Max int          //NOTE: 最大值
-	mux sync.RWMutex //NOTE:
-	cur int
-}
-
-//Locked 限制器是否出发
-func (lm *LimitMux) Locked() bool {
-	lm.mux.RLock()
-	defer lm.mux.RUnlock()
-
-	return lm.cur >= lm.Max
-}
-
-//Retain 索引值+1
-func (lm *LimitMux) Retain() (ok bool) {
-	lm.mux.Lock()
-	defer lm.mux.Unlock()
-
-	if ok = lm.cur < lm.Max; ok {
-		lm.cur++
-	}
-	return
-}
-
-//Release 释放一个操作
-func (lm *LimitMux) Release() {
-	lm.mux.Lock()
-	defer lm.mux.Unlock()
-
-	if lm.cur > 0 {
-		lm.cur--
-	}
-}
-
-//ListMux 线程安全list
-type ListMux struct {
-	cache *list.List
-	mux   sync.Mutex
-}
-
-//NewListMux 创建一个ListMux
-func NewListMux() *ListMux {
-
-	return &ListMux{
-		cache: list.New(),
-	}
-}
-
-//Push 将数据安全的送到list中
-func (lm *ListMux) Push(val proto.Message) {
-	lm.mux.Lock()
-	defer lm.mux.Unlock()
-
-	lm.cache.PushBack(val)
-}
-
-//Shift 取出最前面的数据
-func (lm *ListMux) Shift() (val proto.Message) {
-	lm.mux.Lock()
-	defer lm.mux.Unlock()
-
-	if ok := lm.cache.Len() > 0; ok {
-		val = lm.cache.Remove(lm.cache.Front()).(proto.Message)
-	}
-	return
-}
 
 //Hub 存储资源
 type Hub struct {
 	ctx     context.Context
 	handler Handler
 	mux     sync.RWMutex //NOTE: 用于handler设置
-	limit   *LimitMux
 	list    *ListMux
+	limit   *LimitMux
 	io.Closer
 }
 
 //NewHub 创建新的Hub
-func NewHub(ctx context.Context, limit *LimitMux) *Hub {
-
-	return &Hub{
+func NewHub(ctx context.Context, maxLoop int) *Hub {
+	hub := &Hub{
 		ctx:   ctx,
-		limit: limit,
 		list:  NewListMux(),
+		limit: &LimitMux{max: maxLoop},
 	}
+	return hub
 }
 
 func (hub *Hub) asyncLoopWork(res proto.Message) {
-
 	if !hub.limit.Retain() {
 		hub.list.Push(res)
 		return
 	}
 
 	go func(res proto.Message) {
-
 		for res != nil {
 			hub.handler.Handle(res)
 			res = hub.list.Shift()
@@ -115,45 +44,50 @@ func (hub *Hub) asyncLoopWork(res proto.Message) {
 	}(res)
 }
 
-// //loopWork 循环处理消息
-// func (hub *Hub) loopWork(res proto.Message) {
-
-// 	if !hub.limit.Retain() {
-// 		hub.list.Push(res)
-// 		return
-// 	}
-
-// 	for res != nil {
-// 		hub.handler.Handle(res)
-// 		res = hub.list.Shift()
-// 	}
-// 	hub.limit.Release()
-// }
-
 //Push 将资源送入Hub
 func (hub *Hub) Push(res proto.Message) {
-
 	if hub.curHandler() == nil || hub.limit.Locked() {
 		hub.list.Push(res)
 		return
 	}
-
 	hub.asyncLoopWork(res)
-	// go hub.loopWork(res)
 }
 
 //curHandler 安全读取当前的handler
 func (hub *Hub) curHandler() Handler {
-
 	hub.mux.RLock()
 	defer hub.mux.RUnlock()
 
 	return hub.handler
 }
 
+//TrySetHandler set hanlder, if handler is nil, panic
+func (hub *Hub) TrySetHandler(handler Handler) {
+	if handler == nil {
+		panic(codes.PanicNilHandler)
+	}
+	hub.mux.Lock()
+	defer hub.mux.Unlock()
+
+	switch {
+	case hub.handler != nil: //NOTE: cannot reset handler
+		panic(codes.PanicExistedHandler)
+	case hub.limit.Locked(): //NOTE: limitMux's max should be number > 0, so when first TrySetHandler, limitMux cann't be locked
+		panic(codes.PanicNonLimit)
+	}
+
+	hub.handler = handler
+	for !hub.limit.Locked() {
+		res := hub.list.Shift()
+		if res == nil {
+			break
+		}
+		hub.asyncLoopWork(res)
+	}
+}
+
 //SetHandler 设置handler
 func (hub *Hub) SetHandler(handler Handler) {
-
 	hub.mux.Lock()
 	defer hub.mux.Unlock()
 
