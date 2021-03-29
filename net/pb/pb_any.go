@@ -19,7 +19,7 @@ func GetServeType(anyMsg *anypb.Any) (t int, err error) {
 
 	protoName := anyMsg.MessageName().Name()
 	if !protoName.IsValid() {
-		return TypeUndefined, codes.ErrorAnyMessageIsEmpty
+		return TypeUndefined, codes.Error(codes.ErrorAnyMessageIsEmpty)
 	}
 
 	name := string(protoName)

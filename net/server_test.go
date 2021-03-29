@@ -57,7 +57,8 @@ func TestServerLoopAccept(t *testing.T) {
 		// cancel()
 		close(connCh)
 	}()
-	srv.loopAccept()
+	// srv.loopAccept()
+	loopAccept(srv.ctx, srv.helper.(Accepter), srv.handleAccept)
 
 	cancel()
 }
@@ -157,13 +158,13 @@ func TestServerSend(t *testing.T) {
 	t.Run("Send: nil message", func(t *testing.T) {
 
 		err := srv.Send(nil)
-		assert.Equal(t, err, codes.ErrorNilValue, "发送nil消息，返回指定错误")
+		assert.Equal(t, err, codes.Error(codes.ErrorNilValue), "发送nil消息，返回指定错误")
 	})
 
 	t.Run("Send: not existed hub for message", func(t *testing.T) {
 
 		err := srv.Send(&pb.Message{Key: "notExistedKey"})
-		assert.Equal(t, err, codes.ErrorNotExisted, "发送的消息无效的Key，返回指定错误")
+		assert.Equal(t, err, codes.Error(codes.ErrorNotExisted), "发送的消息无效的Key，返回指定错误")
 	})
 
 	t.Run("Send: success", func(t *testing.T) {
@@ -229,4 +230,37 @@ func TestServerRecv(t *testing.T) {
 	assert.Equal(t, <-handleCh, msg)
 
 	cancel()
+}
+
+func TestServerClose(t *testing.T) {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	helper := &testServerHelper{
+		ctx: ctx,
+	}
+
+	srv := NewServer(
+		ctx,
+		helper,
+		nil,
+	)
+
+	helper.ctx = srv.ctx
+
+	errChan, noticeChan := make(chan error), make(chan bool, 1)
+	go func() {
+		noticeChan <- true
+		err := srv.ListenAndServe()
+		errChan <- err
+	}()
+
+	<-noticeChan
+	time.Sleep(time.Microsecond)
+
+	srv.Close()
+
+	err := <-errChan
+	assert.Equal(t, err, io.EOF)
 }

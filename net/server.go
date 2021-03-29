@@ -27,7 +27,6 @@ type ChanAccepter <-chan Conn
 
 //Accept 建立连接
 func (ca ChanAccepter) Accept() (conn Conn, err error) {
-
 	conn, ok := <-ca
 	if !ok {
 		err = io.EOF
@@ -41,16 +40,15 @@ type Server struct {
 	helper      ServeHelper
 	hubPool     *pool.HubPool
 	recvHandler pool.Handler       //NOTE: 处理收到的消息
-	close       context.CancelFunc //NOTE: 如果服务停止，关闭相关Context
+	Close       context.CancelFunc //NOTE: 如果服务停止，关闭相关Context
 }
 
 //NewServer 创建服务
 func NewServer(ctx context.Context, helper ServeHelper, handler pool.Handler) *Server {
-
 	ctx, close := context.WithCancel(ctx)
 	return &Server{
 		ctx:         ctx,
-		close:       close,
+		Close:       close,
 		helper:      helper,
 		hubPool:     pool.NewHubPool(ctx),
 		recvHandler: handler,
@@ -59,31 +57,35 @@ func NewServer(ctx context.Context, helper ServeHelper, handler pool.Handler) *S
 
 //ListenAndServe 启动服务
 func (srv *Server) ListenAndServe() error {
+	go loopAccept(srv.ctx, srv.helper.(Accepter), srv.handleAccept)
+	go func(ctx context.Context) {
+		<-ctx.Done()
+		srv.helper.Close()
+	}(srv.ctx)
 
-	go srv.loopAccept()
 	err := srv.helper.ListenAndServe()
 	srv.hubPool.RemoveAll() //NOTE: 调用所有Hub的Close，关闭连接
-	srv.helper.Close()
+	srv.Close()
 	return err
-}
-
-func (srv *Server) loopAccept() {
-
-	loopAccept(srv.ctx, srv.helper.(Accepter), srv.handleAccept)
 }
 
 //Send 发送消息，找到相应数据集，处理消息发送
 func (srv *Server) Send(msg *pb.Message) error {
 
+	select {
+	case <-srv.ctx.Done():
+		return codes.Error(codes.ErrorSrvClosed)
+	default:
+	}
+
 	if msg == nil {
-		return codes.ErrorNilValue
+		return codes.Error(codes.ErrorNilValue)
 	}
 
 	hub := srv.hubPool.GetHub(msg.GetKey())
 	if hub == nil {
-		return codes.ErrorNotExisted
+		return codes.Error(codes.ErrorNotExisted)
 	}
-
 	hub.Push(msg)
 	return nil
 }

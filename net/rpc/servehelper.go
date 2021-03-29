@@ -57,7 +57,7 @@ func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Messa
 		case pb.TypePOST:
 			res, err = new(pb.Message), ps.handler.HandlePost(req) //NOTE: 如果返回的res 为nil，会导致一些问题，所以返回一个空消息
 		default:
-			err = codes.ErrorNotSupportType
+			err = codes.Error(codes.ErrorNotSupportType)
 		}
 	}
 	return

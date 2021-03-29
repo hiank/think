@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/net/pb/testdata"
+	"github.com/hiank/think/net/testdata"
 	"github.com/hiank/think/set/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -71,7 +71,7 @@ func TestLiteHandler(t *testing.T) {
 		assert.Assert(t, err == nil)
 
 		err = pb.LiteHandler.Register(new(testdata.Test1), &testHandler{out: outTest1})
-		assert.Equal(t, err.Error(), codes.ErrorExistedMessageHandler.Error())
+		assert.Equal(t, err.Error(), codes.Error(codes.ErrorExistedMessageHandler).Error())
 	})
 
 	t.Run("RegisterNilHandler", func(t *testing.T) {

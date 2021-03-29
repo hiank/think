@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/hiank/think/net/pb/testdata";
+option go_package = "github.com/hiank/think/net/testdata";
 
 message test1 {
     string name = 1;

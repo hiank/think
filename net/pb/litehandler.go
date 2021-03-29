@@ -38,7 +38,7 @@ func (dh *liteHandler) Handle(msg proto.Message) (err error) {
 	case "Any":
 		anyName := msg.(*anypb.Any).MessageName().Name()
 		if !anyName.IsValid() {
-			return codes.ErrorAnyMessageIsEmpty
+			return codes.Error(codes.ErrorAnyMessageIsEmpty)
 		}
 		if handler, ok := dh.handlerHub[string(anyName)]; ok {
 			if msg, err = msg.(*anypb.Any).UnmarshalNew(); err == nil {
@@ -50,7 +50,7 @@ func (dh *liteHandler) Handle(msg proto.Message) (err error) {
 	if dh.DefaultHandler != nil {
 		return dh.DefaultHandler.Handle(msg)
 	}
-	return codes.ErrorNoMessageHandler
+	return codes.Error(codes.ErrorNoMessageHandler)
 }
 
 //Register 注册处理方法
@@ -58,7 +58,7 @@ func (dh *liteHandler) Handle(msg proto.Message) (err error) {
 func (dh *liteHandler) Register(emptyVal proto.Message, handler pool.Handler) error {
 	name := string(emptyVal.ProtoReflect().Descriptor().Name())
 	if _, ok := dh.handlerHub[name]; ok {
-		return codes.ErrorExistedMessageHandler
+		return codes.Error(codes.ErrorExistedMessageHandler)
 	}
 
 	dh.handlerHub[name] = handler
