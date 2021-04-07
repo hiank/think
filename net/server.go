@@ -100,3 +100,25 @@ func (srv *Server) handleAccept(conn Conn) {
 
 	go loopRecv(srv.ctx, conn.(Reciver), srv.recvHandler)
 }
+
+// type ConnHandler interface {
+// 	Handle(Conn)
+// }
+
+//LiteServer 轻量级服务
+//自定义 新连接及消息收发处理
+type LiteServer struct {
+	Context     context.Context
+	ServeHelper ServeHelper
+	ConnHandler func(Conn)
+}
+
+//ListenAndServe 启动服务
+func (svc *LiteServer) ListenAndServe() error {
+	go loopAccept(svc.Context, svc.ServeHelper.(Accepter), svc.ConnHandler)
+	go func() {
+		<-svc.Context.Done()
+		svc.ServeHelper.Close()
+	}()
+	return svc.ServeHelper.ListenAndServe()
+}
