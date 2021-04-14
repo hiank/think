@@ -21,7 +21,6 @@ func (c *Conn) Key() string {
 
 //Close 关闭连接
 func (c *Conn) Close() (err error) {
-
 	if c.Closer != nil {
 		err = c.Closer.Close()
 	}

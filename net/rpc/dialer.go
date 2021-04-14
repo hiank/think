@@ -14,7 +14,6 @@ import (
 //Dialer grpc连接器
 //10秒钟超时
 var Dialer = dialerFunc(func(ctx context.Context, target string) (conn net.Conn, err error) {
-
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 

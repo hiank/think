@@ -43,7 +43,6 @@ func (ps *PipeServer) Link(ls tg.Pipe_LinkServer) (err error) {
 
 //Donce respond TypeGET | TypePOST message
 func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, err error) {
-
 	select {
 	case <-ps.ctx.Done():
 		err = http.ErrServerClosed
@@ -62,8 +61,6 @@ func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Messa
 	}
 	return
 }
-
-// func (ps *PipeServer) mustEmbedUnimplementedPipeServer() {}
 
 //ServeHelper websocket连接核心
 type ServeHelper struct {
@@ -92,7 +89,6 @@ func NewServeHelper(ctx context.Context, addr string, handler DonceHandler) *Ser
 
 //ListenAndServe 启动服务
 func (helper *ServeHelper) ListenAndServe() error {
-
 	lis, err := new(net.ListenConfig).Listen(helper.ctx, "tcp", helper.addr)
 	if err != nil {
 		return err
@@ -112,7 +108,6 @@ func (helper *ServeHelper) ListenAndServe() error {
 
 //Close 关闭
 func (helper *ServeHelper) Close() error {
-
 	close(helper.connChan)
 	helper.close()
 	return nil

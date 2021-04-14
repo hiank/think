@@ -19,13 +19,12 @@ type ServeHelper struct {
 
 //NewServeHelper 新建一个ServeHelper
 func NewServeHelper(addr string) *ServeHelper {
-
 	ch := make(chan net.Conn, 8)
 	helper := &ServeHelper{
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
-		}, //new(websocket.Upgrader),
+		},
 		connChan: ch,
 		Accepter: net.ChanAccepter(ch),
 	}
@@ -38,7 +37,6 @@ func NewServeHelper(addr string) *ServeHelper {
 
 //ServeHTTP 处理http 服务
 func (helper *ServeHelper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 	tokenArr := r.Header["Token"]
 	if len(tokenArr) == 0 {
 		http.Error(w, "Non token component of the query", http.StatusNonAuthoritativeInfo) //NOTE: 没有包含token

@@ -13,15 +13,15 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-type testAccepter interface {
-	Accept() (Conn, error)
-}
+// type testAccepter interface {
+// 	Accept() (Conn, error)
+// }
 
-type testAccepterFunc func() (Conn, error)
+// type testAccepterFunc func() (Conn, error)
 
-func (tf testAccepterFunc) Accept() (Conn, error) {
-	return tf()
-}
+// func (tf testAccepterFunc) Accept() (Conn, error) {
+// 	return tf()
+// }
 
 func TestNewServer(t *testing.T) {
 

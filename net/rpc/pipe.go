@@ -72,10 +72,8 @@ func (p *Pipe) Send(msg *pb.Message) (err error) {
 }
 
 func (p *Pipe) autoLinkClient() *net.Client {
-
 	p.once.Do(func() {
 		p.linkClient = net.NewClient(p.ctx, dialerFunc(func(ctx context.Context, target string) (c net.Conn, err error) {
-
 			lc, err := p.pipe.Link(ctx)
 			if err == nil {
 				c = &Conn{Sender: p.buildLinkSender(lc), Reciver: lc, Closer: net.CloserFunc(lc.CloseSend)}
@@ -90,7 +88,6 @@ func (p *Pipe) autoLinkClient() *net.Client {
 }
 
 func (p *Pipe) buildLinkSender(lc tg.Pipe_LinkClient) net.Sender {
-
 	return net.SenderFunc(func(msg *pb.Message) error {
 		msg.Key = hostname + strconv.FormatUint(msg.GetSenderUid(), 10) //NOTE: 此处已经唯一 服务名。host用于grpc确定来源
 		return lc.Send(msg)
@@ -99,7 +96,6 @@ func (p *Pipe) buildLinkSender(lc tg.Pipe_LinkClient) net.Sender {
 
 //Recv 将消息转换到此接口
 func (p *Pipe) Recv() (*pb.Message, error) {
-
 	if msg, ok := <-p.recvChan; ok {
 		return msg, nil
 	}
@@ -108,7 +104,6 @@ func (p *Pipe) Recv() (*pb.Message, error) {
 
 //Close 关闭
 func (p *Pipe) Close() error {
-
 	p.cancel()
 	close(p.recvChan)
 	return nil

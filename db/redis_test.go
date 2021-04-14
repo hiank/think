@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,17 +10,12 @@ import (
 
 	"github.com/hiank/think/db"
 	"gotest.tools/v3/assert"
-	"k8s.io/klog/v2"
 )
 
 var (
-	redisServerBin, _  = filepath.Abs(filepath.Join("testdata", "redis", "src", "redis-server"))
-	redisServerConf, _ = filepath.Abs(filepath.Join("testdata", "redis", "redis.conf"))
+	redisServerBin, _  = filepath.Abs("testdata/redis/src/redis-server")
+	redisServerConf, _ = filepath.Abs("testdata/redis/redis.conf")
 )
-
-func testLoadGlog() {
-	klog.Infoln("for repair error from --logtostderr")
-}
 
 func redisDir(port string) (string, error) {
 	dir, err := filepath.Abs(filepath.Join("testdata", "instances", port))
@@ -46,20 +42,6 @@ func startRedis(port string, args ...string) (*os.Process, error) {
 
 	baseArgs := []string{filepath.Join(dir, "redis.conf"), "--port", port, "--dir", dir}
 	return execCmd(redisServerBin, append(baseArgs, args...)...)
-	// process, err := execCmd(redisServerBin, append(baseArgs, args...)...)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// client, err := connectTo(port)
-	// if err != nil {
-	// 	process.Kill()
-	// 	return nil, err
-	// }
-
-	// p := &redisProcess{process, client}
-	// registerProcess(port, p)
-	// return p, err
 }
 
 func execCmd(name string, args ...string) (*os.Process, error) {
@@ -75,19 +57,34 @@ func TestConnectToRedis(t *testing.T) {
 
 	proc, err := startRedis("30211")
 	if err != nil {
-		panic(err)
+		t.Error(err)
+		return
 	}
 	defer proc.Kill()
-	// db.TryRedisHub().TryMaster()
-	ar, ctx := db.NewAutoRedis(context.Background(), &db.RedisConf{
-		MasterURL: "localhost:30211",
-		DB:        0,
-		Password:  "",
-	}), context.Background()
-	ar.TryMaster().Set(ctx, "testInt", 1, 0)
-	val, err := ar.TryMaster().Get(ctx, "testInt").Result()
-	if err != nil {
-		panic(err)
-	}
+
+	redisConf := &db.RedisConf{}
+	err = json.Unmarshal([]byte(`{
+		"redis.Url": "localhost:30211",
+		"redis.DB": 0,
+		"redis.Password": "",
+		"redis.CheckMillisecond": 300,
+		"redis.TimeoutSecond": 5
+	}`), redisConf)
+	assert.Assert(t, err == nil, err)
+
+	assert.Equal(t, redisConf.CheckMillisecond, 300)
+	assert.Equal(t, redisConf.DB, 0)
+	assert.Equal(t, redisConf.Password, "")
+	assert.Equal(t, redisConf.TimeoutSecond, 5)
+	assert.Equal(t, redisConf.Url, "localhost:30211")
+
+	ctx := context.Background()
+	cli, err := db.NewVerifiedRedisCLI(ctx, redisConf)
+	assert.Assert(t, err == nil, err)
+
+	cli.Set(ctx, "testInt", 1, 0)
+	val, err := cli.Get(ctx, "testInt").Result()
+
+	assert.Assert(t, err == nil, err)
 	assert.Equal(t, val, "1")
 }

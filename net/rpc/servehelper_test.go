@@ -114,7 +114,6 @@ func TestServeHelperListenAndServe(t *testing.T) {
 	go func() {
 		closeChan <- helper.ListenAndServe()
 	}()
-	// go helper.ListenAndServe()
 
 	t.Run("server can be dial", func(t *testing.T) {
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
