@@ -21,6 +21,14 @@
 GetServeType(anyMsg *anypb.Any) (t int, err error)
 ```
 
+### `GetServeName` 获取服务名
+
+```golang
+GetServeName(anyMsg *anypb.Any) (serveName string, err error)
+```
+
+服务名信息会包含着协议名中，解析出来后作为指向服务的addr，用于流向相应的服务
+
 ## `pb.LiteHandler`
 
 主要提供以下功能：

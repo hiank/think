@@ -1,7 +1,0 @@
-{
-    "redis.Url": "localhost:30211",
-    "redis.DB": 0,
-    "redis.Password": "",
-    "redis.CheckMillisecond": 300,
-    "redis.TimeoutSecond": 5
-}

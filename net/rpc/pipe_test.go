@@ -13,7 +13,7 @@ import (
 	net1 "github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	tg "github.com/hiank/think/net/rpc/pb"
-	td "github.com/hiank/think/net/rpc/testdata"
+	td "github.com/hiank/think/net/testdata"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"

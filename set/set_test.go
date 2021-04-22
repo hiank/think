@@ -1,5 +1,33 @@
 package set_test
 
+import (
+	"encoding/json"
+	"testing"
+
+	"gotest.tools/v3/assert"
+)
+
+type testInData struct {
+	Value string `json:"value"`
+}
+
+type testData struct {
+	Master *testInData `json:"master"`
+	Slave  *testInData `json:"slave"`
+}
+
+func TestJsonUnmarshal(t *testing.T) {
+	jsonText := `{
+		"master": {"value": "master-value"},
+		"slave": {"value": "slave-value"}
+	}`
+
+	var data testData
+	err := json.Unmarshal([]byte(jsonText), &data)
+	assert.Assert(t, err == nil, err)
+	assert.Equal(t, data.Master.Value, "master-value")
+}
+
 // import (
 // 	"context"
 // 	"path/filepath"

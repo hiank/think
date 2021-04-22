@@ -53,7 +53,7 @@ func TestLiteHandler(t *testing.T) {
 
 	t.Run("HandleWithoutRegister", func(t *testing.T) {
 		err := pb.LiteHandler.Handle(&testdata.Test1{Name: "noregister"})
-		assert.Equal(t, err, codes.ErrorNoMessageHandler, "未注册任何Handler将返回错误")
+		assert.Equal(t, err, codes.Error(codes.ErrorNoMessageHandler), "未注册任何Handler将返回错误")
 	})
 
 	t.Run("HandleWithoutRegisterButHasDefaultHandler", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestLiteHandler(t *testing.T) {
 
 	t.Run("HandleJustRegisterOtherMessage", func(t *testing.T) {
 		err := pb.LiteHandler.Handle(&testdata.Test2{Hope: "ws"})
-		assert.Equal(t, err, codes.ErrorNoMessageHandler, "未注册的消息，不会处理(无DefaultHandler)")
+		assert.Equal(t, err, codes.Error(codes.ErrorNoMessageHandler), "未注册的消息，不会处理(无DefaultHandler)")
 	})
 
 	t.Run("HandleRegisterThenSetDefaultHandler", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestLiteHandlerHandleAny(t *testing.T) {
 	t.Run("HandleEmptyAny", func(t *testing.T) {
 		anyMsg := new(anypb.Any)
 		err := pb.LiteHandler.Handle(anyMsg)
-		assert.Equal(t, err, codes.ErrorAnyMessageIsEmpty, "空Any默认不会被处理")
+		assert.Equal(t, err, codes.Error(codes.ErrorAnyMessageIsEmpty), "空Any默认不会被处理")
 	})
 
 	t.Run("HandleEmptyAnyExistDefaultHandler", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestLiteHandlerHandleAny(t *testing.T) {
 		pb.LiteHandler.DefaultHandler = &testHandler{}
 		anyMsg := new(anypb.Any)
 		err := pb.LiteHandler.Handle(anyMsg)
-		assert.Equal(t, err, codes.ErrorAnyMessageIsEmpty, "即使存在DefaultHandler的情况下，空Any也不会被调用")
+		assert.Equal(t, err, codes.Error(codes.ErrorAnyMessageIsEmpty), "即使存在DefaultHandler的情况下，空Any也不会被调用")
 
 		pb.LiteHandler.DefaultHandler = nil
 	})
@@ -148,7 +148,7 @@ func TestLiteHandlerHandleAny(t *testing.T) {
 	t.Run("HandleAnyTest2", func(t *testing.T) {
 		anyMsg, _ := anypb.New(&testdata.AnyTest2{Hope: "oh"})
 		err := pb.LiteHandler.Handle(anyMsg)
-		assert.Equal(t, err, codes.ErrorNoMessageHandler, "Any消息未注册的，不会被处理")
+		assert.Equal(t, err, codes.Error(codes.ErrorNoMessageHandler), "Any消息未注册的，不会被处理")
 	})
 
 	t.Run("HandleAnyTest2ExistDefaultHandler", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLiteHandlerHandlePBMessage(t *testing.T) {
 		anyMsg, _ := anypb.New(&testdata.MessageTest1{Key: "hello"})
 		msg := &pb.Message{Value: anyMsg}
 		err := pb.LiteHandler.Handle(msg)
-		assert.Equal(t, err, codes.ErrorNoMessageHandler)
+		assert.Equal(t, err, codes.Error(codes.ErrorNoMessageHandler))
 	})
 
 	t.Run("HandleValueRegisterd", func(t *testing.T) {

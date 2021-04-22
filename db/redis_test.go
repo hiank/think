@@ -76,7 +76,7 @@ func TestConnectToRedis(t *testing.T) {
 	assert.Equal(t, redisConf.DB, 0)
 	assert.Equal(t, redisConf.Password, "")
 	assert.Equal(t, redisConf.TimeoutSecond, 5)
-	assert.Equal(t, redisConf.Url, "localhost:30211")
+	assert.Equal(t, redisConf.Addr, "localhost:30211")
 
 	ctx := context.Background()
 	cli, err := db.NewVerifiedRedisCLI(ctx, redisConf)

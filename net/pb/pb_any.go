@@ -1,6 +1,8 @@
 package pb
 
 import (
+	"strings"
+
 	"github.com/hiank/think/set/codes"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -35,5 +37,16 @@ func GetServeType(anyMsg *anypb.Any) (t int, err error) {
 	default:
 		t = TypeUndefined
 	}
+	return
+}
+
+func GetServeName(anyMsg *anypb.Any) (svcName string, err error) {
+	name := anyMsg.MessageName().Name()
+	if !name.IsValid() {
+		return "", codes.Error(codes.ErrorAnyMessageIsEmpty)
+	}
+	key := string(name)
+	key = key[strings.IndexByte(key, '_')+1:]
+	svcName = strings.ToLower(key)
 	return
 }

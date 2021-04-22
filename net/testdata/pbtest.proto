@@ -22,3 +22,19 @@ message anyTest2 {
 message messageTest1 {
     string key = 1;
 }
+
+message S_Example {
+    string value = 1;
+}
+
+message G_Example {
+    string value = 1;
+}
+
+message P_Example {
+    string value = 1;
+}
+
+message TEST_Example {
+    string value = 1;
+}

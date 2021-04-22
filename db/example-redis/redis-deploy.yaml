@@ -18,13 +18,8 @@ spec:
     spec:
       containers:
       - name: redis-cl
-        image: hiank/redis-cl:v0.0.4
+        image: hiank/redis-cl:v0.0.11
         resources:
           limits:
             memory: "128Mi"
             cpu: "500m"
-        envFrom:
-        - configMapRef:
-            name: env
-        ports:
-        - containerPort: 20221
