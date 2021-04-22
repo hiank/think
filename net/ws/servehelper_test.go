@@ -15,6 +15,12 @@ import (
 	"gotest.tools/v3/assert"
 )
 
+type testAuther uint64
+
+func (ta testAuther) Auth(token string) (uint64, error) {
+	return uint64(ta), nil
+}
+
 type testConn struct {
 	key string
 	net.Sender
@@ -41,20 +47,20 @@ func testDial(addr string, token string) (*websocket.Conn, *http.Response, error
 
 func TestNewServeHelper(t *testing.T) {
 
-	helper := NewServeHelper(":10225")
+	helper := NewServeHelper(":10225", testAuther(1024))
 	assert.Assert(t, helper.server != nil)
 	assert.Assert(t, helper.upgrader != nil)
-	assert.Assert(t, helper.connChan != nil)
+	assert.Assert(t, helper.ChanAccepter != nil)
 }
 
 func TestServeHelperAccept(t *testing.T) {
 
-	helper := NewServeHelper(":10225")
+	helper := NewServeHelper(":10225", testAuther(1024))
 
 	t.Run("ok", func(t *testing.T) {
 
 		go func() {
-			helper.connChan <- &testConn{}
+			helper.ChanAccepter <- &testConn{}
 		}()
 		conn, err := helper.Accept()
 		assert.Assert(t, err == nil, err)
@@ -73,18 +79,18 @@ func TestServeHelperAccept(t *testing.T) {
 	})
 }
 
-func TestServeHelperAuth(t *testing.T) {
+// func TestServeHelperAuth(t *testing.T) {
 
-	// assert
-	helper := NewServeHelper(":10225")
-	uid, pass := helper.auth("any")
-	assert.Assert(t, pass)
-	assert.Equal(t, uid, uint64(1001))
-}
+// 	// assert
+// 	helper := NewServeHelper(":10225")
+// 	uid, pass := helper.auth("any")
+// 	assert.Assert(t, pass)
+// 	assert.Equal(t, uid, uint64(1001))
+// }
 
 func TestServeHelperListenAndServe(t *testing.T) {
 
-	helper := NewServeHelper(":10225")
+	helper := NewServeHelper(":10225", testAuther(1024))
 
 	t.Run("close", func(t *testing.T) {
 
@@ -99,7 +105,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 
 func TestServeHelperServeHTTP(t *testing.T) {
 
-	helper := NewServeHelper(":10225")
+	helper := NewServeHelper(":10225", testAuther(1024))
 	defer helper.Close()
 
 	go helper.ListenAndServe()

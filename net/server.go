@@ -23,7 +23,7 @@ type Accepter interface {
 }
 
 //ChanAccepter chan方式的Accepter
-type ChanAccepter <-chan Conn
+type ChanAccepter chan Conn
 
 //Accept 建立连接
 func (ca ChanAccepter) Accept() (conn Conn, err error) {

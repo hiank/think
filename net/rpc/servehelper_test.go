@@ -51,7 +51,7 @@ func TestNewServeHelper(t *testing.T) {
 	helper := NewServeHelper(ctx, ":10224", &testDonceHandler{})
 	assert.Assert(t, helper.ctx != nil)
 	assert.Equal(t, helper.addr, addr)
-	assert.Assert(t, helper.connChan != nil)
+	assert.Assert(t, helper.ChanAccepter != nil)
 	assert.Assert(t, helper.pipeServer != nil)
 	cancel()
 }
@@ -63,7 +63,7 @@ func TestServeHelperClose(t *testing.T) {
 	go func() {
 		helper.Close()
 	}()
-	_, ok := <-helper.connChan
+	_, ok := <-helper.ChanAccepter
 	assert.Assert(t, !ok)
 	select {
 	case <-ctx.Done():
@@ -83,7 +83,7 @@ func TestServeHelperAccept(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 
 		go func() {
-			helper.connChan <- &testConn{key: "OK"}
+			helper.ChanAccepter <- &testConn{key: "OK"}
 		}()
 		conn, err := helper.Accept()
 		assert.Assert(t, err == nil)

@@ -16,9 +16,9 @@ import (
 //PipeServer gprc服务
 type PipeServer struct {
 	tg.UnimplementedPipeServer
-	ctx      context.Context
-	connChan chan<- tnet.Conn
-	handler  DonceHandler
+	ctx          context.Context
+	chanAccepter tnet.ChanAccepter
+	handler      DonceHandler
 }
 
 //Link operate 'stream' type message
@@ -27,7 +27,7 @@ func (ps *PipeServer) Link(ls tg.Pipe_LinkServer) (err error) {
 	var msg *pb.Message
 	if msg, err = ls.Recv(); err == nil {
 		ctx, cancel := context.WithCancel(ps.ctx)
-		ps.connChan <- &Conn{
+		ps.chanAccepter <- &Conn{
 			Sender:  ls,
 			Reciver: ls,
 			key:     msg.GetKey(),
@@ -64,11 +64,10 @@ func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Messa
 
 //ServeHelper websocket连接核心
 type ServeHelper struct {
-	tnet.Accepter
+	tnet.ChanAccepter
 	ctx        context.Context
 	close      context.CancelFunc
 	pipeServer *PipeServer
-	connChan   chan tnet.Conn
 	addr       string
 }
 
@@ -76,14 +75,13 @@ type ServeHelper struct {
 func NewServeHelper(ctx context.Context, addr string, handler DonceHandler) *ServeHelper {
 
 	ctx, close := context.WithCancel(ctx)
-	ch := make(chan tnet.Conn, 8)
+	chanAccepter := make(tnet.ChanAccepter, 8)
 	return &ServeHelper{
-		ctx:        ctx,
-		close:      close,
-		connChan:   ch,
-		addr:       addr,
-		Accepter:   tnet.ChanAccepter(ch),
-		pipeServer: &PipeServer{ctx: ctx, connChan: ch, handler: handler},
+		ctx:          ctx,
+		close:        close,
+		addr:         addr,
+		ChanAccepter: chanAccepter,
+		pipeServer:   &PipeServer{ctx: ctx, chanAccepter: chanAccepter, handler: handler},
 	}
 }
 
@@ -108,7 +106,7 @@ func (helper *ServeHelper) ListenAndServe() error {
 
 //Close 关闭
 func (helper *ServeHelper) Close() error {
-	close(helper.connChan)
+	close(helper.ChanAccepter)
 	helper.close()
 	return nil
 }

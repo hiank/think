@@ -64,7 +64,6 @@ func TestConnectToRedis(t *testing.T) {
 
 	redisConf := &db.RedisConf{}
 	err = json.Unmarshal([]byte(`{
-		"redis.Url": "localhost:30211",
 		"redis.DB": 0,
 		"redis.Password": "",
 		"redis.CheckMillisecond": 300,
@@ -76,7 +75,8 @@ func TestConnectToRedis(t *testing.T) {
 	assert.Equal(t, redisConf.DB, 0)
 	assert.Equal(t, redisConf.Password, "")
 	assert.Equal(t, redisConf.TimeoutSecond, 5)
-	assert.Equal(t, redisConf.Addr, "localhost:30211")
+	redisConf.Addr = "localhost:30211"
+	// assert.Equal(t, redisConf.Addr, "localhost:30211")
 
 	ctx := context.Background()
 	cli, err := db.NewVerifiedRedisCLI(ctx, redisConf)
@@ -87,4 +87,42 @@ func TestConnectToRedis(t *testing.T) {
 
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, val, "1")
+}
+
+func TestRedisHSetHGet(t *testing.T) {
+
+	proc, err := startRedis("30211")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer proc.Kill()
+
+	redisConf := &db.RedisConf{Addr: "localhost:30211"}
+	json.Unmarshal([]byte(`{
+		"redis.DB": 0,
+		"redis.Password": "",
+		"redis.CheckMillisecond": 300,
+		"redis.TimeoutSecond": 5
+	}`), redisConf)
+
+	ctx := context.Background()
+	cli, err := db.NewVerifiedRedisCLI(ctx, redisConf)
+	assert.Assert(t, err == nil, err)
+
+	cli.HSet(ctx, "token_uid", "TOKEN1", 1, "TOKEN2", 2)
+	hcmd := cli.HGet(ctx, "token_uid", "TOKEN2")
+	val, err := hcmd.Uint64()
+	assert.Assert(t, err == nil, err)
+	assert.Equal(t, val, uint64(2))
+
+	hmcmd := cli.HGetAll(ctx, "token_uid")
+	assert.Equal(t, len(hmcmd.Args()), 2)
+
+	valMap := hmcmd.Val()
+	assert.Equal(t, valMap["TOKEN1"], "1")
+	assert.Equal(t, valMap["TOKEN2"], "2")
+
+	hcmd = cli.HGet(ctx, "token_uid", "TOKEN3")
+	assert.Assert(t, hcmd.Err() != nil)
 }

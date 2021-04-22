@@ -20,8 +20,14 @@ import (
 	"gotest.tools/v3/assert"
 )
 
+type testAuther uint64
+
+func (ta testAuther) Auth(token string) (uint64, error) {
+	return uint64(ta), nil
+}
+
 func StartSimpleWSSvc(ctx context.Context) <-chan bool {
-	srv := net.NewServer(ctx, ws.NewServeHelper(":8022"), pb.LiteHandler)
+	srv := net.NewServer(ctx, ws.NewServeHelper(":8022", testAuther(1024)), pb.LiteHandler)
 	// client := net.NewClient(context.Background(), rpc.Dialer, pool.HandlerFunc(func(m proto.Message) error {
 	// 	return srv.Send(m.(*pb.Message))
 	// }))

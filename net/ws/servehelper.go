@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
+	"github.com/hiank/think/oauth"
 	"k8s.io/klog/v2"
 )
 
@@ -13,20 +14,19 @@ import (
 type ServeHelper struct {
 	server   *http.Server
 	upgrader *websocket.Upgrader //NOTE: use default options
-	connChan chan net.Conn
-	net.Accepter
+	auther   oauth.Auther
+	net.ChanAccepter
 }
 
 //NewServeHelper 新建一个ServeHelper
-func NewServeHelper(addr string) *ServeHelper {
-	ch := make(chan net.Conn, 8)
+func NewServeHelper(addr string, auther oauth.Auther) *ServeHelper {
 	helper := &ServeHelper{
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		connChan: ch,
-		Accepter: net.ChanAccepter(ch),
+		auther:       auther,
+		ChanAccepter: make(net.ChanAccepter),
 	}
 
 	httpHandler := http.NewServeMux()
@@ -42,37 +42,29 @@ func (helper *ServeHelper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Non token component of the query", http.StatusNonAuthoritativeInfo) //NOTE: 没有包含token
 		return
 	}
-	uid, ok := helper.auth(tokenArr[0])
-	if !ok {
-		http.Error(w, "token auth fataled", http.StatusUnauthorized) //NOTE: token 认证失败
+	uid, err := helper.auther.Auth(tokenArr[0])
+	if err != nil {
+		http.Error(w, "token auth fataled:"+err.Error(), http.StatusUnauthorized) //NOTE: token 认证失败
 		return
 	}
 
 	c, err := helper.upgrader.Upgrade(w, r, nil)
 	switch err {
 	case nil:
-		helper.connChan <- &conn{ReadWriteCloser: c, uid: uid}
+		helper.ChanAccepter <- &conn{ReadWriteCloser: c, uid: uid}
 	case io.EOF:
 	default:
 		klog.Warning(err)
 	}
 }
 
-//auth 认证token
-func (helper *ServeHelper) auth(tokenStr string) (uint64, bool) {
-
-	return 1001, true
-}
-
 //ListenAndServe 启动服务
 func (helper *ServeHelper) ListenAndServe() error {
-
 	return helper.server.ListenAndServe()
 }
 
 //Close 关闭
 func (helper *ServeHelper) Close() error {
-
-	close(helper.connChan)
+	close(helper.ChanAccepter)
 	return helper.server.Close()
 }
