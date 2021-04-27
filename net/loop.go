@@ -8,24 +8,19 @@ import (
 )
 
 func loopAccept(ctx context.Context, accepter Accepter, handler func(Conn)) {
-
 	for {
 		val, err := accepter.Accept()
-		select {
-		case <-ctx.Done():
-			return
-		default:
+		if ctx.Err() != nil {
+			err = ctx.Err()
 		}
-		switch err {
-		case nil:
-			if val != nil {
-				handler(val)
-			} else {
-				klog.Warning("conn by Accept is nil") //NOTE: 收消息错误，直接退出，需要验证下，发一个空消息会怎样
-			}
-		default:
+		if err != nil {
 			klog.Warning(err.Error()) //NOTE: 收消息错误，直接退出，需要验证下，发一个空消息会怎样
 			return
+		}
+		if val != nil {
+			handler(val)
+		} else {
+			klog.Warning("conn by Accept is nil") //NOTE: 收消息错误，直接退出，需要验证下，发一个空消息会怎样
 		}
 	}
 }
@@ -34,18 +29,14 @@ func loopRecv(ctx context.Context, reciver Reciver, handler pool.Handler) {
 
 	for {
 		val, err := reciver.Recv()
-		select {
-		case <-ctx.Done():
-			return
-		default:
+		if ctx.Err() != nil {
+			err = ctx.Err()
 		}
-		switch err {
-		case nil:
-			handler.Handle(val)
-		default:
+		if err != nil {
 			klog.Warning(err.Error()) //NOTE: 收消息错误，直接退出，需要验证下，发一个空消息会怎样
 			return
 		}
+		handler.Handle(val)
 	}
 }
 

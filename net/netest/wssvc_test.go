@@ -27,21 +27,16 @@ func (ta testAuther) Auth(token string) (uint64, error) {
 }
 
 func StartSimpleWSSvc(ctx context.Context) <-chan bool {
-	srv := net.NewServer(ctx, ws.NewServeHelper(":8022", testAuther(1024)), pb.LiteHandler)
-	// client := net.NewClient(context.Background(), rpc.Dialer, pool.HandlerFunc(func(m proto.Message) error {
-	// 	return srv.Send(m.(*pb.Message))
-	// }))
 	pb.LiteHandler.DefaultHandler = pool.HandlerFunc(func(m proto.Message) error { //NOTE: 默认使用grpc 将消息转发到k8s集群中
-		// client.Push(m.(*pb.Message))
 		pbMsg := m.(*pb.Message)
 		fmt.Printf("on handle: %v\n", pbMsg)
-		srv.Send(&pb.Message{Key: strconv.FormatUint(pbMsg.GetSenderUid(), 10), Value: pbMsg.GetValue()})
+		net.LiteSender.Send(&pb.Message{Key: strconv.FormatUint(pbMsg.GetSenderUid(), 10), Value: pbMsg.GetValue()})
 		return nil
 	})
 
 	out := make(chan bool)
 	go func() {
-		err := srv.ListenAndServe()
+		err := net.ListenAndServe(ws.NewServeHelper(":8022", testAuther(1024)), net.WithContext(ctx), net.WithRecvHandler(pb.LiteHandler)) //srv.ListenAndServe()
 		fmt.Print(err)
 		out <- true
 	}()

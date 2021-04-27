@@ -1,4 +1,4 @@
-package net
+package net_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
 	"google.golang.org/protobuf/proto"
@@ -16,7 +17,7 @@ import (
 type testClientFrame struct {
 }
 
-func (tf *testClientFrame) Dial(ctx context.Context, target string) (Conn, error) {
+func (tf *testClientFrame) Dial(ctx context.Context, target string) (net.Conn, error) {
 	return nil, errors.New("empty")
 }
 
@@ -27,12 +28,12 @@ func (tf *testClientFrame) Handle(proto.Message) error {
 func TestNewClient(t *testing.T) {
 
 	ctx, dialer, handler := context.Background(), &testClientFrame{}, &testClientFrame{}
-	client := NewClient(ctx, dialer, handler)
-	assert.Equal(t, client.ctx, ctx)
-	assert.Equal(t, client.dialer, dialer)
-	assert.Equal(t, client.recvHandler, handler)
+	client := net.NewClient(ctx, dialer, handler)
+	assert.Equal(t, net.Export_getClientCtx(client), ctx)
+	assert.Equal(t, net.Export_getClientDialer(client), dialer)
+	assert.Equal(t, net.Export_getClientRecvHandler(client), handler)
 
-	assert.Assert(t, client.hubPool != nil)
+	assert.Assert(t, net.Export_getClientHubPool(client) != nil)
 }
 
 func TestClientAutoHub(t *testing.T) {
@@ -40,10 +41,11 @@ func TestClientAutoHub(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	framer := &testClientFrame{}
-	client := NewClient(ctx, framer, framer)
+	client := net.NewClient(ctx, framer, framer)
 
-	assert.Assert(t, client.autoHub("test") != nil)
-	assert.Equal(t, client.autoHub("test"), client.autoHub("test"), "多次获取的hub需是同一个")
+	autoHub := net.Export_ClientAutoHub(client)
+	assert.Assert(t, autoHub("test") != nil)
+	assert.Equal(t, autoHub("test"), autoHub("test"), "多次获取的hub需是同一个")
 
 	time.Sleep(time.Second)
 	cancel()
@@ -64,7 +66,7 @@ func TestLoopRecv(t *testing.T) {
 		close(msgChan)
 	}()
 
-	loopRecv(ctx, ReciverFunc(func() (msg *pb.Message, err error) {
+	net.Export_LoopRecv(ctx, net.ReciverFunc(func() (msg *pb.Message, err error) {
 		msg, ok := <-msgChan
 		if !ok {
 			err = io.EOF
@@ -83,55 +85,57 @@ func TestLoopRecv(t *testing.T) {
 	cancel()
 }
 
-type testDialerFunc func(ctx context.Context, target string) (Conn, error)
+type testDialerFunc func(ctx context.Context, target string) (net.Conn, error)
 
-func (td testDialerFunc) Dial(ctx context.Context, target string) (Conn, error) {
+func (td testDialerFunc) Dial(ctx context.Context, target string) (net.Conn, error) {
 	return td(ctx, target)
 }
 
 type testConn struct {
 	key string
-	Sender
-	Reciver
+	// net.Sender
+	msgChan chan *pb.Message
+	recvCh  chan *pb.Message
+}
+
+func newTestConn(key string) *testConn {
+	return &testConn{
+		key:     key,
+		msgChan: make(chan *pb.Message, 1),
+		recvCh:  make(chan *pb.Message),
+	}
+}
+
+func newTestConnWithChan(key string, msgChan chan *pb.Message, recvCh chan *pb.Message) *testConn {
+	return &testConn{key: key, msgChan: msgChan, recvCh: recvCh}
 }
 
 func (tc *testConn) Key() string {
 	return tc.key
 }
 
-func (tc *testConn) Close() error {
-	return nil
-}
-
-type testReciver struct {
-	msgChan chan *pb.Message
-}
-
-func (tr *testReciver) Recv() (msg *pb.Message, err error) {
-
-	msg, ok := <-tr.msgChan
+func (tc *testConn) Recv() (msg *pb.Message, err error) {
+	msg, ok := <-tc.recvCh
 	if !ok {
 		err = io.EOF
 	}
 	return
 }
 
+func (tc *testConn) Send(msg *pb.Message) error {
+	// tc.msg = msg
+	tc.msgChan <- msg
+	return nil
+}
+
 func TestClientPush(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	outCh, sendCh := make(chan *pb.Message), make(chan *pb.Message)
-	reciver := &testReciver{msgChan: make(chan *pb.Message)}
+	outCh, sendCh, recvCh := make(chan *pb.Message), make(chan *pb.Message), make(chan *pb.Message)
 
-	client := NewClient(ctx, testDialerFunc(func(ctx context.Context, target string) (Conn, error) {
+	client := net.NewClient(ctx, testDialerFunc(func(ctx context.Context, target string) (net.Conn, error) {
 
-		return &testConn{
-			key: target,
-			Sender: SenderFunc(func(m *pb.Message) error {
-				sendCh <- &pb.Message{Key: target, SenderUid: m.GetSenderUid()}
-				return nil
-			}),
-			Reciver: reciver,
-		}, nil
+		return newTestConnWithChan(target, sendCh, recvCh), nil
 	}), pool.HandlerFunc(func(i proto.Message) error {
 		outCh <- i.(*pb.Message)
 		return nil
@@ -144,7 +148,7 @@ func TestClientPush(t *testing.T) {
 	assert.Equal(t, sendMsg.GetKey(), "testPush")
 
 	msg = &pb.Message{Key: "testRecv"}
-	reciver.msgChan <- msg
+	recvCh <- msg
 	handleMsg := <-outCh
 
 	assert.Equal(t, handleMsg, msg)

@@ -34,91 +34,80 @@ func (ca ChanAccepter) Accept() (conn Conn, err error) {
 	return
 }
 
-//Server 服务
-type Server struct {
+//liteServer provide 'pool' for Conn
+type liteServer struct {
 	ctx         context.Context
-	helper      ServeHelper
 	hubPool     *pool.HubPool
-	recvHandler pool.Handler       //NOTE: 处理收到的消息
-	Close       context.CancelFunc //NOTE: 如果服务停止，关闭相关Context
+	recvHandler pool.Handler
 }
 
-//NewServer 创建服务
-func NewServer(ctx context.Context, helper ServeHelper, handler pool.Handler) *Server {
-	ctx, close := context.WithCancel(ctx)
-	return &Server{
-		ctx:         ctx,
-		Close:       close,
-		helper:      helper,
-		hubPool:     pool.NewHubPool(ctx),
-		recvHandler: handler,
-	}
-}
-
-//ListenAndServe 启动服务
-func (srv *Server) ListenAndServe() error {
-	go loopAccept(srv.ctx, srv.helper.(Accepter), srv.handleAccept)
-	go func(ctx context.Context) {
-		<-ctx.Done()
-		srv.helper.Close()
-	}(srv.ctx)
-
-	err := srv.helper.ListenAndServe()
-	srv.hubPool.RemoveAll() //NOTE: 调用所有Hub的Close，关闭连接
-	srv.Close()
-	return err
-}
-
-//Send 发送消息，找到相应数据集，处理消息发送
-func (srv *Server) Send(msg *pb.Message) error {
-
-	select {
-	case <-srv.ctx.Done():
-		return codes.Error(codes.ErrorSrvClosed)
-	default:
-	}
-
-	if msg == nil {
-		return codes.Error(codes.ErrorNilValue)
-	}
-
-	hub := srv.hubPool.GetHub(msg.GetKey())
-	if hub == nil {
-		return codes.Error(codes.ErrorNotExisted)
-	}
-	hub.Push(msg)
-	return nil
-}
-
-func (srv *Server) handleAccept(conn Conn) {
-
-	hub, _ := srv.hubPool.AutoHub(conn.Key()) //NOTE: 这里暂时没考虑重复连接的问题，后续需要完善
+//handleConn add the conn at pool
+func (svc *liteServer) handleConn(conn Conn) {
+	hub, _ := svc.hubPool.AutoHub(conn.Key()) //NOTE: 这里暂时没考虑重复连接的问题，后续需要完善
 	hub.SetHandler(pool.HandlerFunc(func(i proto.Message) error {
 		return conn.Send(i.(*pb.Message))
 	}))
-	hub.Closer = conn.(io.Closer)
-
-	go loopRecv(srv.ctx, conn.(Reciver), srv.recvHandler)
+	hub.Closer = conn //.(io.Closer)
+	go loopRecv(svc.ctx, conn, svc.recvHandler)
 }
 
-// type ConnHandler interface {
-// 	Handle(Conn)
-// }
-
-//LiteServer 轻量级服务
-//自定义 新连接及消息收发处理
-type LiteServer struct {
-	Context     context.Context
-	ServeHelper ServeHelper
-	ConnHandler func(Conn)
+//Send 发送消息，找到相应数据集，处理消息发送
+func (svc *liteServer) Send(msg *pb.Message) (err error) {
+	switch {
+	case svc.ctx.Err() != nil:
+		err = svc.ctx.Err()
+	case msg == nil:
+		err = codes.Error(codes.ErrorNilValue)
+	default:
+		if hub := svc.hubPool.GetHub(msg.GetKey()); hub != nil {
+			hub.Push(msg)
+		} else {
+			err = codes.Error(codes.ErrorWorkerNotExisted)
+		}
+	}
+	return err
 }
 
-//ListenAndServe 启动服务
-func (svc *LiteServer) ListenAndServe() error {
-	go loopAccept(svc.Context, svc.ServeHelper.(Accepter), svc.ConnHandler)
+//defaultLiteSender when use customize ConnHandler, the LiteSender will use this to return an error
+var defaultLiteSender = SenderFunc(func(m *pb.Message) error { return codes.Error(codes.ErrorNonSupportLiteServe) })
+
+//LiteSender when start a liteServer, someone can use LiteSender.Send(msg) for send the msg to client
+var LiteSender Sender = defaultLiteSender
+
+//ListenAndServe start listen serve
+//NOTE: must pass one of WithConnHandler and WithRecvHandler, when pass WithConnHandler, WithRecvHandler will not work
+func ListenAndServe(helper ServeHelper, opts ...ListenOption) error {
+	if helper == nil {
+		return codes.Error(codes.ErrorNonHelper)
+	}
+
+	dopts := newDefaultListenOptions()
+	for _, opt := range opts {
+		opt.apply(dopts)
+	}
+	ctx, cancel := context.WithCancel(dopts.ctx)
+	defer cancel()
+
+	var connHandler func(Conn)
+	if dopts.connHandler == nil {
+		if dopts.recvHandler == nil {
+			return codes.Error(codes.ErrorNeedOneofConnRecvHandler)
+		}
+		svc := &liteServer{ctx: ctx, recvHandler: dopts.recvHandler, hubPool: pool.NewHubPool(ctx)}
+		LiteSender = svc
+		defer func() {
+			svc.hubPool.RemoveAll()
+			LiteSender = defaultLiteSender
+		}()
+		connHandler = svc.handleConn
+	} else {
+		connHandler = dopts.connHandler
+	}
+
+	go loopAccept(ctx, helper, connHandler)
 	go func() {
-		<-svc.Context.Done()
-		svc.ServeHelper.Close()
+		<-ctx.Done()
+		helper.Close()
 	}()
-	return svc.ServeHelper.ListenAndServe()
+	return helper.ListenAndServe()
 }

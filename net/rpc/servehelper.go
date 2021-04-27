@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"net/http"
 
 	"net"
 
@@ -43,12 +42,10 @@ func (ps *PipeServer) Link(ls tg.Pipe_LinkServer) (err error) {
 
 //Donce respond TypeGET | TypePOST message
 func (ps *PipeServer) Donce(ctx context.Context, req *pb.Message) (res *pb.Message, err error) {
-	select {
-	case <-ps.ctx.Done():
-		err = http.ErrServerClosed
-	case <-ctx.Done():
-		err = http.ErrServerClosed
-	default:
+	if err = ps.ctx.Err(); err == nil {
+		err = ctx.Err()
+	}
+	if err == nil {
 		t, _ := pb.GetServeType(req.GetValue()) //NOTE: 此接口收到的消息必然是 TypeGET or TypePOST
 		switch t {
 		case pb.TypeGET:
