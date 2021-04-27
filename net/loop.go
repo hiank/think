@@ -26,7 +26,6 @@ func loopAccept(ctx context.Context, accepter Accepter, handler func(Conn)) {
 }
 
 func loopRecv(ctx context.Context, reciver Reciver, handler pool.Handler) {
-
 	for {
 		val, err := reciver.Recv()
 		if ctx.Err() != nil {
@@ -39,6 +38,8 @@ func loopRecv(ctx context.Context, reciver Reciver, handler pool.Handler) {
 		handler.Handle(val)
 	}
 }
+
+var LoopRecv = loopRecv //NOTE: export to used in outside
 
 // //Getter 获取资源
 // type Getter interface {
