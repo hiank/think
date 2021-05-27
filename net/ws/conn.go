@@ -41,7 +41,6 @@ func (c *conn) Key() string {
 
 //Recv 读消息，实现frame.Conn
 func (c *conn) Recv() (msg *pb.Message, err error) {
-
 	_, buf, err := c.ReadMessage()
 	if err == nil { //NOTE: 从websocket 读取消息
 		a := new(anypb.Any)
@@ -54,7 +53,6 @@ func (c *conn) Recv() (msg *pb.Message, err error) {
 
 //Send Writer
 func (c *conn) Send(msg *pb.Message) (err error) {
-
 	buf, err := proto.Marshal(msg.GetValue())
 	if err == nil {
 		err = c.WriteMessage(websocket.BinaryMessage, buf)

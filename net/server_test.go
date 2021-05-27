@@ -102,10 +102,6 @@ func (th *testServeHelper) Close() error {
 // 	return nil
 // }
 
-func (tc *testConn) Close() error {
-	return nil
-}
-
 func TestListenAndServe(t *testing.T) {
 	t.Run("NoHelper-ReturnError", func(t *testing.T) {
 		err := net.ListenAndServe(nil)

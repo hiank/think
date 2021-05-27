@@ -15,17 +15,23 @@ type ServeHelper struct {
 	server   *http.Server
 	upgrader *websocket.Upgrader //NOTE: use default options
 	auther   oauth.Auther
+	dopts    *options
 	net.ChanAccepter
 }
 
 //NewServeHelper 新建一个ServeHelper
-func NewServeHelper(addr string, auther oauth.Auther) *ServeHelper {
+func NewServeHelper(addr string, auther oauth.Auther, opts ...HelperOption) *ServeHelper {
+	dopts := newDefaultOptions()
+	for _, opt := range opts {
+		opt.apply(dopts)
+	}
 	helper := &ServeHelper{
 		upgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
 		auther:       auther,
+		dopts:        dopts,
 		ChanAccepter: make(net.ChanAccepter),
 	}
 
@@ -48,10 +54,16 @@ func (helper *ServeHelper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := helper.upgrader.Upgrade(w, r, nil)
+	wsc, err := helper.upgrader.Upgrade(w, r, nil)
 	switch err {
 	case nil:
-		helper.ChanAccepter <- &conn{ReadWriteCloser: c, uid: uid}
+		var c net.Conn
+		if helper.dopts.connMaker != nil { //NOTE: 如果有自定义的ConnMaker，使用其生成Conn
+			c = helper.dopts.connMaker.Make()
+		} else { //NOTE: 否则生成默认的Conn
+			c = &conn{ReadWriteCloser: wsc, uid: uid}
+		}
+		helper.ChanAccepter <- c
 	case io.EOF:
 	default:
 		klog.Warning(err)

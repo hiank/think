@@ -70,7 +70,6 @@ type ServeHelper struct {
 
 //NewServeHelper 新建一个ServeHelper
 func NewServeHelper(ctx context.Context, addr string, handler DonceHandler) *ServeHelper {
-
 	ctx, close := context.WithCancel(ctx)
 	chanAccepter := make(tnet.ChanAccepter, 8)
 	return &ServeHelper{

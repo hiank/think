@@ -128,6 +128,10 @@ func (tc *testConn) Send(msg *pb.Message) error {
 	return nil
 }
 
+func (tc *testConn) Close() error {
+	return nil
+}
+
 func TestClientPush(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)

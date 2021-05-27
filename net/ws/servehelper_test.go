@@ -1,4 +1,4 @@
-package ws
+package ws_test
 
 import (
 	"io"
@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
+	"github.com/hiank/think/net/ws"
 	td "github.com/hiank/think/net/ws/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -45,17 +46,34 @@ func testDial(addr string, token string) (*websocket.Conn, *http.Response, error
 
 // }
 
+type testConnMaker struct {
+	key string
+}
+
+func (tcm *testConnMaker) Make() net.Conn {
+	return &testConn{key: tcm.key}
+}
+
 func TestNewServeHelper(t *testing.T) {
 
-	helper := NewServeHelper(":10225", testAuther(1024))
-	assert.Assert(t, helper.server != nil)
-	assert.Assert(t, helper.upgrader != nil)
+	helper := ws.NewServeHelper(":10225", testAuther(1024))
+	defer helper.Close()
+	assert.Assert(t, ws.Export_getHelperServer(helper) != nil)
+	assert.Assert(t, ws.Export_getHelperUpgrader(helper) != nil)
 	assert.Assert(t, helper.ChanAccepter != nil)
+
+	t.Run("withconnmaker", func(t *testing.T) {
+		helper := ws.NewServeHelper(":10226", testAuther(1025), ws.WithConnMaker(&testConnMaker{"ws"}))
+		defer helper.Close()
+		opts := ws.Export_getHelperDopts(helper)
+		conn := ws.Export_getOptionsConnMaker(opts).Make()
+		assert.Equal(t, conn.Key(), "ws")
+	})
 }
 
 func TestServeHelperAccept(t *testing.T) {
 
-	helper := NewServeHelper(":10225", testAuther(1024))
+	helper := ws.NewServeHelper(":10225", testAuther(1024))
 
 	t.Run("ok", func(t *testing.T) {
 
@@ -90,7 +108,7 @@ func TestServeHelperAccept(t *testing.T) {
 
 func TestServeHelperListenAndServe(t *testing.T) {
 
-	helper := NewServeHelper(":10225", testAuther(1024))
+	helper := ws.NewServeHelper(":10225", testAuther(1024))
 
 	t.Run("close", func(t *testing.T) {
 
@@ -105,7 +123,7 @@ func TestServeHelperListenAndServe(t *testing.T) {
 
 func TestServeHelperServeHTTP(t *testing.T) {
 
-	helper := NewServeHelper(":10225", testAuther(1024))
+	helper := ws.NewServeHelper(":10225", testAuther(1024))
 	defer helper.Close()
 
 	go helper.ListenAndServe()
@@ -179,4 +197,22 @@ func TestServeHelperServeHTTP(t *testing.T) {
 
 		<-wait
 	})
+}
+
+func TestServeHelperServeHTTPWithConnMaker(t *testing.T) {
+	helper := ws.NewServeHelper(":10225", testAuther(1024), ws.WithConnMaker(&testConnMaker{"lvws"}))
+	defer helper.Close()
+
+	go helper.ListenAndServe()
+
+	conn, response, err := testDial("localhost:10225", "HOPE")
+	assert.Assert(t, err == nil, err)
+	assert.Assert(t, conn != nil)
+	assert.Assert(t, response != nil)
+	acceptConn, err := helper.Accept()
+	assert.Assert(t, err == nil, err)
+	// acceptConn.Key()
+	assert.Equal(t, acceptConn.Key(), "lvws")
+	// go conn.Close()
+	go conn.Close()
 }
