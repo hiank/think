@@ -131,7 +131,7 @@ func TestHubThreadSafePushWithLaterHandler(t *testing.T) {
 	assert.Equal(t, hub.list.cache.Len(), msgCnt)
 
 	handleCh, handleCnt := make(chan bool, 100), 0
-	hub.SetHandler(HandlerFunc(func(msg proto.Message) error {
+	hub.SetHandler(testHandlerFunc(func(msg proto.Message) error {
 		handleCh <- true
 		return nil
 	}))
@@ -144,6 +144,14 @@ func TestHubThreadSafePushWithLaterHandler(t *testing.T) {
 	assert.Equal(t, hub.list.cache.Len(), 0)
 }
 
+//testHandlerFunc 函数形式的Handler
+type testHandlerFunc func(proto.Message) error
+
+//Handle 实现Handler的必要接口
+func (hf testHandlerFunc) Handle(val proto.Message) error {
+	return hf(val)
+}
+
 func TestHubThreadSafePushWithRandomHandler(t *testing.T) {
 
 	hub, msgCnt, handleCnt, handleCh := NewHub(context.Background(), 100), 10000, 0, make(chan bool, 100)
@@ -153,7 +161,7 @@ func TestHubThreadSafePushWithRandomHandler(t *testing.T) {
 	}
 
 	go func() {
-		hub.SetHandler(HandlerFunc(func(msg proto.Message) error {
+		hub.SetHandler(testHandlerFunc(func(msg proto.Message) error {
 			handleCh <- true
 			return nil
 		}))

@@ -7,7 +7,6 @@ import (
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
 	"github.com/hiank/think/set/codes"
-	"google.golang.org/protobuf/proto"
 )
 
 //ServeHelper 服务核心方法
@@ -44,8 +43,8 @@ type liteServer struct {
 //handleConn add the conn at pool
 func (svc *liteServer) handleConn(conn Conn) {
 	hub, _ := svc.hubPool.AutoHub(conn.Key()) //NOTE: 这里暂时没考虑重复连接的问题，后续需要完善
-	hub.SetHandler(pool.HandlerFunc(func(i proto.Message) error {
-		return conn.Send(i.(*pb.Message))
+	hub.SetHandler(HandlerFunc(func(msg *pb.Message) error {
+		return conn.Send(msg)
 	}))
 	hub.Closer = conn //.(io.Closer)
 	go loopRecv(svc.ctx, conn, svc.recvHandler)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/pool"
 	"google.golang.org/protobuf/proto"
 	"gotest.tools/v3/assert"
 )
@@ -72,9 +71,7 @@ func TestLoopRecv(t *testing.T) {
 			err = io.EOF
 		}
 		return
-	}), pool.HandlerFunc(func(val proto.Message) error {
-
-		msg := val.(*pb.Message)
+	}), net.HandlerFunc(func(msg *pb.Message) error {
 		assert.Equal(t, msg.GetKey(), "lvws")
 		uid = int(msg.GetSenderUid())
 		return nil
@@ -140,8 +137,8 @@ func TestClientPush(t *testing.T) {
 	client := net.NewClient(ctx, testDialerFunc(func(ctx context.Context, target string) (net.Conn, error) {
 
 		return newTestConnWithChan(target, sendCh, recvCh), nil
-	}), pool.HandlerFunc(func(i proto.Message) error {
-		outCh <- i.(*pb.Message)
+	}), net.HandlerFunc(func(msg *pb.Message) error {
+		outCh <- msg
 		return nil
 	}))
 

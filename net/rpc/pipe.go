@@ -11,9 +11,6 @@ import (
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	tg "github.com/hiank/think/net/rpc/pb"
-	"github.com/hiank/think/pool"
-
-	"google.golang.org/protobuf/proto"
 )
 
 var hostname = os.Getenv("hostname")
@@ -30,7 +27,6 @@ type Pipe struct {
 }
 
 func newPipe(ctx context.Context, key string, pipe tg.PipeClient) *Pipe {
-
 	p := &Pipe{
 		pipe:     pipe,
 		key:      key,
@@ -42,14 +38,12 @@ func newPipe(ctx context.Context, key string, pipe tg.PipeClient) *Pipe {
 
 //Key 获取Pipe的关键字，用于匹配消息
 func (p *Pipe) Key() string {
-
 	return p.key
 }
 
 //Send 向k8s服务端发送消息
 //about stream: 实际上，只需要有一个steam 就可以了，这个是某个token对应的pipe，每个token只需要使用一个steam 足够了
 func (p *Pipe) Send(msg *pb.Message) (err error) {
-
 	t, err := pb.GetServeType(msg.GetValue())
 	if err != nil {
 		return
@@ -79,8 +73,8 @@ func (p *Pipe) autoLinkClient() *net.Client {
 				c = &Conn{Sender: p.buildLinkSender(lc), Reciver: lc, Closer: net.CloserFunc(lc.CloseSend)}
 			}
 			return
-		}), pool.HandlerFunc(func(val proto.Message) error {
-			p.recvChan <- val.(*pb.Message)
+		}), net.HandlerFunc(func(msg *pb.Message) error {
+			p.recvChan <- msg
 			return nil
 		}))
 	})

@@ -5,7 +5,6 @@ import (
 
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/pool"
-	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -64,9 +63,8 @@ func (client *Client) dialAndLoopRecv(hub *pool.Hub, key string) {
 		return
 	}
 
-	hub.SetHandler(pool.HandlerFunc(func(val proto.Message) error {
-		return conn.Send(val.(*pb.Message))
+	hub.SetHandler(HandlerFunc(func(msg *pb.Message) error {
+		return conn.Send(msg)
 	}))
-
 	loopRecv(client.ctx, conn.(Reciver), client.recvHandler)
 }

@@ -9,9 +9,7 @@ import (
 
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/pool"
 	"github.com/hiank/think/set/codes"
-	"google.golang.org/protobuf/proto"
 	"gotest.tools/v3/assert"
 )
 
@@ -35,9 +33,9 @@ func TestLitenOption(t *testing.T) {
 	// net.Export_getListenOptionsConnHandler()
 
 	err := errors.New("tmp")
-	recvHandler := pool.HandlerFunc(func(m proto.Message) error { return err })
+	recvHandler := net.HandlerFunc(func(*pb.Message) error { return err })
 	net.Export_ListenOptionApply(net.WithRecvHandler(recvHandler))(dopts)
-	assert.Equal(t, net.Export_getListenOptionsRecvHandler(dopts).Handle(nil), recvHandler.Handle(nil), "设置recvHandler后，opts中的值变为传入的handler")
+	assert.Equal(t, net.Export_getListenOptionsRecvHandler(dopts).Handle(nil).Error(), recvHandler.Handle(nil).Error(), "设置recvHandler后，opts中的值变为传入的handler")
 }
 
 type testServeHelper struct {
@@ -118,7 +116,7 @@ func TestListenAndServe(t *testing.T) {
 		go func() {
 			waitErr <- net.ListenAndServe(helper, net.WithConnHandler(func(net.Conn) {
 				numChan <- 1
-			}), net.WithRecvHandler(pool.HandlerFunc(func(proto.Message) error {
+			}), net.WithRecvHandler(net.HandlerFunc(func(*pb.Message) error {
 				numChan <- 2
 				return nil
 			})))
@@ -150,7 +148,7 @@ func TestListenAndServe(t *testing.T) {
 		// var connNum, recvNum int
 		numChan := make(chan int)
 		go func() {
-			waitErr <- net.ListenAndServe(helper, net.WithRecvHandler(pool.HandlerFunc(func(proto.Message) error {
+			waitErr <- net.ListenAndServe(helper, net.WithRecvHandler(net.HandlerFunc(func(*pb.Message) error {
 				numChan <- 2
 				return nil
 			})))
@@ -178,7 +176,7 @@ func TestListenAndServe(t *testing.T) {
 	t.Run("WithContext", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go cancel()
-		err := net.ListenAndServe(newTestServeHelper(), net.WithContext(ctx), net.WithRecvHandler(pool.HandlerFunc(func(proto.Message) error {
+		err := net.ListenAndServe(newTestServeHelper(), net.WithContext(ctx), net.WithRecvHandler(net.HandlerFunc(func(*pb.Message) error {
 			return nil
 		})))
 		assert.Equal(t, err, io.EOF, err) //NOTE:
@@ -202,7 +200,7 @@ func TestLiteSender(t *testing.T) {
 	t.Run("UseRecvHandler", func(t *testing.T) {
 		helper, waitErr := newTestServeHelper(), make(chan error)
 		go func() {
-			waitErr <- net.ListenAndServe(helper, net.WithRecvHandler(pool.HandlerFunc(func(m proto.Message) error { return nil })))
+			waitErr <- net.ListenAndServe(helper, net.WithRecvHandler(net.HandlerFunc(func(*pb.Message) error { return nil })))
 		}()
 
 		<-time.NewTicker(time.Millisecond * 10).C //NOTE: wait 10ms, for serve start
@@ -227,223 +225,3 @@ func TestLiteSender(t *testing.T) {
 		<-waitErr
 	})
 }
-
-// func Test
-
-// func TestNewServer(t *testing.T) {
-
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	helper := &testServeHelper{}
-// 	msgHandler := pool.HandlerFunc(func(i proto.Message) error {
-// 		return nil
-// 	})
-// 	srv := NewServer(ctx, helper, msgHandler)
-
-// 	// assert.Equal(t, srv.ctx, ctx)
-// 	assert.Equal(t, srv.helper, helper)
-// 	assert.Assert(t, srv.hubPool != nil)
-// 	assert.Assert(t, srv.recvHandler != nil)
-
-// 	cancel()
-// 	<-srv.ctx.Done()
-// }
-
-// func TestServerLoopAccept(t *testing.T) {
-
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	connCh := make(chan Conn)
-// 	helper := &testServeHelper{
-// 		ctx:    ctx,
-// 		connCh: connCh,
-// 	}
-// 	srv := NewServer(ctx, helper, nil)
-
-// 	go func() {
-// 		connCh <- nil
-// 		time.Sleep(time.Second)
-// 		// cancel()
-// 		close(connCh)
-// 	}()
-// 	// srv.loopAccept()
-// 	loopAccept(srv.ctx, srv.helper.(Accepter), srv.handleAccept)
-
-// 	cancel()
-// }
-
-// func TestServerListenAndServe(t *testing.T) {
-
-// 	t.Run("ListenAndServe: context cancel", func(t *testing.T) {
-
-// 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-// 		srv := NewServer(
-// 			ctx,
-// 			&testServeHelper{
-// 				ctx:    ctx,
-// 				connCh: make(chan Conn),
-// 			},
-// 			nil)
-
-// 		err := srv.ListenAndServe()
-// 		assert.Assert(t, err != nil)
-
-// 		cancel()
-// 	})
-
-// 	t.Run("ListenAndServe: hubPool response", func(t *testing.T) {
-
-// 		connCh := make(chan Conn)
-
-// 		ctx, cancel := context.WithCancel(context.Background())
-// 		srv := NewServer(
-// 			ctx,
-// 			&testServeHelper{
-// 				ctx:    ctx,
-// 				connCh: connCh,
-// 			},
-// 			nil,
-// 		)
-// 		go func(t *testing.T) {
-// 			connCh <- &testConn{
-// 				key: "key1",
-// 				Reciver: ReciverFunc(func() (*pb.Message, error) {
-// 					<-ctx.Done()
-// 					return nil, io.EOF
-// 				}),
-// 			}
-// 			time.Sleep(time.Second)
-// 			assert.Assert(t, srv.hubPool.GetHub("key1") != nil)
-
-// 			cancel()
-// 		}(t)
-// 		srv.ListenAndServe()
-// 	})
-// }
-
-// // type test
-
-// func TestServerSend(t *testing.T) {
-
-// 	// var value int
-// 	connCh := make(chan Conn)
-// 	ctx, cancel := context.WithCancel(context.Background())
-
-// 	srv := NewServer(
-// 		ctx,
-// 		&testServeHelper{
-// 			connCh: connCh,
-// 			ctx:    ctx,
-// 		},
-// 		nil,
-// 	)
-
-// 	go srv.ListenAndServe()
-
-// 	t.Run("Send: nil message", func(t *testing.T) {
-
-// 		err := srv.Send(nil)
-// 		assert.Equal(t, err, codes.Error(codes.ErrorNilValue), "发送nil消息，返回指定错误")
-// 	})
-
-// 	t.Run("Send: not existed hub for message", func(t *testing.T) {
-
-// 		err := srv.Send(&pb.Message{Key: "notExistedKey"})
-// 		assert.Equal(t, err, codes.Error(codes.ErrorWorkerNotExisted), "发送的消息无效的Key，返回指定错误")
-// 	})
-
-// 	t.Run("Send: success", func(t *testing.T) {
-
-// 		sendCh := make(chan *pb.Message)
-
-// 		connCh <- &testConn{
-// 			key: "TestKey",
-// 			Reciver: ReciverFunc(func() (*pb.Message, error) {
-// 				<-ctx.Done()
-// 				return nil, io.EOF
-// 			}),
-// 			Sender: SenderFunc(func(msg *pb.Message) error {
-// 				sendCh <- msg
-// 				return nil
-// 			}),
-// 		}
-
-// 		time.Sleep(time.Second)
-
-// 		err := srv.Send(&pb.Message{Key: "TestKey"})
-// 		assert.Assert(t, err == nil)
-
-// 		msg := <-sendCh
-// 		assert.Equal(t, msg.GetKey(), "TestKey")
-
-// 		time.Sleep(time.Second)
-// 	})
-
-// 	cancel()
-// }
-
-// func TestServerRecv(t *testing.T) {
-
-// 	// var value int
-// 	handleCh := make(chan interface{})
-// 	connCh := make(chan Conn)
-// 	ctx, cancel := context.WithCancel(context.Background())
-
-// 	srv := NewServer(
-// 		ctx,
-// 		&testServeHelper{
-// 			connCh: connCh,
-// 			ctx:    ctx,
-// 		},
-// 		pool.HandlerFunc(func(i proto.Message) error {
-// 			handleCh <- i
-// 			return nil
-// 		}),
-// 	)
-
-// 	go srv.ListenAndServe()
-
-// 	recvCh := make(chan *pb.Message)
-// 	connCh <- &testConn{
-// 		key: "TestKey",
-// 		Reciver: ReciverFunc(func() (*pb.Message, error) {
-// 			return <-recvCh, nil
-// 		}),
-// 	}
-// 	var msg *pb.Message
-// 	recvCh <- msg
-// 	assert.Equal(t, <-handleCh, msg)
-
-// 	cancel()
-// }
-
-// func TestServerClose(t *testing.T) {
-
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	defer cancel()
-
-// 	helper := &testServeHelper{
-// 		ctx: ctx,
-// 	}
-
-// 	srv := NewServer(
-// 		ctx,
-// 		helper,
-// 		nil,
-// 	)
-
-// 	helper.ctx = srv.ctx
-
-// 	errChan, noticeChan := make(chan error), make(chan bool, 1)
-// 	go func() {
-// 		noticeChan <- true
-// 		err := srv.ListenAndServe()
-// 		errChan <- err
-// 	}()
-
-// 	<-noticeChan
-// 	time.Sleep(time.Microsecond)
-
-// 	srv.Close()
-
-// 	err := <-errChan
-// 	assert.Equal(t, err, io.EOF)
-// }

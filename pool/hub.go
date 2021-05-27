@@ -106,10 +106,10 @@ type Handler interface {
 	Handle(proto.Message) error
 }
 
-//HandlerFunc 函数形式的Handler
-type HandlerFunc func(proto.Message) error
+// //HandlerFunc 函数形式的Handler
+// type HandlerFunc func(proto.Message) error
 
-//Handle 实现Handler的必要接口
-func (hf HandlerFunc) Handle(val proto.Message) error {
-	return hf(val)
-}
+// //Handle 实现Handler的必要接口
+// func (hf HandlerFunc) Handle(val proto.Message) error {
+// 	return hf(val)
+// }

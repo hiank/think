@@ -14,7 +14,6 @@ import (
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/net/ws"
-	"github.com/hiank/think/pool"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
@@ -27,8 +26,7 @@ func (ta testAuther) Auth(token string) (uint64, error) {
 }
 
 func StartSimpleWSSvc(ctx context.Context) <-chan bool {
-	pb.LiteHandler.DefaultHandler = pool.HandlerFunc(func(m proto.Message) error { //NOTE: 默认使用grpc 将消息转发到k8s集群中
-		pbMsg := m.(*pb.Message)
+	pb.LiteHandler.DefaultHandler = net.HandlerFunc(func(pbMsg *pb.Message) error { //NOTE: 默认使用grpc 将消息转发到k8s集群中
 		fmt.Printf("on handle: %v\n", pbMsg)
 		net.LiteSender.Send(&pb.Message{Key: strconv.FormatUint(pbMsg.GetSenderUid(), 10), Value: pbMsg.GetValue()})
 		return nil
