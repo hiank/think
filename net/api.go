@@ -2,6 +2,7 @@ package net
 
 import (
 	"github.com/hiank/think/net/pb"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -36,6 +37,10 @@ type IServer interface {
 
 type ICarrierHandler interface {
 	Handle(*pb.Carrier)
+}
+
+type IMessageHandler interface {
+	Handle(id uint64, msg proto.Message)
 }
 
 //ICarrierConverter convert Carrier to string key (use in HandleMux)

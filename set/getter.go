@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/config"
+	"github.com/nats-io/nats.go"
 )
 
 func defaultInitOptions() initOptions {
@@ -21,6 +22,7 @@ func defaultInitOptions() initOptions {
 			Password: os.Getenv("redis-password"),
 			DB:       0,
 		},
+		natsUrl: "nats:tcp-nats",
 	}
 }
 
@@ -30,7 +32,9 @@ const (
 )
 
 type getter struct {
-	rdbm map[int]*redis.Client
+	rdbm     map[int]*redis.Client
+	natsconn *nats.Conn
+	cfgum    config.IUnmarshaler
 }
 
 func (sm *getter) RedisMasterCli() (cli *redis.Client, ok bool) {
@@ -44,7 +48,11 @@ func (sm *getter) RedisSlaveCli() (cli *redis.Client, ok bool) {
 }
 
 func (sm *getter) ConfigUnmarshaler() config.IUnmarshaler {
-	return config.NewUnmarshaler()
+	return sm.cfgum //config.NewUnmarshaler()
+}
+
+func (sm *getter) Nats() *nats.Conn {
+	return sm.natsconn
 }
 
 var (
@@ -61,13 +69,17 @@ func Instance(opts ...InitOption) IOpenApi {
 			opt.apply(&dopts)
 		}
 		instance = &getter{
-			rdbm: make(map[int]*redis.Client),
+			rdbm:  make(map[int]*redis.Client),
+			cfgum: config.NewUnmarshaler(),
 		}
 		if dopts.redisMasterOption != nil {
 			instance.rdbm[redisMasterKey] = redis.NewClient(dopts.redisMasterOption)
 		}
 		if dopts.redisSlaveOption != nil {
 			instance.rdbm[redisSlaveKey] = redis.NewClient(dopts.redisSlaveOption)
+		}
+		if dopts.natsUrl != "" {
+			instance.natsconn, _ = nats.Connect(dopts.natsUrl)
 		}
 	})
 	return instance
@@ -82,6 +94,8 @@ func Release() {
 	for _, cli := range instance.rdbm {
 		cli.Close()
 	}
+	instance.natsconn.Close()
+
 	instance = nil
 	once = sync.Once{}
 }

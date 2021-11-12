@@ -3,6 +3,7 @@ package set
 import (
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/config"
+	"github.com/nats-io/nats.go"
 )
 
 type IOpenApi interface {
@@ -12,4 +13,7 @@ type IOpenApi interface {
 
 	//config-unmarshaler
 	ConfigUnmarshaler() config.IUnmarshaler
+
+	//message queue
+	Nats() *nats.Conn
 }

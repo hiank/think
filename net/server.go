@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hiank/think/net/pb"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -44,28 +45,36 @@ func NewHandleMux(opts ...HandleOption) *handleMux {
 	return hm
 }
 
-//Register register handler for key
-func (hm *handleMux) Register(key string, handler ICarrierHandler) {
+//Look register handler for key
+func (hm *handleMux) Look(key string, handler IMessageHandler) {
 	hm.m.Store(key, handler)
+}
+
+//LookObject register handler by proto.Message instance
+func (hm *handleMux) LookObject(obj proto.Message, handler IMessageHandler) {
+	hm.Look(string(obj.ProtoReflect().Descriptor().Name()), handler)
 }
 
 //Handle handle given carrier message
 //the method will find suitable handler to handle the message
 func (hm *handleMux) Handle(carrier *pb.Carrier) {
-	var handler ICarrierHandler
 	key, ok := hm.dopts.converter.GetKey(carrier)
 	if ok {
 		if val, ok := hm.m.Load(key); ok {
-			handler, _ = val.(ICarrierHandler)
-		} else {
-			handler = hm.dopts.defaultHandler
+			handler, _ := val.(IMessageHandler)
+			if msg, err := carrier.GetMessage().UnmarshalNew(); err == nil {
+				handler.Handle(carrier.GetIdentity(), msg)
+			} else {
+				klog.Warning(err) //NOTE: unmarshal error
+			}
+			return
+		}
+		if hm.dopts.defaultHandler != nil {
+			hm.dopts.defaultHandler.Handle(carrier)
+			return
 		}
 	}
-	if handler == nil {
-		klog.Warningf("cannot find handler to handle message (%s)", key)
-		return
-	}
-	handler.Handle(carrier)
+	klog.Warningf("cannot find handler to handle message (%s)", key)
 }
 
 type server struct {

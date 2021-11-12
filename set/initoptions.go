@@ -5,6 +5,7 @@ import "github.com/go-redis/redis/v8"
 type initOptions struct {
 	redisMasterOption *redis.Options
 	redisSlaveOption  *redis.Options
+	natsUrl           string
 }
 
 type InitOption interface {
@@ -30,6 +31,14 @@ func WithRedisMasterOption(opt *redis.Options) InitOption {
 func WithRedisSlaveOption(opt *redis.Options) InitOption {
 	return funcInitOption(func(io *initOptions) {
 		io.redisSlaveOption = opt
+	})
+}
+
+//WithNatsUrl nats url
+//NOTE: if url is "", natsconn will be nil
+func WithNatsUrl(url string) InitOption {
+	return funcInitOption(func(io *initOptions) {
+		io.natsUrl = url
 	})
 }
 

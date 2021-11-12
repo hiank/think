@@ -9,13 +9,24 @@ import (
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/net/testdata"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
+type testMessageHandler struct {
+	out chan proto.Message
+}
+
+func (tch *testMessageHandler) Handle(id uint64, msg proto.Message) {
+	tch.out <- msg
+}
+
 type testCarrierHandler struct {
 	out chan *pb.Carrier
 }
+
+// func (tch *tes)
 
 func (tch *testCarrierHandler) Handle(carrier *pb.Carrier) {
 	tch.out <- carrier
@@ -107,12 +118,12 @@ func TestForcedConversion(t *testing.T) {
 
 func TestServerWithHandleMux(t *testing.T) {
 	t.Run("non-option", func(t *testing.T) {
-		accept, handlerPP, handleMux := make(chan net.IConn), make(chan *pb.Carrier), net.NewHandleMux()
+		accept, handlerPP, handleMux := make(chan net.IConn), make(chan proto.Message), net.NewHandleMux()
 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
 		defer srv.Close()
 		go srv.ListenAndServe()
 
-		handleMux.Register("AnyTest1", &testCarrierHandler{handlerPP})
+		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP})
 
 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
@@ -132,9 +143,9 @@ func TestServerWithHandleMux(t *testing.T) {
 		msg2 := &testdata.AnyTest1{Name: "ts1"}
 		any, _ = anypb.New(msg2)
 		recvPP <- any
-		carrier := <-handlerPP
+		val := <-handlerPP
 		// val.GetIdentity()
-		val, _ := carrier.GetMessage().UnmarshalNew()
+		// val, _ := carrier.GetMessage().UnmarshalNew()
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
 	})
 	t.Run("WithDefaultHandler", func(t *testing.T) {
@@ -144,8 +155,9 @@ func TestServerWithHandleMux(t *testing.T) {
 		defer srv.Close()
 		go srv.ListenAndServe()
 
-		handlerPP2 := make(chan *pb.Carrier)
-		handleMux.Register("AnyTest1", &testCarrierHandler{handlerPP2})
+		handlerPP2 := make(chan proto.Message)
+		// handleMux.Look("AnyTest1", &testMessageHandler{handlerPP2})
+		handleMux.LookObject(new(testdata.AnyTest1), &testMessageHandler{handlerPP2})
 
 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
@@ -161,8 +173,8 @@ func TestServerWithHandleMux(t *testing.T) {
 		msg2 := &testdata.AnyTest1{Name: "ts2"}
 		any, _ = anypb.New(msg2)
 		recvPP <- any
-		carrier = <-handlerPP2
-		val, _ = carrier.GetMessage().UnmarshalNew()
+		val = <-handlerPP2
+		// val, _ = carrier.GetMessage().UnmarshalNew()
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts2")
 	})
 	t.Run("WithConverter", func(t *testing.T) {
@@ -174,9 +186,9 @@ func TestServerWithHandleMux(t *testing.T) {
 		defer srv.Close()
 		go srv.ListenAndServe()
 
-		handlerPP1, handlerPP2 := make(chan *pb.Carrier), make(chan *pb.Carrier)
-		handleMux.Register("AnyTest1", &testCarrierHandler{handlerPP1})
-		handleMux.Register("anyTest2", &testCarrierHandler{handlerPP2})
+		handlerPP1, handlerPP2 := make(chan proto.Message), make(chan proto.Message)
+		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP1})
+		handleMux.Look("anyTest2", &testMessageHandler{handlerPP2})
 
 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
@@ -198,9 +210,9 @@ func TestServerWithHandleMux(t *testing.T) {
 		msg2 := &testdata.AnyTest1{Name: "ts1"}
 		any, _ = anypb.New(msg2)
 		recvPP <- any
-		carrier := <-handlerPP2
+		val := <-handlerPP2
 		// val.GetIdentity()
-		val, _ := carrier.GetMessage().UnmarshalNew()
+		// val, _ := carrier.GetMessage().UnmarshalNew()
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
 	})
 }
