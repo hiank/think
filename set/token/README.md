@@ -1,4 +1,0 @@
-# Token
-
-这个包的设计目标是，能够有一种简单的方式可以将用户资源释放。每一个用户连入系统之后，将根据uid生成唯一主Token。此用户请求的所有资源都绑定此Token或其派生Token[Derive]，当检测到用户已断开连接，调用主Token的Cancel，所有绑定此Token或其派生Token[Derive]的资源释放[需做相关处理]
-派生Token可通过WithCache方法缓存于主Token，主Token可根据指定的Key[int]获取缓存的Token

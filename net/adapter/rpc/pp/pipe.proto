@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+import "carrier.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/hiank/think/net/adapter/rpc/pp";
+
+service Pipe {
+    rpc Link(stream Carrier) returns (stream Carrier);      //NOTE: 流
+    rpc Get(Carrier) returns (Carrier);                     //NOTE: 'Get'
+    rpc Post(Carrier) returns (google.protobuf.Empty);
+}

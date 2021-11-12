@@ -2,111 +2,155 @@ package net
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"sync"
 
 	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/pool"
-	"github.com/hiank/think/set/codes"
+	"k8s.io/klog/v2"
 )
 
-//ServeHelper 服务核心方法
-type ServeHelper interface {
-	ListenAndServe() error
-	Accepter //NOTE: 务必保证Close后，Accept返回错误
-	io.Closer
+// var (
+// 	//DefaultHandleKey use for handleMux
+// 	DefaultHandlerKey string = "_default_key_"
+// )
+
+func defaultHandleOptions() handleOptions {
+	return handleOptions{
+		converter: FuncCarrierConverter(func(carrier *pb.Carrier) (string, bool) {
+			return string(carrier.GetMessage().MessageName().Name()), true
+		}),
+	}
 }
 
-//Accepter 建立连接接口
-type Accepter interface {
-	Accept() (Conn, error)
+type FuncCarrierConverter func(*pb.Carrier) (string, bool)
+
+func (fcc FuncCarrierConverter) GetKey(carrier *pb.Carrier) (string, bool) {
+	return fcc(carrier)
 }
 
-//ChanAccepter chan方式的Accepter
-type ChanAccepter chan Conn
+type handleMux struct {
+	m     sync.Map
+	dopts handleOptions
+}
 
-//Accept 建立连接
-func (ca ChanAccepter) Accept() (conn Conn, err error) {
-	conn, ok := <-ca
-	if !ok {
-		err = io.EOF
+func NewHandleMux(opts ...HandleOption) *handleMux {
+	hm := &handleMux{
+		dopts: defaultHandleOptions(),
+	}
+	for _, opt := range opts {
+		opt.apply(&hm.dopts)
+	}
+	return hm
+}
+
+//Register register handler for key
+func (hm *handleMux) Register(key string, handler ICarrierHandler) {
+	hm.m.Store(key, handler)
+}
+
+//Handle handle given carrier message
+//the method will find suitable handler to handle the message
+func (hm *handleMux) Handle(carrier *pb.Carrier) {
+	var handler ICarrierHandler
+	key, ok := hm.dopts.converter.GetKey(carrier)
+	if ok {
+		if val, ok := hm.m.Load(key); ok {
+			handler, _ = val.(ICarrierHandler)
+		} else {
+			handler = hm.dopts.defaultHandler
+		}
+	}
+	if handler == nil {
+		klog.Warningf("cannot find handler to handle message (%s)", key)
+		return
+	}
+	handler.Handle(carrier)
+}
+
+type server struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	listener IListener
+	handler  ICarrierHandler
+	m        sync.Map
+}
+
+func newServer(listener IListener, handler ICarrierHandler) IServer {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &server{
+		listener: listener,
+		ctx:      ctx,
+		cancel:   cancel,
+		handler:  handler,
+	}
+}
+
+//ListenAndServe block to accept new conn until the listener closed or server closed
+func (srv *server) ListenAndServe() (err error) {
+	defer srv.Close()
+	for {
+		conn, err := srv.listener.Accept()
+		if err = srv.lookErr(err); err != nil {
+			return err
+		}
+		go srv.handleConn(conn)
+	}
+}
+
+//Send send message (with identity) to client (use conn)
+//carrier's identity is target's value
+func (srv *server) Send(carrier *pb.Carrier) (err error) {
+	if val, ok := srv.m.Load(carrier.GetIdentity()); ok {
+		err = val.(IConn).Send(carrier.GetMessage())
+	} else {
+		err = fmt.Errorf("cannot found conn (identity:%x) in the server", carrier.GetIdentity())
 	}
 	return
 }
 
-//liteServer provide 'pool' for Conn
-type liteServer struct {
-	ctx         context.Context
-	hubPool     *pool.HubPool
-	recvHandler pool.Handler
+//Close close the server
+//will close all conns then clear the conns's map
+//the method could be called multiple
+func (srv *server) Close() (err error) {
+	if err = srv.ctx.Err(); err == nil {
+		srv.cancel()
+		err = srv.listener.Close()
+		srv.m.Range(func(key, value interface{}) bool {
+			value.(IConn).Close()
+			return true
+		})
+	}
+	return
 }
 
-//handleConn add the conn at pool
-func (svc *liteServer) handleConn(conn Conn) {
-	hub, _ := svc.hubPool.AutoHub(conn.Key()) //NOTE: 这里暂时没考虑重复连接的问题，后续需要完善
-	hub.SetHandler(HandlerFunc(func(msg *pb.Message) error {
-		return conn.Send(msg)
-	}))
-	hub.Closer = conn //.(io.Closer)
-	go loopRecv(svc.ctx, conn, svc.recvHandler)
-}
+//handleConn loop recv message by conn and handle it until conn closed or server closed
+func (srv *server) handleConn(conn IConn) {
+	defer conn.Close()
+	identity := conn.GetIdentity()
+	if _, loaded := srv.m.LoadOrStore(identity, conn); loaded {
+		//identity would loaded already
+		klog.Warningf("conn (identity:%x) already loaded", identity)
+		return
+	}
 
-//Send 发送消息，找到相应数据集，处理消息发送
-func (svc *liteServer) Send(msg *pb.Message) (err error) {
-	switch {
-	case svc.ctx.Err() != nil:
-		err = svc.ctx.Err()
-	case msg == nil:
-		err = codes.Error(codes.ErrorNilValue)
-	default:
-		if hub := svc.hubPool.GetHub(msg.GetKey()); hub != nil {
-			hub.Push(msg)
-		} else {
-			err = codes.Error(codes.ErrorWorkerNotExisted)
+	defer srv.m.Delete(identity)
+	for {
+		any, err := conn.Recv()
+		if err = srv.lookErr(err); err != nil {
+			if err != io.EOF {
+				klog.Warningf("conn (identity:%x) closed abnormally: %x", identity, err)
+			}
+			return
 		}
+		go srv.handler.Handle(&pb.Carrier{Identity: identity, Message: any})
+	}
+}
+
+//lookErr check wether the ctx would canceled
+func (srv *server) lookErr(err error) error {
+	if srv.ctx.Err() != nil {
+		err = srv.ctx.Err()
 	}
 	return err
-}
-
-//defaultLiteSender when use customize ConnHandler, the LiteSender will use this to return an error
-var defaultLiteSender = SenderFunc(func(m *pb.Message) error { return codes.Error(codes.ErrorNonSupportLiteServe) })
-
-//LiteSender when start a liteServer, someone can use LiteSender.Send(msg) for send the msg to client
-var LiteSender Sender = defaultLiteSender
-
-//ListenAndServe start listen serve
-//NOTE: must pass one of WithConnHandler and WithRecvHandler, when pass WithConnHandler, WithRecvHandler will not work
-func ListenAndServe(helper ServeHelper, opts ...ListenOption) error {
-	if helper == nil {
-		return codes.Error(codes.ErrorNonHelper)
-	}
-
-	dopts := newDefaultListenOptions()
-	for _, opt := range opts {
-		opt.apply(dopts)
-	}
-	ctx, cancel := context.WithCancel(dopts.ctx)
-	defer cancel()
-
-	var connHandler func(Conn)
-	if dopts.connHandler == nil {
-		if dopts.recvHandler == nil {
-			return codes.Error(codes.ErrorNeedOneofConnRecvHandler)
-		}
-		svc := &liteServer{ctx: ctx, recvHandler: dopts.recvHandler, hubPool: pool.NewHubPool(ctx)}
-		LiteSender = svc
-		defer func() {
-			svc.hubPool.RemoveAll()
-			LiteSender = defaultLiteSender
-		}()
-		connHandler = svc.handleConn
-	} else {
-		connHandler = dopts.connHandler
-	}
-
-	go loopAccept(ctx, helper, connHandler)
-	go func() {
-		<-ctx.Done()
-		helper.Close()
-	}()
-	return helper.ListenAndServe()
 }
