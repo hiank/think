@@ -43,16 +43,15 @@ func TestSendChan(t *testing.T) {
 type testStorage struct {
 }
 
-func (ts *testStorage) GetUidByToken(token string) (uid uint64, ok bool) {
-	uid, err := strconv.ParseUint(token, 10, 64)
-	ok = err == nil
+func (ts *testStorage) Auth(token string) (uid uint64, err error) {
+	uid, err = strconv.ParseUint(token, 10, 64)
 	return
 }
 
 func TestListener(t *testing.T) {
 	t.Run("new-close", func(t *testing.T) {
 		ts := &testStorage{}
-		uid, _ := ts.GetUidByToken("11")
+		uid, _ := ts.Auth("11")
 		assert.Equal(t, uid, uint64(11))
 		l := ws.NewListener(ts, ":10240")
 		l.Close()

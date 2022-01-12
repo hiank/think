@@ -216,3 +216,21 @@ func TestServerWithHandleMux(t *testing.T) {
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
 	})
 }
+
+func TestRedefineOutValue(t *testing.T) {
+	func1 := func() (int, int) {
+		return 1, 11
+	}
+	func2 := func(t *testing.T) (outVal int) {
+		val, outVal := func1()
+		assert.Equal(t, val, 1)
+		return
+	}
+	assert.Equal(t, func2(t), 11)
+}
+
+func TestDeleteNonItem(t *testing.T) {
+	m := map[int]int{1: 11}
+	delete(m, 2)
+	assert.Equal(t, len(m), 1, "delete not existed key would not panic")
+}

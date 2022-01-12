@@ -1,11 +1,13 @@
 package set
 
-import "github.com/go-redis/redis/v8"
+import (
+	"github.com/go-redis/redis/v8"
+	"github.com/hiank/think/set/db"
+)
 
 type initOptions struct {
-	redisMasterOption *redis.Options
-	redisSlaveOption  *redis.Options
-	natsUrl           string
+	redisOptions map[db.RedisTag]*redis.Options
+	natsUrl      string
 }
 
 type InitOption interface {
@@ -22,7 +24,11 @@ func (fio funcInitOption) apply(opts *initOptions) {
 //NOTE: if opt is nil, redis master will be nil
 func WithRedisMasterOption(opt *redis.Options) InitOption {
 	return funcInitOption(func(io *initOptions) {
-		io.redisMasterOption = opt
+		if opt == nil {
+			delete(io.redisOptions, db.RedisTagMaster)
+		} else {
+			io.redisOptions[db.RedisTagMaster] = opt
+		}
 	})
 }
 
@@ -30,7 +36,11 @@ func WithRedisMasterOption(opt *redis.Options) InitOption {
 //NOTE: if opt is nil, redis slave will be nil
 func WithRedisSlaveOption(opt *redis.Options) InitOption {
 	return funcInitOption(func(io *initOptions) {
-		io.redisSlaveOption = opt
+		if opt == nil {
+			delete(io.redisOptions, db.RedisTagSlave)
+		} else {
+			io.redisOptions[db.RedisTagSlave] = opt
+		}
 	})
 }
 

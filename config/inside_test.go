@@ -13,27 +13,27 @@ type testConfig struct {
 	Tok int    `yaml:"Tok"`
 }
 
-func TestJsonUnmarshaler(t *testing.T) {
+func TestJsonParser(t *testing.T) {
 	u := &jsonData{data: []byte(`{"sys.Tik": "nil"}`)}
 	var cfg testConfig
-	u.unmarshal(&cfg)
+	u.parse(&cfg)
 
 	assert.Equal(t, cfg.Tik, "nil")
 
 	u = &jsonData{data: []byte(`{"sys.Tik": "overwrite"}`)}
-	u.unmarshal(&cfg)
+	u.parse(&cfg)
 	assert.Equal(t, cfg.Tik, "overwrite", "overwrite previous settings")
 }
 
-func TestYamlUnmarshaler(t *testing.T) {
+func TestYamlParser(t *testing.T) {
 	u := &yamlData{data: []byte(`Tok: 2`)}
 	var cfg testConfig
-	u.unmarshal(&cfg)
+	u.parse(&cfg)
 
 	assert.Equal(t, cfg.Tok, 2)
 
 	u = &yamlData{data: []byte(`Tok: 3`)}
-	u.unmarshal(&cfg)
+	u.parse(&cfg)
 	assert.Equal(t, cfg.Tok, 3, "overwrite previous settings")
 }
 

@@ -20,15 +20,15 @@ func suffix(path string) (val string) {
 	return
 }
 
-type unmarshaler interface {
-	unmarshal(...IConfig)
+type parser interface {
+	parse(...IConfig)
 }
 
 type jsonData struct {
 	data []byte
 }
 
-func (jd *jsonData) unmarshal(vals ...IConfig) {
+func (jd *jsonData) parse(vals ...IConfig) {
 	for _, cfg := range vals {
 		if err := json.Unmarshal(jd.data, cfg); err != nil {
 			klog.Warningf("json.Unmarshal to %v: %v", cfg, err)
@@ -40,18 +40,10 @@ type yamlData struct {
 	data []byte
 }
 
-func (yd *yamlData) unmarshal(vals ...IConfig) {
+func (yd *yamlData) parse(vals ...IConfig) {
 	for _, cfg := range vals {
 		if err := yaml.Unmarshal(yd.data, cfg); err != nil {
 			klog.Warningf("yaml.Unmarshal to %v: %v", cfg, err)
 		}
 	}
 }
-
-// type excelData struct {
-// 	data []byte
-// }
-
-// func (ed *excelData) unmarshal(vals ...IConfig) {
-// 	klog.Warning("not support excel now")
-// }

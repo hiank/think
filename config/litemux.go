@@ -16,17 +16,17 @@ type liteMux struct {
 	mux    sync.Mutex
 }
 
-//NewUnmarshaler new a IUnmarshaler
-func NewUnmarshaler() IUnmarshaler {
+//NewParser new a IParser
+func NewParser() IParser {
 	return &liteMux{
 		loaded: make(map[string]byte),
 		list:   list.New(),
 	}
 }
 
-//HandleFile handle folder|.json|.yaml
+//LoadFile load folder|.json|.yaml
 //read all file contents sync to lm.list
-func (lm *liteMux) HandleFile(paths ...string) {
+func (lm *liteMux) LoadFile(paths ...string) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 	for _, path := range paths {
@@ -60,27 +60,27 @@ func (lm *liteMux) load(path string) {
 	}
 }
 
-//HandleJsonBytes handle json type data
-func (lm *liteMux) HandleJsonBytes(data []byte) {
+//LoadJsonBytes load json data to cache
+func (lm *liteMux) LoadJsonBytes(data []byte) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 	lm.list.PushBack(&jsonData{data: data})
 }
 
-//HandleYamlBytes handle yaml type data
-func (lm *liteMux) HandleYamlBytes(data []byte) {
+//LoadYamlBytes load yaml data to cache
+func (lm *liteMux) LoadYamlBytes(data []byte) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 	lm.list.PushBack(&yamlData{data: data})
 }
 
-//UnmarshalAndClean unmarshal the handled data to configs
-//clean loaded data at the end
-func (lm *liteMux) UnmarshalAndClean(configs ...IConfig) {
+//ParseAndClear parse loaded data to configs
+//clear loaded data at the end
+func (lm *liteMux) ParseAndClear(configs ...IConfig) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 	for em := lm.list.Front(); em != nil; em = em.Next() {
-		em.Value.(unmarshaler).unmarshal(configs...)
+		em.Value.(parser).parse(configs...)
 	}
 	lm.loaded, lm.list = make(map[string]byte), list.New()
 }

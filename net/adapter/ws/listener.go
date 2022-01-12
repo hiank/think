@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
+	"github.com/hiank/think/oauth"
 	"k8s.io/klog/v2"
 )
 
@@ -13,14 +14,15 @@ type listener struct {
 	srv      *http.Server
 	pp       chan net.IConn
 	upgrader *websocket.Upgrader
-	storage  IStorage
+	// storage  IStorage
+	auther oauth.IAuther
 }
 
-func NewListener(storage IStorage, addr string) net.IListener {
+func NewListener(auther oauth.IAuther, addr string) net.IListener {
 	l := &listener{
 		pp:       make(chan net.IConn),
 		upgrader: &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
-		storage:  storage,
+		auther:   auther,
 	}
 	httpHandler := http.NewServeMux()
 	httpHandler.Handle("/ws", l)
@@ -51,9 +53,9 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "non token value in request header", http.StatusNonAuthoritativeInfo)
 		return
 	}
-	uid, ok := l.storage.GetUidByToken(token)
-	if !ok {
-		http.Error(w, "token invalid", http.StatusUnauthorized)
+	uid, err := l.auther.Auth(token)
+	if err != nil {
+		http.Error(w, "token invalid: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -62,10 +64,5 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		klog.Warning("ws: Upgrade error: ", err)
 		return
 	}
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		klog.Warning("ws: accept chan closed: ", r)
-	// 	}
-	// }()
 	l.pp <- &conn{wc: wc, uid: uid}
 }

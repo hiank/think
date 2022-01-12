@@ -14,11 +14,11 @@ type testConfig struct {
 
 func TestUnmarshaler(t *testing.T) {
 	// t.Run()
-	u := config.NewUnmarshaler()
-	u.HandleFile("testdata", "testdata/config.json")
+	u := config.NewParser()
+	u.LoadFile("testdata", "testdata/config.json")
 
 	var cfg testConfig
-	u.UnmarshalAndClean(&cfg)
+	u.ParseAndClear(&cfg)
 
 	assert.Equal(t, cfg.Key, "love-ws")
 	assert.Equal(t, cfg.Limit, 2)

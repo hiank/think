@@ -18,19 +18,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// type restMux struct {
-// 	mget  sync.Map
-// 	mpost sync.Map
-// }
-
-// func (rm *restMux) RegisterGet(key string, get func(context.Context, uint64, proto.Message) (proto.Message, error)) {
-// 	rm.mget.Store(key, get)
-// }
-
-// func (rm *restMux) RegisterPost(key string, post func(context.Context, uint64, proto.Message) error) {
-// 	rm.mpost.Store(key, post)
-// }
-
 func defaultListenOptions() listenOptions {
 	return listenOptions{
 		addr: ":10250",

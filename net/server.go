@@ -11,11 +11,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// var (
-// 	//DefaultHandleKey use for handleMux
-// 	DefaultHandlerKey string = "_default_key_"
-// )
-
 func defaultHandleOptions() handleOptions {
 	return handleOptions{
 		converter: FuncCarrierConverter(func(carrier *pb.Carrier) (string, bool) {
@@ -36,9 +31,7 @@ type handleMux struct {
 }
 
 func NewHandleMux(opts ...HandleOption) *handleMux {
-	hm := &handleMux{
-		dopts: defaultHandleOptions(),
-	}
+	hm := &handleMux{dopts: defaultHandleOptions()}
 	for _, opt := range opts {
 		opt.apply(&hm.dopts)
 	}
@@ -59,22 +52,22 @@ func (hm *handleMux) LookObject(obj proto.Message, handler IMessageHandler) {
 //the method will find suitable handler to handle the message
 func (hm *handleMux) Handle(carrier *pb.Carrier) {
 	key, ok := hm.dopts.converter.GetKey(carrier)
-	if ok {
-		if val, ok := hm.m.Load(key); ok {
-			handler, _ := val.(IMessageHandler)
-			if msg, err := carrier.GetMessage().UnmarshalNew(); err == nil {
-				handler.Handle(carrier.GetIdentity(), msg)
-			} else {
-				klog.Warning(err) //NOTE: unmarshal error
-			}
-			return
-		}
-		if hm.dopts.defaultHandler != nil {
-			hm.dopts.defaultHandler.Handle(carrier)
-			return
-		}
+	if !ok {
+		klog.Warningf("cannot get key from carrier (%v)", carrier)
+		return
 	}
-	klog.Warningf("cannot find handler to handle message (%s)", key)
+	if val, ok := hm.m.Load(key); ok {
+		if msg, err := carrier.GetMessage().UnmarshalNew(); err == nil {
+			handler, _ := val.(IMessageHandler)
+			handler.Handle(carrier.GetIdentity(), msg)
+		} else {
+			klog.Warning(err) //NOTE: unmarshal error
+		}
+	} else if hm.dopts.defaultHandler != nil {
+		hm.dopts.defaultHandler.Handle(carrier)
+	} else {
+		klog.Warningf("cannot find handler to handle message (%s)", key)
+	}
 }
 
 type server struct {

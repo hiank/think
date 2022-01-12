@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 option go_package = "github.com/hiank/think/net/testdata";
+option csharp_namespace = "Hub.Test";
 
 message test1 {
     string name = 1;

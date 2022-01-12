@@ -2,10 +2,10 @@ package config
 
 type IConfig interface{}
 
-type IUnmarshaler interface {
-	HandleFile(paths ...string)
-	HandleYamlBytes(values []byte)
-	HandleJsonBytes(values []byte)
+type IParser interface {
+	LoadFile(paths ...string)
+	LoadYamlBytes(values []byte)
+	LoadJsonBytes(values []byte)
 
-	UnmarshalAndClean(configs ...IConfig)
+	ParseAndClear(configs ...IConfig)
 }
