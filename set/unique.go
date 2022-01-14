@@ -1,37 +1,44 @@
 package set
 
 import (
+	"context"
 	"errors"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/hiank/think/config"
-	"github.com/hiank/think/set/db"
+	dset "github.com/hiank/think/data"
+	"github.com/hiank/think/fp"
+	"github.com/hiank/think/kube"
 	"github.com/nats-io/nats.go"
 )
 
-func defaultInitOptions() initOptions {
-	return initOptions{
-		redisOptions: map[db.RedisTag]*redis.Options{db.RedisTagMaster: db.DefaultMasterOption, db.RedisTagSlave: db.DefaultSlaveOption},
-		natsUrl:      db.DefaultNatsUrl,
+func defaultOptions() options {
+	return options{
+		// redisOptions: map[db.RedisTag]*redis.Options{db.RedisTagMaster: db.DefaultMasterOption, db.RedisTagSlave: db.DefaultSlaveOption},
+		natsUrl: kube.NatsUrl(),
 	}
 }
 
 type getter struct {
-	rdbm     map[db.RedisTag]*redis.Client
+	Cancel   context.CancelFunc
+	ctx      context.Context
 	natsconn *nats.Conn
-	cfgum    config.IParser
+	textp    fp.IParser
+	dataset  dset.IDataset
 }
 
-//ConfigParser get config parser
-func (sm *getter) ConfigParser() config.IParser {
-	return sm.cfgum
+//TextParser get config parser
+func (sm *getter) TextParser() fp.IParser {
+	return sm.textp
 }
 
-//RedisCli get redis client by given RedisTag (RedisTagMaster || RedisTagSlave)
-func (sm *getter) RedisCli(tag db.RedisTag) (cli *redis.Client, ok bool) {
-	cli, ok = sm.rdbm[tag]
-	return
+// //RedisCli get redis client by given RedisTag (RedisTagMaster || RedisTagSlave)
+// func (sm *getter) RedisCli(tag db.RedisTag) (cli *redis.Client, ok bool) {
+// 	cli, ok = sm.rdbm[tag]
+// 	return
+// }
+
+func (sm *getter) Dataset() dset.IDataset {
+	return sm.dataset
 }
 
 //Nats get nats conn
@@ -45,18 +52,18 @@ var (
 )
 
 //Init create unique object with given options
-func Init(opts ...InitOption) (done bool) {
+func Init(opts ...Option) (done bool) {
 	once.Do(func() {
-		dopts := defaultInitOptions()
+		dopts := defaultOptions()
 		for _, opt := range opts {
 			opt.apply(&dopts)
 		}
+		ctx, cancel := context.WithCancel(context.Background())
 		unique = &getter{
-			rdbm:  make(map[db.RedisTag]*redis.Client),
-			cfgum: config.NewParser(),
-		}
-		for tag, opt := range dopts.redisOptions {
-			unique.rdbm[tag] = redis.NewClient(opt)
+			ctx:     ctx,
+			Cancel:  cancel,
+			dataset: dset.NewDataset(ctx, dset.WithMemoryDB(dopts.memoryDB), dset.WithDiskDB(dopts.diskDB)),
+			textp:   fp.NewParser(),
 		}
 		if dopts.natsUrl != "" {
 			unique.natsconn, _ = nats.Connect(dopts.natsUrl)
@@ -66,9 +73,9 @@ func Init(opts ...InitOption) (done bool) {
 	return
 }
 
-//Unique IOpenApi singleton
+//Unique ISet singleton
 //NOTE: it would panic without call 'Init' method to generate an unique object
-func Unique() IOpenApi {
+func Unique() ISet {
 	once.Do(func() {
 		panic(errors.New("unique not generate now. you should call 'set.Init' to generate an unique object"))
 	})
@@ -81,10 +88,9 @@ func Clear() {
 	once.Do(func() {
 		panic(errors.New("unique not generate now. should not call Release"))
 	})
-	for _, cli := range unique.rdbm {
-		cli.Close()
-	}
+
 	unique.natsconn.Close()
+	unique.Cancel() //cancel ctx
 
 	unique = nil
 	once = sync.Once{}

@@ -224,13 +224,33 @@ func TestRedefineOutValue(t *testing.T) {
 	func2 := func(t *testing.T) (outVal int) {
 		val, outVal := func1()
 		assert.Equal(t, val, 1)
+		assert.Equal(t, outVal, 11)
+		outVal = 12
+		if val == 1 {
+			val1, outVal := func1()
+			assert.Equal(t, val1, 1)
+			assert.Equal(t, outVal, 11)
+		}
 		return
 	}
-	assert.Equal(t, func2(t), 11)
+	assert.Equal(t, func2(t), 12, "if代码块中 outVal作用域只在其中")
 }
 
 func TestDeleteNonItem(t *testing.T) {
 	m := map[int]int{1: 11}
 	delete(m, 2)
 	assert.Equal(t, len(m), 1, "delete not existed key would not panic")
+}
+
+type testKey string
+
+type testKey1 string
+
+func TestInterfaceType(t *testing.T) {
+	// var key1 testKey1 = "key1"
+	var key testKey = "key"
+	var it interface{} = key
+	val, ok := it.(testKey1)
+	assert.Assert(t, !ok)
+	assert.Equal(t, val, testKey1(""))
 }

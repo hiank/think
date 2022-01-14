@@ -1,8 +1,9 @@
-package config
+package fp
 
 import (
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -65,4 +66,49 @@ func TestMarch(t *testing.T) {
 
 	_, err := ioutil.ReadDir("testdata")
 	assert.Assert(t, err == nil)
+}
+
+// func TestReadExcel(t *testing.T) {
+// 	// u := fp.NewParser()
+// 	// u.LoadFile("testdata/config.xls")
+// 	f, err := excelize.OpenFile("testdata/config.xlsx")
+// 	assert.Assert(t, err == nil)
+// 	defer f.Close()
+// 	// f.GetSheet
+// 	val, _ := f.GetRows(f.GetSheetList()[0])
+// 	t.Log(val)
+// }
+
+type testExcel struct {
+	Lv   uint   `excel:"怪物等级"`
+	ID   string `excel:"关卡ID"`
+	Name string `excel:"关卡名字"`
+}
+
+var testRows [][]string = [][]string{
+	{"关卡ID", "怪物等级", "名字"},
+	{"11", "12", "无知"},
+	{"1", "2", "优质"},
+}
+
+func TestReflectType(t *testing.T) {
+	val := &testExcel{}
+	fv := reflect.ValueOf(val)
+	assert.Equal(t, fv.Kind(), reflect.Ptr)
+
+	fv = fv.Elem()
+	assert.Equal(t, fv.Kind(), reflect.Struct)
+
+	ff, _ := fv.Type().FieldByName("ID")
+	tag := ff.Tag.Get("excel")
+	assert.Equal(t, tag, "关卡ID")
+
+	assert.Equal(t, ff.Name, "ID")
+
+	rc := newRowsConv(testRows, reflect.TypeOf(*val))
+	vals := rc.Unmarshal() //unmarshalRows(testRows, reflect.TypeOf(*val))
+	assert.Equal(t, len(vals), 2)
+	// assert.Equal(t, vals[])
+	val = vals[0].(*testExcel)
+	assert.Equal(t, val.ID, "11")
 }

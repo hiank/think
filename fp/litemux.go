@@ -1,4 +1,4 @@
-package config
+package fp
 
 import (
 	"container/list"
@@ -50,13 +50,14 @@ func (lm *liteMux) load(path string) {
 		klog.Warning(err)
 		return
 	}
-	switch suffix(path) {
-	case jsonSuffix:
+	switch fileForm(path) {
+	case formJson:
 		lm.list.PushBack(&jsonData{data: data})
-	case yamlSuffix:
+	case formYaml:
 		lm.list.PushBack(&yamlData{data: data})
 	default:
 		klog.Warningf("not support the file type now: %v", path)
+		return
 	}
 }
 
@@ -76,7 +77,7 @@ func (lm *liteMux) LoadYamlBytes(data []byte) {
 
 //ParseAndClear parse loaded data to configs
 //clear loaded data at the end
-func (lm *liteMux) ParseAndClear(configs ...IConfig) {
+func (lm *liteMux) ParseAndClear(configs ...interface{}) {
 	lm.mux.Lock()
 	defer lm.mux.Unlock()
 	for em := lm.list.Front(); em != nil; em = em.Next() {
