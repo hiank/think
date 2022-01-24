@@ -6,4 +6,4 @@ Provide various tools
 * `RedisCli`: Get redis client
 * `Nats`: Get nats conn
 
-***NOTE:*** this package will not depend on the think package. so the code in think package can easily use this package
+***NOTE:*** do not use this package in think's other package

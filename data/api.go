@@ -1,35 +1,44 @@
-package dset
+package data
 
-import "github.com/hiank/think/data/db"
+import (
+	"fmt"
+	"regexp"
 
-const (
-	TagUseMemory int8 = 1 << 0
-	TagUseDisk   int8 = 1 << 1
+	"github.com/hiank/think/data/db"
 )
 
-type DBKey struct {
-	Tag    int8
-	Result string
+const (
+	//KTMem tag for use memory store
+	KTMem KeyTag = 1 << 0
+	//KTDisk tag for use disk store
+	KTDisk KeyTag = 1 << 1
+	//KTMix tag for mix mode
+	//use both memory and disk store
+	//NOTE: using mixed mode is prone to data inconsistency and should be avoided
+	KTMix KeyTag = KTMem | KTDisk
+
+	ktRule   string = "[%d@KT]%s"
+	ktRegexp string = `^\[(.*)@KT\]`
+)
+
+type KeyTag uint8
+
+//Encode encode given baseKey to the key contains tag value
+func (kt KeyTag) Encode(baseKey string) (key string) {
+	r := regexp.MustCompile(ktRegexp)
+	if loc := r.FindStringIndex(baseKey); len(loc) > 0 {
+		baseKey = baseKey[loc[1]:]
+	}
+	return fmt.Sprintf(ktRule, kt, baseKey)
 }
 
-//InTag check the given tag
-func (hk *DBKey) InTag(want int8) bool {
-	return (hk.Tag & want) == want
+//equal check if the kt contians want tag
+func (kt KeyTag) equal(want KeyTag) bool {
+	return (want > 0) && (kt&want) == want
 }
-
-//IGamer gamer's information
-type IGamer interface {
-	GetUid() uint64
-	GetToken() string
-}
-
-type BuildGamer func() IGamer
 
 //IDataset data set
 type IDataset interface {
-	//GetGamer get gamer's information
-	GetGamer(uid uint64) (IGamer, error)
-
-	HGet(hkey *DBKey, fkey string) (db.IParser, error)
-	HSet(hkey *DBKey, values ...interface{}) error
+	//KvDB key-value database store
+	KvDB() db.KvDB
 }

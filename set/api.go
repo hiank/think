@@ -1,17 +1,19 @@
 package set
 
 import (
-	dset "github.com/hiank/think/data"
+	"context"
+
+	"github.com/hiank/think/data"
 	"github.com/hiank/think/fp"
 	"github.com/nats-io/nats.go"
 )
 
 type ISet interface {
-	// //db-redis
-	// RedisCli(db.RedisTag) (*redis.Client, bool)
+	//TODO base context
+	TODO() context.Context
 
 	//Dataset read-write game data
-	Dataset() dset.IDataset
+	Dataset() data.IDataset
 
 	//text-parser
 	TextParser() fp.IParser

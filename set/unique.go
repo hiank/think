@@ -5,7 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	dset "github.com/hiank/think/data"
+	"github.com/hiank/think/data"
+	"github.com/hiank/think/data/db"
 	"github.com/hiank/think/fp"
 	"github.com/hiank/think/kube"
 	"github.com/nats-io/nats.go"
@@ -13,8 +14,8 @@ import (
 
 func defaultOptions() options {
 	return options{
-		// redisOptions: map[db.RedisTag]*redis.Options{db.RedisTagMaster: db.DefaultMasterOption, db.RedisTagSlave: db.DefaultSlaveOption},
 		natsUrl: kube.NatsUrl(),
+		mstore:  make(map[data.KeyTag]db.KvDB),
 	}
 }
 
@@ -23,7 +24,11 @@ type getter struct {
 	ctx      context.Context
 	natsconn *nats.Conn
 	textp    fp.IParser
-	dataset  dset.IDataset
+	dataset  data.IDataset
+}
+
+func (sm *getter) TODO() context.Context {
+	return sm.ctx
 }
 
 //TextParser get config parser
@@ -31,13 +36,7 @@ func (sm *getter) TextParser() fp.IParser {
 	return sm.textp
 }
 
-// //RedisCli get redis client by given RedisTag (RedisTagMaster || RedisTagSlave)
-// func (sm *getter) RedisCli(tag db.RedisTag) (cli *redis.Client, ok bool) {
-// 	cli, ok = sm.rdbm[tag]
-// 	return
-// }
-
-func (sm *getter) Dataset() dset.IDataset {
+func (sm *getter) Dataset() data.IDataset {
 	return sm.dataset
 }
 
@@ -62,7 +61,7 @@ func Init(opts ...Option) (done bool) {
 		unique = &getter{
 			ctx:     ctx,
 			Cancel:  cancel,
-			dataset: dset.NewDataset(ctx, dset.WithMemoryDB(dopts.memoryDB), dset.WithDiskDB(dopts.diskDB)),
+			dataset: data.NewDataset(dopts.mstore),
 			textp:   fp.NewParser(),
 		}
 		if dopts.natsUrl != "" {

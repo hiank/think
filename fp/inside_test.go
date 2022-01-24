@@ -40,7 +40,7 @@ func TestYamlParser(t *testing.T) {
 
 func TestMarch(t *testing.T) {
 	paths := match("testdata")
-	assert.Equal(t, len(paths), 5)
+	assert.Equal(t, len(paths), 6, paths)
 
 	root, _ := filepath.Abs("testdata")
 	// strings.
@@ -49,6 +49,7 @@ func TestMarch(t *testing.T) {
 	// t.Log(root)
 	names := []string{
 		"config.json",
+		"config.xlsx",
 		"config.yaml",
 		"dep" + sp + "dep.YaMl",
 		"dep" + sp + "dep.json", //NOTE: 'j' > 'Y'

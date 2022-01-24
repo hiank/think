@@ -1,0 +1,3 @@
+
+data/db/adapter/mongo/testdata/*
+data/db/adapter/redis/testdata/*
