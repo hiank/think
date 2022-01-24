@@ -12,54 +12,6 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-// var (
-// 	redisServerBin, _  = filepath.Abs("db/testdata/redis/src/redis-server")
-// 	redisServerConf, _ = filepath.Abs("db/testdata/redis/redis.conf")
-// )
-
-// func redisDir(port string) (string, error) {
-// 	dir, err := filepath.Abs(filepath.Join("db/testdata", "instances", port))
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	if err := os.RemoveAll(dir); err != nil {
-// 		return "", err
-// 	}
-// 	if err := os.MkdirAll(dir, 0775); err != nil {
-// 		return "", err
-// 	}
-// 	return dir, nil
-// }
-
-// func startRedis(port string, args ...string) (*os.Process, error) {
-// 	dir, err := redisDir(port)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if err = exec.Command("cp", "-f", redisServerConf, dir).Run(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	baseArgs := []string{filepath.Join(dir, "redis.conf"), "--port", port, "--dir", dir}
-// 	return execCmd(redisServerBin, append(baseArgs, args...)...)
-// }
-
-// func execCmd(name string, args ...string) (*os.Process, error) {
-// 	cmd := exec.Command(name, args...)
-// 	if testing.Verbose() {
-// 		cmd.Stdout = os.Stdout
-// 		cmd.Stderr = os.Stderr
-// 	}
-// 	return cmd.Process, cmd.Start()
-// }
-
-type testHValue struct {
-	IntVal  int    `redis:"intval"`
-	BoolVal bool   `redis:"boolval"`
-	StrVal  string `redis:"strval"`
-	UintVal uint   `redis:"uintval"`
-}
-
 func TestStringSetValue(t *testing.T) {
 	var str1 string = "name"
 	str2 := &str1
@@ -68,70 +20,6 @@ func TestStringSetValue(t *testing.T) {
 	assert.Equal(t, str1, "test")
 	assert.Equal(t, *str2, "test")
 }
-
-// type
-
-// func TestBaseRedis(t *testing.T) {
-// 	proc, err := startRedis("30211")
-// 	if err != nil {
-// 		t.Error(err)
-// 		return
-// 	}
-// 	defer proc.Kill()
-
-// 	ctx := context.Background()
-// 	cli := redis.NewClient(&redis.Options{
-// 		DB:       0,
-// 		Password: "",
-// 		Addr:     "localhost:30211",
-// 	}) //db.NewVerifiedRedisCLI(ctx, redisConf)
-
-// 	t.Run("lite Get-Set", func(t *testing.T) {
-// 		cli.Set(ctx, "testInt", 1, 0)
-// 		val, err := cli.Get(ctx, "testInt").Result()
-
-// 		assert.Assert(t, err == nil, err)
-// 		assert.Equal(t, val, "1")
-// 	})
-
-// 	t.Run("HGet-HSet", func(t *testing.T) {
-// 		cli.HMSet(ctx, "h-key", "intval", "-11", "uintval", "119", "boolval", "true")
-// 		cmd := cli.HGet(ctx, "h-key", "intval")
-// 		assert.Assert(t, cmd.Err() == nil)
-// 		rlt, _ := cmd.Result()
-// 		assert.Equal(t, rlt, "-11")
-
-// 		allCmd := cli.HGetAll(ctx, "h-key")
-// 		m, err := allCmd.Result()
-// 		assert.Assert(t, err == nil)
-// 		assert.Equal(t, m["intval"], "-11")
-// 		assert.Equal(t, m["uintval"], "119")
-
-// 		val := &testHValue{}
-// 		err = allCmd.Scan(val)
-// 		assert.Assert(t, err == nil)
-
-// 		assert.Equal(t, val.IntVal, -11)
-// 		assert.Equal(t, val.UintVal, uint(119))
-// 		assert.Equal(t, val.BoolVal, true)
-// 		assert.Equal(t, val.StrVal, "")
-// 	})
-// }
-
-// type testMemoryDB struct {
-// }
-
-// func (tm *testMemoryDB) HGet(hkey, fkey string) (db.IParser, error) {
-// 	return nil, nil
-// }
-
-// func (tm *testMemoryDB) HSet(hkey string, vals ...interface{}) error {
-// 	return nil
-// }
-
-// func (tm *testMemoryDB) Close() error {
-// 	return nil
-// }
 
 func TestPushError(t *testing.T) {
 	err := data.Export_pushErr(nil, nil)
@@ -409,7 +297,3 @@ func TestDataset(t *testing.T) {
 		// err = dataset.KvDB().Delete(data.)
 	})
 }
-
-// func TestRedis(t *testing.T) {
-// 	redis.DefaultOptions
-// }
