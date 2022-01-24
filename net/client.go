@@ -3,10 +3,10 @@ package net
 import "github.com/hiank/think/net/pb"
 
 type client struct {
-	dialer IDialer
+	dialer Dialer
 }
 
-func newClient(dialer IDialer) IClient {
+func newClient(dialer Dialer) Client {
 	return &client{dialer: dialer}
 }
 

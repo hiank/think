@@ -8,15 +8,15 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-type ISet interface {
+type Set interface {
 	//TODO base context
 	TODO() context.Context
 
 	//Dataset read-write game data
-	Dataset() data.IDataset
+	Dataset() data.Dataset
 
 	//text-parser
-	TextParser() fp.IParser
+	TextParser() fp.Parser
 
 	//message queue
 	Nats() *nats.Conn

@@ -37,8 +37,8 @@ func (kt KeyTag) equal(want KeyTag) bool {
 	return (want > 0) && (kt&want) == want
 }
 
-//IDataset data set
-type IDataset interface {
+//Dataset data set
+type Dataset interface {
 	//KvDB key-value database store
 	KvDB() db.KvDB
 }

@@ -7,11 +7,11 @@ import (
 	"k8s.io/klog/v2"
 )
 
-//IParser text parse to code's object
+//Parser text parse to code's object
 //   - ".json": json, support LoadFile and LoadJsonBytes
 //   - ".yaml": yaml, support LoadFile and LoadYamlBytes
 //NOTE: not support ".xls" format
-type IParser interface {
+type Parser interface {
 	LoadFile(paths ...string)
 	LoadYamlBytes(values []byte)
 	LoadJsonBytes(values []byte)

@@ -23,8 +23,8 @@ type getter struct {
 	Cancel   context.CancelFunc
 	ctx      context.Context
 	natsconn *nats.Conn
-	textp    fp.IParser
-	dataset  data.IDataset
+	textp    fp.Parser
+	dataset  data.Dataset
 }
 
 func (sm *getter) TODO() context.Context {
@@ -32,11 +32,11 @@ func (sm *getter) TODO() context.Context {
 }
 
 //TextParser get config parser
-func (sm *getter) TextParser() fp.IParser {
+func (sm *getter) TextParser() fp.Parser {
 	return sm.textp
 }
 
-func (sm *getter) Dataset() data.IDataset {
+func (sm *getter) Dataset() data.Dataset {
 	return sm.dataset
 }
 
@@ -72,9 +72,9 @@ func Init(opts ...Option) (done bool) {
 	return
 }
 
-//Unique ISet singleton
+//Unique Set singleton
 //NOTE: it would panic without call 'Init' method to generate an unique object
-func Unique() ISet {
+func Unique() Set {
 	once.Do(func() {
 		panic(errors.New("unique not generate now. you should call 'set.Init' to generate an unique object"))
 	})

@@ -12,15 +12,14 @@ import (
 
 type listener struct {
 	srv      *http.Server
-	pp       chan net.IConn
+	pp       chan net.Conn
 	upgrader *websocket.Upgrader
-	// storage  IStorage
-	auther oauth.IAuther
+	auther oauth.Auther
 }
 
-func NewListener(auther oauth.IAuther, addr string) net.IListener {
+func NewListener(auther oauth.Auther, addr string) net.Listener {
 	l := &listener{
-		pp:       make(chan net.IConn),
+		pp:       make(chan net.Conn),
 		upgrader: &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		auther:   auther,
 	}
@@ -28,14 +27,14 @@ func NewListener(auther oauth.IAuther, addr string) net.IListener {
 	httpHandler.Handle("/ws", l)
 	l.srv = &http.Server{Addr: addr, Handler: httpHandler}
 
-	go func(srv *http.Server, pp chan<- net.IConn) {
+	go func(srv *http.Server, pp chan<- net.Conn) {
 		klog.Warning("websocket server stopped: ", srv.ListenAndServe())
 		close(pp)
 	}(l.srv, l.pp)
 	return l
 }
 
-func (l *listener) Accept() (c net.IConn, err error) {
+func (l *listener) Accept() (c net.Conn, err error) {
 	c, ok := <-l.pp
 	if !ok {
 		err = io.EOF

@@ -16,12 +16,13 @@ func TestPB(t *testing.T) {
 	assert.Assert(t, err == nil, err)
 
 	// d := doc.PB(buf)
-	d := doc.NewPB(buf)
+	d := doc.PBMaker.Make(buf)
 
 	var msg1 testdata.Test1
 	err = d.Decode(&msg1)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, msg1.GetName(), "ll")
+	assert.Equal(t, string(buf), d.Val())
 
 	// docStr := string(doc)
 	d.Encode(&testdata.Test2{Age: 18})
@@ -31,7 +32,7 @@ func TestPB(t *testing.T) {
 	d.Decode(&msg2)
 	assert.Equal(t, msg2.GetAge(), int32(18))
 
-	assert.Equal(t, string(buf), d.Val())
+	// assert.Equal(t, string(buf), d.Val())
 }
 
 type testStruct struct {
@@ -42,7 +43,7 @@ type testStruct struct {
 
 func TestJson(t *testing.T) {
 	jsVal := `{"Name": "ll", "age": 18}`
-	d := doc.NewJson([]byte(jsVal))
+	d := doc.JsonMaker.Make([]byte(jsVal))
 
 	var val testStruct
 	err := d.Decode(&val)

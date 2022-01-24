@@ -1,5 +1,5 @@
 package oauth
 
-type IAuther interface {
+type Auther interface {
 	Auth(token string) (uid uint64, err error)
 }

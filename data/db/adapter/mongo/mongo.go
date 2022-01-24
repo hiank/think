@@ -33,8 +33,8 @@ type liteDB struct {
 	ctx context.Context
 	*mongo.Database
 	// opt     *Options
-	opts    *options
-	makeDoc func([]byte) doc.Doc
+	opts     *options
+	docMaker doc.Maker
 }
 
 func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
@@ -48,7 +48,7 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 	found = true
 	if err = rlt.Decode(&m); err == nil {
 		if strVal, ok := m[docVal].(string); ok {
-			err = ld.makeDoc([]byte(strVal)).Decode(v)
+			err = ld.docMaker.Make([]byte(strVal)).Decode(v)
 		} else {
 			err = fmt.Errorf("cached value not a string: %v", m["_val"])
 		}
@@ -57,7 +57,7 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 }
 
 func (ld *liteDB) Set(k string, v interface{}) (err error) {
-	doc := ld.makeDoc(nil)
+	doc := ld.docMaker.Make(nil)
 	if err = doc.Encode(v); err == nil {
 		kconv := newKeyConv(k)
 		coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
@@ -77,7 +77,7 @@ func (ld *liteDB) Close() error {
 	return ld.Client().Disconnect(ld.ctx)
 }
 
-func NewKvDB(ctx context.Context, makeDoc func([]byte) doc.Doc, opts ...Option) db.KvDB {
+func NewKvDB(ctx context.Context, docMaker doc.Maker, opts ...Option) db.KvDB {
 	dopts := defaultOptions()
 	for _, opt := range opts {
 		opt.apply(&dopts)
@@ -90,6 +90,6 @@ func NewKvDB(ctx context.Context, makeDoc func([]byte) doc.Doc, opts ...Option) 
 		ctx:      ctx,
 		Database: cli.Database(dopts.dbName, dopts.databaseOpts...),
 		opts:     &dopts,
-		makeDoc:  makeDoc,
+		docMaker: docMaker,
 	}
 }

@@ -2,7 +2,7 @@ package rpc
 
 type listenOptions struct {
 	addr string
-	rest IREST
+	rest REST
 }
 
 type ListenOption interface {
@@ -21,7 +21,7 @@ func WithAddr(addr string) ListenOption {
 	})
 }
 
-func WithREST(rest IREST) ListenOption {
+func WithREST(rest REST) ListenOption {
 	return funcListenOption(func(lo *listenOptions) {
 		lo.rest = rest
 	})

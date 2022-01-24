@@ -116,7 +116,7 @@ func funcTestKvDBPB(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := mgo.NewKvDB(ctx, doc.NewPB, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	db := mgo.NewKvDB(ctx, doc.PBMaker, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
 
 	var outVal1 testdata.Test1
 	found, err := db.Get("token", &outVal1)
@@ -169,7 +169,7 @@ func funcTestKvDBJson(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := mgo.NewKvDB(ctx, doc.NewJson, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	db := mgo.NewKvDB(ctx, doc.JsonMaker, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
 
 	var outVal1 testDBJson2
 	found, err := db.Get("51@json", &outVal1)

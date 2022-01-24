@@ -35,10 +35,10 @@ func (tch *testCarrierHandler) Handle(carrier *pb.Carrier) {
 
 type testListener struct {
 	// once chan uint64
-	connPP chan net.IConn
+	connPP chan net.Conn
 }
 
-func (tl *testListener) Accept() (conn net.IConn, err error) {
+func (tl *testListener) Accept() (conn net.Conn, err error) {
 	tc, ok := <-tl.connPP
 	if ok {
 		conn = tc //&testConn{identity: identity, recvPP: make(chan *anypb.Any), sendPP: make(chan *anypb.Any)}
@@ -54,7 +54,7 @@ func (tl *testListener) Close() error {
 }
 
 func TestNewServer(t *testing.T) {
-	srv := net.NewServer(&testListener{connPP: make(chan net.IConn)}, &testCarrierHandler{})
+	srv := net.NewServer(&testListener{connPP: make(chan net.Conn)}, &testCarrierHandler{})
 	go func() {
 		srv.Close()
 	}()
@@ -68,7 +68,7 @@ func TestNewServer(t *testing.T) {
 func TestServer(t *testing.T) {
 	// srv := net.NewServer(nil)
 	// err := srv.ListenAndServe()
-	accept, handlerPP := make(chan net.IConn), make(chan *pb.Carrier)
+	accept, handlerPP := make(chan net.Conn), make(chan *pb.Carrier)
 	srv := net.NewServer(&testListener{connPP: accept}, &testCarrierHandler{handlerPP})
 	defer srv.Close()
 	go srv.ListenAndServe()
@@ -118,7 +118,7 @@ func TestForcedConversion(t *testing.T) {
 
 func TestServerWithHandleMux(t *testing.T) {
 	t.Run("non-option", func(t *testing.T) {
-		accept, handlerPP, handleMux := make(chan net.IConn), make(chan proto.Message), net.NewHandleMux()
+		accept, handlerPP, handleMux := make(chan net.Conn), make(chan proto.Message), net.NewHandleMux()
 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
 		defer srv.Close()
 		go srv.ListenAndServe()
@@ -149,7 +149,7 @@ func TestServerWithHandleMux(t *testing.T) {
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
 	})
 	t.Run("WithDefaultHandler", func(t *testing.T) {
-		accept, handlerPP := make(chan net.IConn), make(chan *pb.Carrier)
+		accept, handlerPP := make(chan net.Conn), make(chan *pb.Carrier)
 		handleMux := net.NewHandleMux(net.WithDefaultHandler(&testCarrierHandler{handlerPP}))
 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
 		defer srv.Close()
@@ -178,7 +178,7 @@ func TestServerWithHandleMux(t *testing.T) {
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts2")
 	})
 	t.Run("WithConverter", func(t *testing.T) {
-		accept := make(chan net.IConn)
+		accept := make(chan net.Conn)
 		handleMux := net.NewHandleMux(net.WithConverter(net.FuncCarrierConverter(func(c *pb.Carrier) (string, bool) {
 			return "anyTest2", true
 		})))

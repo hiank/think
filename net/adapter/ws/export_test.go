@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	Export_NewConn = func(uid uint64, wc *websocket.Conn) net.IConn {
+	Export_NewConn = func(uid uint64, wc *websocket.Conn) net.Conn {
 		return &conn{uid: uid, wc: wc}
 	}
 )

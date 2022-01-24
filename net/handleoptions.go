@@ -3,8 +3,8 @@ package net
 // dialOptions configure a Dial call. dialOptions are set by the DialOption
 // values passed to Dial.
 type handleOptions struct {
-	defaultHandler ICarrierHandler
-	converter      ICarrierConverter
+	defaultHandler CarrierHandler
+	converter      CarrierConverter
 }
 
 // HandleOption configures how we set up the connection.
@@ -20,13 +20,13 @@ func (fho funcHandleOption) apply(do *handleOptions) {
 	fho(do)
 }
 
-func WithDefaultHandler(handler ICarrierHandler) HandleOption {
+func WithDefaultHandler(handler CarrierHandler) HandleOption {
 	return funcHandleOption(func(ho *handleOptions) {
 		ho.defaultHandler = handler
 	})
 }
 
-func WithConverter(converter ICarrierConverter) HandleOption {
+func WithConverter(converter CarrierConverter) HandleOption {
 	return funcHandleOption(func(ho *handleOptions) {
 		ho.converter = converter
 	})

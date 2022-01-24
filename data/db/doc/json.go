@@ -4,7 +4,7 @@ import "encoding/json"
 
 type Json []byte
 
-func NewJson(v []byte) Doc {
+func newJson(v []byte) Doc {
 	js := new(Json)
 	if v != nil {
 		*js = v

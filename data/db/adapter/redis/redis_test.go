@@ -82,7 +82,7 @@ func TestRedisCli(t *testing.T) {
 	})
 
 	t.Run("CRUD-PB", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, doc.NewPB, &redis.Options{
+		cli := rdbc.NewKvDB(ctx, doc.PBMaker, &redis.Options{
 			DB:       0,
 			Password: "",
 			Addr:     "localhost:30211",
@@ -130,7 +130,7 @@ func TestRedisCli(t *testing.T) {
 	})
 
 	t.Run("CRUD-Json", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, doc.NewJson, &redis.Options{
+		cli := rdbc.NewKvDB(ctx, doc.JsonMaker, &redis.Options{
 			DB:       0,
 			Password: "",
 			Addr:     "localhost:30211",

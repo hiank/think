@@ -7,7 +7,7 @@ import (
 
 type Gob []byte
 
-func NewGob(v []byte) Doc {
+func newGob(v []byte) Doc {
 	gb := new(Gob)
 	if v != nil {
 		*gb = v

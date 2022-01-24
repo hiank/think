@@ -13,7 +13,7 @@ type redisAuther struct {
 }
 
 //NewRedisAuther new Auther with redis storage
-func NewRedisAuther(ctx context.Context, cli *redis.Client) IAuther {
+func NewRedisAuther(ctx context.Context, cli *redis.Client) Auther {
 	return &redisAuther{ctx, cli}
 }
 

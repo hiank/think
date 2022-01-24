@@ -7,7 +7,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-type IREST interface {
+type REST interface {
 	Get(context.Context, *pb.Carrier) (*pb.Carrier, error)
 	Post(context.Context, *pb.Carrier) (*emptypb.Empty, error)
 }

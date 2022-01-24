@@ -84,10 +84,10 @@ func TestPrivateServer(t *testing.T) {
 
 		// assert.Equal(t, )
 		val, _ := srv.m.Load(uint64(2))
-		assert.Equal(t, val.(IConn).GetIdentity(), uint64(2))
+		assert.Equal(t, val.(Conn).GetIdentity(), uint64(2))
 
 		val, _ = srv.m.Load(uint64(1))
-		assert.Equal(t, val.(IConn).GetIdentity(), uint64(1))
+		assert.Equal(t, val.(Conn).GetIdentity(), uint64(1))
 	})
 
 }

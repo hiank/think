@@ -8,7 +8,7 @@ import (
 
 type PB []byte
 
-func NewPB(v []byte) Doc {
+func newPB(v []byte) Doc {
 	pb := new(PB)
 	if v != nil {
 		*pb = v

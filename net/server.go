@@ -39,12 +39,12 @@ func NewHandleMux(opts ...HandleOption) *handleMux {
 }
 
 //Look register handler for key
-func (hm *handleMux) Look(key string, handler IMessageHandler) {
+func (hm *handleMux) Look(key string, handler MessageHandler) {
 	hm.m.Store(key, handler)
 }
 
 //LookObject register handler by proto.Message instance
-func (hm *handleMux) LookObject(obj proto.Message, handler IMessageHandler) {
+func (hm *handleMux) LookObject(obj proto.Message, handler MessageHandler) {
 	hm.Look(string(obj.ProtoReflect().Descriptor().Name()), handler)
 }
 
@@ -58,7 +58,7 @@ func (hm *handleMux) Handle(carrier *pb.Carrier) {
 	}
 	if val, ok := hm.m.Load(key); ok {
 		if msg, err := carrier.GetMessage().UnmarshalNew(); err == nil {
-			handler, _ := val.(IMessageHandler)
+			handler, _ := val.(MessageHandler)
 			handler.Handle(carrier.GetIdentity(), msg)
 		} else {
 			klog.Warning(err) //NOTE: unmarshal error
@@ -73,12 +73,12 @@ func (hm *handleMux) Handle(carrier *pb.Carrier) {
 type server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
-	listener IListener
-	handler  ICarrierHandler
+	listener Listener
+	handler  CarrierHandler
 	m        sync.Map
 }
 
-func newServer(listener IListener, handler ICarrierHandler) IServer {
+func newServer(listener Listener, handler CarrierHandler) Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &server{
 		listener: listener,
@@ -104,7 +104,7 @@ func (srv *server) ListenAndServe() (err error) {
 //carrier's identity is target's value
 func (srv *server) Send(carrier *pb.Carrier) (err error) {
 	if val, ok := srv.m.Load(carrier.GetIdentity()); ok {
-		err = val.(IConn).Send(carrier.GetMessage())
+		err = val.(Conn).Send(carrier.GetMessage())
 	} else {
 		err = fmt.Errorf("cannot found conn (identity:%x) in the server", carrier.GetIdentity())
 	}
@@ -119,7 +119,7 @@ func (srv *server) Close() (err error) {
 		srv.cancel()
 		err = srv.listener.Close()
 		srv.m.Range(func(key, value interface{}) bool {
-			value.(IConn).Close()
+			value.(Conn).Close()
 			return true
 		})
 	}
@@ -127,7 +127,7 @@ func (srv *server) Close() (err error) {
 }
 
 //handleConn loop recv message by conn and handle it until conn closed or server closed
-func (srv *server) handleConn(conn IConn) {
+func (srv *server) handleConn(conn Conn) {
 	defer conn.Close()
 	identity := conn.GetIdentity()
 	if _, loaded := srv.m.LoadOrStore(identity, conn); loaded {

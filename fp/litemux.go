@@ -16,8 +16,8 @@ type liteMux struct {
 	mux    sync.Mutex
 }
 
-//NewParser new a IParser
-func NewParser() IParser {
+//NewParser new a Parser
+func NewParser() Parser {
 	return &liteMux{
 		loaded: make(map[string]byte),
 		list:   list.New(),

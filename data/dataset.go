@@ -155,9 +155,9 @@ func (ls *liteSet) KvDB() db.KvDB {
 	return ls.store
 }
 
-//NewDataset create a new IDataset
+//NewDataset create a new Dataset
 //NOTE: at least one k-v database is required
-func NewDataset(mstore map[KeyTag]db.KvDB) IDataset {
+func NewDataset(mstore map[KeyTag]db.KvDB) Dataset {
 	var store db.KvDB
 	switch len(mstore) {
 	case 1:

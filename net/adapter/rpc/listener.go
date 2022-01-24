@@ -33,14 +33,14 @@ func (gc funcCloser) Close() error {
 
 type listener struct {
 	pp.UnimplementedPipeServer
-	rest   IREST
-	linkPP chan net.IConn
+	rest   REST
+	linkPP chan net.Conn
 	io.Closer
 }
 
 //NewListener new a rpc listener
 //NOTE: default addr is ":10250"
-func NewListener(ctx context.Context, opts ...ListenOption) net.IListener {
+func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
 	dopts := defaultListenOptions()
 	for _, opt := range opts {
 		opt.apply(&dopts)
@@ -49,7 +49,7 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.IListener {
 	if err != nil {
 		panic(fmt.Errorf("cannot listen in %x: %x", dopts.addr, err))
 	}
-	srv, linkPP, once := grpc.NewServer(), make(chan net.IConn), new(sync.Once)
+	srv, linkPP, once := grpc.NewServer(), make(chan net.Conn), new(sync.Once)
 	l := &listener{
 		rest:   dopts.rest,
 		linkPP: linkPP,
@@ -70,7 +70,7 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.IListener {
 	return l
 }
 
-func (l *listener) Accept() (c net.IConn, err error) {
+func (l *listener) Accept() (c net.Conn, err error) {
 	c, ok := <-l.linkPP
 	if !ok {
 		err = io.EOF

@@ -7,11 +7,11 @@ import (
 type dialer struct {
 }
 
-func NewDialer() net.IDialer {
+func NewDialer() net.Dialer {
 	d := &dialer{}
 	return d
 }
 
-func (d *dialer) Dial(addr string) (net.IConn, error) {
+func (d *dialer) Dial(addr string) (net.Conn, error) {
 	return nil, nil
 }
