@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hiank/think/data/db"
-	"github.com/hiank/think/data/db/doc"
+	"github.com/hiank/think/doc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	mopts "go.mongodb.org/mongo-driver/mongo/options"
@@ -34,7 +34,7 @@ type liteDB struct {
 	*mongo.Database
 	// opt     *Options
 	opts     *options
-	docMaker doc.Maker
+	docMaker doc.BytesMaker
 }
 
 func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
@@ -77,7 +77,7 @@ func (ld *liteDB) Close() error {
 	return ld.Client().Disconnect(ld.ctx)
 }
 
-func NewKvDB(ctx context.Context, docMaker doc.Maker, opts ...Option) db.KvDB {
+func NewKvDB(ctx context.Context, docMaker doc.BytesMaker, opts ...Option) db.KvDB {
 	dopts := defaultOptions()
 	for _, opt := range opts {
 		opt.apply(&dopts)

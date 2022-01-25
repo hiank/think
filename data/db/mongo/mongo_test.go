@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	mgo "github.com/hiank/think/data/db/adapter/mongo"
-	"github.com/hiank/think/data/db/doc"
-	"github.com/hiank/think/data/db/doc/testdata"
+	mgo "github.com/hiank/think/data/db/mongo"
+	"github.com/hiank/think/doc"
+	"github.com/hiank/think/doc/testdata"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

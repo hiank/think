@@ -6,11 +6,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis/v8"
-	rdbc "github.com/hiank/think/data/db/adapter/redis"
-	"github.com/hiank/think/data/db/doc"
-	"github.com/hiank/think/data/db/doc/testdata"
+	rdbc "github.com/hiank/think/data/db/redis"
+	"github.com/hiank/think/doc"
+	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"
 )
 
@@ -66,6 +67,7 @@ func TestRedisCli(t *testing.T) {
 		return
 	}
 	defer proc.Kill()
+	<-time.After(time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background()) //context.Background()
 	defer cancel()

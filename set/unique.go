@@ -7,7 +7,7 @@ import (
 
 	"github.com/hiank/think/data"
 	"github.com/hiank/think/data/db"
-	"github.com/hiank/think/fp"
+	"github.com/hiank/think/doc/file"
 	"github.com/hiank/think/kube"
 	"github.com/nats-io/nats.go"
 )
@@ -23,7 +23,7 @@ type getter struct {
 	Cancel   context.CancelFunc
 	ctx      context.Context
 	natsconn *nats.Conn
-	textp    fp.Parser
+	decoder  file.Decoder
 	dataset  data.Dataset
 }
 
@@ -31,9 +31,9 @@ func (sm *getter) TODO() context.Context {
 	return sm.ctx
 }
 
-//TextParser get config parser
-func (sm *getter) TextParser() fp.Parser {
-	return sm.textp
+//Fat get config decoder
+func (sm *getter) Fat() file.Decoder {
+	return sm.decoder
 }
 
 func (sm *getter) Dataset() data.Dataset {
@@ -62,7 +62,7 @@ func Init(opts ...Option) (done bool) {
 			ctx:     ctx,
 			Cancel:  cancel,
 			dataset: data.NewDataset(dopts.mstore),
-			textp:   fp.NewParser(),
+			decoder: file.Fat(),
 		}
 		if dopts.natsUrl != "" {
 			unique.natsconn, _ = nats.Connect(dopts.natsUrl)

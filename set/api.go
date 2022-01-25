@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/hiank/think/data"
-	"github.com/hiank/think/fp"
+	"github.com/hiank/think/doc/file"
 	"github.com/nats-io/nats.go"
 )
 
@@ -15,8 +15,8 @@ type Set interface {
 	//Dataset read-write game data
 	Dataset() data.Dataset
 
-	//text-parser
-	TextParser() fp.Parser
+	//Fat decoder for decode to given values
+	Fat() file.Decoder
 
 	//message queue
 	Nats() *nats.Conn

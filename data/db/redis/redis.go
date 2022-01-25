@@ -5,13 +5,13 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/data/db"
-	"github.com/hiank/think/data/db/doc"
+	"github.com/hiank/think/doc"
 )
 
 type liteDB struct {
 	ctx context.Context
 	*redis.Client
-	docMaker doc.Maker
+	docMaker doc.BytesMaker
 }
 
 // func (ld *liteDB) Instance() interface{} {
@@ -43,7 +43,7 @@ func (ld *liteDB) Delete(k string) error {
 // 	return ld.cli.Close()
 // }
 
-func NewKvDB(ctx context.Context, docMaker doc.Maker, opt *redis.Options) db.KvDB {
+func NewKvDB(ctx context.Context, docMaker doc.BytesMaker, opt *redis.Options) db.KvDB {
 	return &liteDB{
 		ctx:      ctx,
 		Client:   redis.NewClient(opt),

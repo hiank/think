@@ -4,8 +4,6 @@ import (
 	mopts "go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// import ""
-
 type options struct {
 	dbName         string //mongo Database key
 	clientOpts     []*mopts.ClientOptions

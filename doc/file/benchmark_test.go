@@ -1,4 +1,4 @@
-package fp
+package file
 
 import (
 	"io/fs"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gotest.tools/v3/assert"
 	"k8s.io/klog/v2"
 )
 
@@ -60,6 +61,37 @@ func listPaths(dpath string) (dpaths, fpaths []string) {
 		}
 	}
 	return
+}
+
+func TestMarch(t *testing.T) {
+	paths := match("testdata")
+	assert.Equal(t, len(paths), 6, paths)
+
+	root, _ := filepath.Abs("testdata")
+	// strings.
+	sp := string(filepath.Separator)
+	root += sp
+	// t.Log(root)
+	names := []string{
+		"config.json",
+		"config.xlsx",
+		"config.yaml",
+		"dep" + sp + "dep.YaMl",
+		"dep" + sp + "dep.json", //NOTE: 'j' > 'Y'
+		"dep2" + sp + "dep.json",
+	}
+	for i, path := range paths {
+		assert.Equal(t, path, root+names[i])
+	}
+
+	path := match("testdata/config.json")[0]
+	assert.Equal(t, path, paths[0])
+
+	paths = match("testdata/non.json")
+	assert.Equal(t, len(paths), 0)
+
+	_, err := ioutil.ReadDir("testdata")
+	assert.Assert(t, err == nil)
 }
 
 func BenchmarkRecursionTailcall(t *testing.B) {
