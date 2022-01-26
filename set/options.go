@@ -1,13 +1,12 @@
 package set
 
 import (
-	"github.com/hiank/think/data"
-	"github.com/hiank/think/data/db"
+	"github.com/hiank/think/db"
 )
 
 type options struct {
 	natsUrl string //NOTE: for Nats
-	mstore  map[data.KeyTag]db.KvDB
+	mstore  map[db.KeyTag]db.KvDB
 }
 
 type Option interface {
@@ -24,7 +23,7 @@ func (fo funcOption) apply(opts *options) {
 //for high performance
 func WithMemKvDB(store db.KvDB) Option {
 	return funcOption(func(opts *options) {
-		opts.mstore[data.KTMem] = store
+		opts.mstore[db.KTMem] = store
 	})
 }
 
@@ -32,7 +31,7 @@ func WithMemKvDB(store db.KvDB) Option {
 //for persistent
 func WithDiskvDB(store db.KvDB) Option {
 	return funcOption(func(opts *options) {
-		opts.mstore[data.KTDisk] = store
+		opts.mstore[db.KTDisk] = store
 	})
 }
 

@@ -1,4 +1,4 @@
-package data_test
+package db_test
 
 import (
 	"errors"
@@ -7,8 +7,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hiank/think/data"
-	"github.com/hiank/think/data/db"
+	"github.com/hiank/think/db"
 	"gotest.tools/v3/assert"
 )
 
@@ -22,36 +21,36 @@ func TestStringSetValue(t *testing.T) {
 }
 
 func TestPushError(t *testing.T) {
-	err := data.Export_pushErr(nil, nil)
+	err := db.Export_pushErr(nil, nil)
 	assert.Assert(t, err == nil, err)
 
-	err = data.Export_pushErr(nil, errors.New("err1"))
+	err = db.Export_pushErr(nil, errors.New("err1"))
 	assert.Equal(t, err.Error(), "err1")
 
-	err = data.Export_pushErr(err, nil)
+	err = db.Export_pushErr(err, nil)
 	assert.Equal(t, err.Error(), "err1")
 
-	err = data.Export_pushErr(err, errors.New("err2"))
+	err = db.Export_pushErr(err, errors.New("err2"))
 	assert.Equal(t, err.Error(), "err1&&err2")
 }
 
 func TestRobustDB(t *testing.T) {
 	tks := &testKvStore{m: map[string]interface{}{}}
-	rdb := data.Export_newRobustDB(tks)
+	rdb := db.Export_newRobustDB(tks)
 	//
 	err := rdb.Set("key", 1)
 	assert.Assert(t, err != nil, "invalid key")
-	err = rdb.Set(data.KTMem.Encode("key"), 1)
+	err = rdb.Set(db.KTMem.Encode("key"), 1)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, tks.m["key"], 1)
 	// assert.Equal(t, tks.m["key"], )
 	var val int
-	rdb.Get(data.KTDisk.Encode("key"), &val)
+	rdb.Get(db.KTDisk.Encode("key"), &val)
 	assert.Equal(t, val, 1)
 
-	err = rdb.Delete(data.KTMix.Encode("key"))
+	err = rdb.Delete(db.KTMix.Encode("key"))
 	assert.Assert(t, err == nil, err)
-	found, err := rdb.Get(data.KTDisk.Encode("key"), &val)
+	found, err := rdb.Get(db.KTDisk.Encode("key"), &val)
 	assert.Assert(t, !found)
 	assert.Assert(t, err != nil)
 }
@@ -86,64 +85,64 @@ func TestRegexp(t *testing.T) {
 }
 
 func TestKeyTag(t *testing.T) {
-	key := data.KTMem.Encode("[110@KT]25@gamer")
+	key := db.KTMem.Encode("[110@KT]25@gamer")
 	assert.Equal(t, key, "[1@KT]25@gamer")
 
-	key = data.KTDisk.Encode("")
+	key = db.KTDisk.Encode("")
 	assert.Equal(t, key, "[2@KT]")
 
-	key = data.KTMix.Encode("25@gamer")
+	key = db.KTMix.Encode("25@gamer")
 	assert.Equal(t, key, "[3@KT]25@gamer")
 
 	t.Run("equal", func(t *testing.T) {
-		ekt := data.Export_KeyTag(data.KTMem)
-		assert.Assert(t, ekt.Equal(data.KTMem))
-		assert.Assert(t, !ekt.Equal(data.KTDisk))
-		assert.Assert(t, !ekt.Equal(data.KTMix))
+		ekt := db.Export_KeyTag(db.KTMem)
+		assert.Assert(t, ekt.Equal(db.KTMem))
+		assert.Assert(t, !ekt.Equal(db.KTDisk))
+		assert.Assert(t, !ekt.Equal(db.KTMix))
 
-		ekt = data.Export_KeyTag(data.KTDisk)
-		assert.Assert(t, !ekt.Equal(data.KTMem))
-		assert.Assert(t, ekt.Equal(data.KTDisk))
-		assert.Assert(t, !ekt.Equal(data.KTMix))
+		ekt = db.Export_KeyTag(db.KTDisk)
+		assert.Assert(t, !ekt.Equal(db.KTMem))
+		assert.Assert(t, ekt.Equal(db.KTDisk))
+		assert.Assert(t, !ekt.Equal(db.KTMix))
 
-		ekt = data.Export_KeyTag(data.KTMix)
-		assert.Assert(t, ekt.Equal(data.KTMem))
-		assert.Assert(t, ekt.Equal(data.KTDisk))
-		assert.Assert(t, ekt.Equal(data.KTMix))
+		ekt = db.Export_KeyTag(db.KTMix)
+		assert.Assert(t, ekt.Equal(db.KTMem))
+		assert.Assert(t, ekt.Equal(db.KTDisk))
+		assert.Assert(t, ekt.Equal(db.KTMix))
 
-		assert.Assert(t, !ekt.Equal(data.KeyTag(0)))
-		assert.Assert(t, !ekt.Equal(data.KeyTag(4)))
+		assert.Assert(t, !ekt.Equal(db.KeyTag(0)))
+		assert.Assert(t, !ekt.Equal(db.KeyTag(4)))
 	})
 
 	t.Run("decode", func(t *testing.T) {
-		key := data.KTMem.Encode("id")
-		kt, k, err := data.Export_decode(key)
+		key := db.KTMem.Encode("id")
+		kt, k, err := db.Export_decode(key)
 		assert.Assert(t, err == nil, err)
-		assert.Equal(t, kt, data.KTMem)
+		assert.Equal(t, kt, db.KTMem)
 		assert.Equal(t, k, "id")
 
 		key = "err[1@KT]id"
-		kt, k, err = data.Export_decode(key)
+		kt, k, err = db.Export_decode(key)
 		assert.Assert(t, err != nil)
 		assert.Assert(t, kt == 0)
 		assert.Equal(t, k, "")
 
 		key = "[1@KT]"
-		kt, k, err = data.Export_decode(key)
+		kt, k, err = db.Export_decode(key)
 		assert.Assert(t, err != nil)
 		assert.Assert(t, kt == 0)
 		assert.Equal(t, k, "")
 
 		key = "[11@KT]id"
-		kt, k, err = data.Export_decode(key)
+		kt, k, err = db.Export_decode(key)
 		assert.Assert(t, err != nil)
 		assert.Assert(t, kt == 0)
 		assert.Equal(t, k, "")
 
 		key = "[3@KT]id"
-		kt, k, err = data.Export_decode(key)
+		kt, k, err = db.Export_decode(key)
 		assert.Assert(t, err == nil, nil)
-		assert.Equal(t, kt, data.KTMix)
+		assert.Equal(t, kt, db.KTMix)
 		assert.Equal(t, k, "id")
 	})
 }
@@ -205,95 +204,95 @@ func TestDataset(t *testing.T) {
 			r := recover()
 			assert.Assert(t, r != nil, "at least one store need to crate Dataset")
 		}(t)
-		data.NewDataset(nil)
+		db.NewDBS(nil)
 	})
 
-	onlyOneStoreTest := func(kt data.KeyTag, t *testing.T) {
-		mstore := map[data.KeyTag]db.KvDB{}
+	onlyOneStoreTest := func(kt db.KeyTag, t *testing.T) {
+		mstore := map[db.KeyTag]db.KvDB{}
 		tks := &testKvStore{m: map[string]interface{}{}}
 		mstore[kt] = tks
-		dataset := data.NewDataset(mstore)
+		dataset := db.NewDBS(mstore)
 		err := dataset.KvDB().Set("id", 12)
 		assert.Assert(t, err != nil, "invalid key")
 		assert.Equal(t, len(tks.m), 0)
 
-		err = dataset.KvDB().Set(data.KTMem.Encode("id"), 12)
+		err = dataset.KvDB().Set(db.KTMem.Encode("id"), 12)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(tks.m), 1)
 
-		dataset.KvDB().Set(data.KTDisk.Encode("id"), 13)
+		dataset.KvDB().Set(db.KTDisk.Encode("id"), 13)
 		assert.Equal(t, len(tks.m), 1)
 		assert.Equal(t, tks.m["id"], 13, "only one store")
 
 		var val int
-		found, err := dataset.KvDB().Get(data.KTMix.Encode("id"), val)
+		found, err := dataset.KvDB().Get(db.KTMix.Encode("id"), val)
 		assert.Assert(t, found)
 		assert.Assert(t, err != nil)
 
-		found, err = dataset.KvDB().Get(data.KTMix.Encode("id"), &val)
+		found, err = dataset.KvDB().Get(db.KTMix.Encode("id"), &val)
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, val, 13)
 
-		dataset.KvDB().Set(data.KTDisk.Encode("name"), "hiank")
+		dataset.KvDB().Set(db.KTDisk.Encode("name"), "hiank")
 		assert.Equal(t, len(tks.m), 2)
 
-		err = dataset.KvDB().Delete(data.KTDisk.Encode("id"))
+		err = dataset.KvDB().Delete(db.KTDisk.Encode("id"))
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(tks.m), 1)
 	}
 
 	t.Run("only memory store", func(t *testing.T) {
-		onlyOneStoreTest(data.KTMem, t)
+		onlyOneStoreTest(db.KTMem, t)
 	})
 
 	t.Run("only disk store", func(t *testing.T) {
-		onlyOneStoreTest(data.KTDisk, t)
+		onlyOneStoreTest(db.KTDisk, t)
 	})
 
 	t.Run("mix store", func(t *testing.T) {
-		mstore := map[data.KeyTag]db.KvDB{}
+		mstore := map[db.KeyTag]db.KvDB{}
 		memStore, diskStore := &testKvStore{m: map[string]interface{}{}}, &testKvStore{m: map[string]interface{}{}}
-		mstore[data.KTMem], mstore[data.KTDisk] = memStore, diskStore
-		dataset := data.NewDataset(mstore)
+		mstore[db.KTMem], mstore[db.KTDisk] = memStore, diskStore
+		dataset := db.NewDBS(mstore)
 		err := dataset.KvDB().Set("id", 12)
 		assert.Assert(t, err != nil, "invalid key")
 		// assert.Equal(t, len(tks.m), 0)
 
-		err = dataset.KvDB().Set(data.KTMem.Encode("id"), 12)
+		err = dataset.KvDB().Set(db.KTMem.Encode("id"), 12)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(diskStore.m), 0)
 		assert.Equal(t, len(memStore.m), 2, "memstore will cache keytag for id")
 
-		err = dataset.KvDB().Set(data.KTMix.Encode("id"), 13)
+		err = dataset.KvDB().Set(db.KTMix.Encode("id"), 13)
 		assert.Assert(t, err != nil, "same key must contains same keytag")
 
-		err = dataset.KvDB().Set(data.KTMem.Encode("id"), 14)
+		err = dataset.KvDB().Set(db.KTMem.Encode("id"), 14)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, memStore.m["id"], 14)
 		assert.Equal(t, len(memStore.m), 2)
 		assert.Equal(t, len(diskStore.m), 0)
 
-		err = dataset.KvDB().Set(data.KTMix.Encode("name"), "h")
+		err = dataset.KvDB().Set(db.KTMix.Encode("name"), "h")
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(memStore.m), 4, "contains name and keytag")
 		assert.Equal(t, len(diskStore.m), 1)
 
 		var name string
-		found, err := dataset.KvDB().Get(data.KTMem.Encode("name"), &name)
+		found, err := dataset.KvDB().Get(db.KTMem.Encode("name"), &name)
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil)
 
-		found, err = dataset.KvDB().Get(data.KTMix.Encode("name"), &name)
+		found, err = dataset.KvDB().Get(db.KTMix.Encode("name"), &name)
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, name, "h")
 
-		err = dataset.KvDB().Delete(data.KTMix.Encode("name"))
+		err = dataset.KvDB().Delete(db.KTMix.Encode("name"))
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(memStore.m), 2)
 		assert.Equal(t, len(diskStore.m), 0)
 
-		// err = dataset.KvDB().Delete(data.)
+		// err = dataset.KvDB().Delete(db.)
 	})
 }

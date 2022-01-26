@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/hiank/think/data/db"
+	"github.com/hiank/think/db"
 	"github.com/hiank/think/doc"
 )
 

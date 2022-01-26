@@ -1,8 +1,4 @@
-package data
-
-import (
-	"github.com/hiank/think/data/db"
-)
+package db
 
 var (
 	Export_KeyTag = func(kt KeyTag) *expKeyTag {
@@ -10,7 +6,7 @@ var (
 	}
 	Export_decode      = decode
 	Export_pushErr     = pushError
-	Export_newRobustDB = func(store db.KvDB) *robustDB {
+	Export_newRobustDB = func(store KvDB) *robustDB {
 		return &robustDB{store: store}
 	}
 )

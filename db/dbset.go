@@ -1,11 +1,10 @@
-package data
+package db
 
 import (
 	"fmt"
 	"regexp"
 	"strconv"
 
-	"github.com/hiank/think/data/db"
 	"k8s.io/klog/v2"
 )
 
@@ -37,7 +36,7 @@ func decode(k string) (kt KeyTag, baseKey string, err error) {
 
 //robustDB encapsulation of client
 type robustDB struct {
-	store db.KvDB
+	store KvDB
 }
 
 func (rd *robustDB) Set(k string, v interface{}) error {
@@ -62,7 +61,7 @@ func (rd *robustDB) Close() (err error) {
 }
 
 type mixDB struct {
-	mstore map[KeyTag]db.KvDB
+	mstore map[KeyTag]KvDB
 }
 
 func (md *mixDB) decode(k string) (kt KeyTag, baseKey string, err error) {
@@ -148,17 +147,17 @@ func (md *mixDB) Close() (err error) {
 }
 
 type liteSet struct {
-	store db.KvDB
+	store KvDB
 }
 
-func (ls *liteSet) KvDB() db.KvDB {
+func (ls *liteSet) KvDB() KvDB {
 	return ls.store
 }
 
 //NewDataset create a new Dataset
 //NOTE: at least one k-v database is required
-func NewDataset(mstore map[KeyTag]db.KvDB) Dataset {
-	var store db.KvDB
+func NewDBS(mstore map[KeyTag]KvDB) DBS {
+	var store KvDB
 	switch len(mstore) {
 	case 1:
 		for _, val := range mstore {

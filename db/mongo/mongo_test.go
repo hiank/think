@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	mgo "github.com/hiank/think/data/db/mongo"
+	mgo "github.com/hiank/think/db/mongo"
 	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"go.mongodb.org/mongo-driver/bson"

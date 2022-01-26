@@ -5,8 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/hiank/think/data"
-	"github.com/hiank/think/data/db"
+	"github.com/hiank/think/db"
 	"github.com/hiank/think/doc/file"
 	"github.com/hiank/think/kube"
 	"github.com/nats-io/nats.go"
@@ -15,7 +14,7 @@ import (
 func defaultOptions() options {
 	return options{
 		natsUrl: kube.NatsUrl(),
-		mstore:  make(map[data.KeyTag]db.KvDB),
+		mstore:  make(map[db.KeyTag]db.KvDB),
 	}
 }
 
@@ -24,7 +23,7 @@ type getter struct {
 	ctx      context.Context
 	natsconn *nats.Conn
 	decoder  file.Decoder
-	dataset  data.Dataset
+	dbset    db.DBS
 }
 
 func (sm *getter) TODO() context.Context {
@@ -36,8 +35,8 @@ func (sm *getter) Fat() file.Decoder {
 	return sm.decoder
 }
 
-func (sm *getter) Dataset() data.Dataset {
-	return sm.dataset
+func (sm *getter) DBS() db.DBS {
+	return sm.dbset
 }
 
 //Nats get nats conn
@@ -61,7 +60,7 @@ func Init(opts ...Option) (done bool) {
 		unique = &getter{
 			ctx:     ctx,
 			Cancel:  cancel,
-			dataset: data.NewDataset(dopts.mstore),
+			dbset:   db.NewDBS(dopts.mstore),
 			decoder: file.Fat(),
 		}
 		if dopts.natsUrl != "" {

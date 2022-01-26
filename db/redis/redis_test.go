@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	rdbc "github.com/hiank/think/data/db/redis"
+	rdbc "github.com/hiank/think/db/redis"
 	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"

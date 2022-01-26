@@ -1,11 +1,18 @@
-package data
+package db
 
 import (
 	"fmt"
+	"io"
 	"regexp"
-
-	"github.com/hiank/think/data/db"
 )
+
+//KvDB key-value stype database client
+type KvDB interface {
+	Get(k string, v interface{}) (found bool, err error)
+	Set(k string, v interface{}) error
+	Delete(k string) error
+	io.Closer
+}
 
 const (
 	//KTMem tag for use memory store
@@ -37,8 +44,9 @@ func (kt KeyTag) equal(want KeyTag) bool {
 	return (want > 0) && (kt&want) == want
 }
 
-//Dataset data set
-type Dataset interface {
+//DBS database set
+//temporarily only supports key-value database
+type DBS interface {
 	//KvDB key-value database store
-	KvDB() db.KvDB
+	KvDB() KvDB
 }

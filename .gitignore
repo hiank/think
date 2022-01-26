@@ -1,3 +1,3 @@
 
-data/db/mongo/testdata/*
-data/db/redis/testdata/*
+db/mongo/testdata/*
+db/redis/testdata/*
