@@ -21,6 +21,12 @@ var testRows [][]string = [][]string{
 	{"1", "2", "优质"},
 }
 
+type testRowsReader byte
+
+func (trr testRowsReader) Read([]byte) ([][]string, error) {
+	return testRows, nil
+}
+
 func TestRowsDoc(t *testing.T) {
 	val := &testExcel{}
 	fv := reflect.ValueOf(val)
@@ -34,14 +40,16 @@ func TestRowsDoc(t *testing.T) {
 	assert.Equal(t, tag, "关卡ID")
 	assert.Equal(t, ff.Name, "ID")
 
-	var ed rowsDoc
-	// ed.LoadFile()
-	ed.head = testRows[0]
-	ed.rows = testRows[1:]
+	ed := NewRows(testRowsReader(0))
+	err := ed.Encode([]byte{})
+	assert.Assert(t, err == nil, err)
+	// var ed rowsDoc
+	// // ed.LoadFile()
+	// ed.head = testRows[0]
+	// ed.rows = testRows[1:]
 	// rc := newRowsConv(testRows, reflect.TypeOf(*val))
-	m := map[string]interface{}{}
-	m["ID"] = val
-	err := ed.Decode(m) //rc.Unmarshal() //unmarshalRows(testRows, reflect.TypeOf(*val))
+	m := map[string]interface{}{"ID": val}
+	err = ed.Decode(m) //rc.Unmarshal() //unmarshalRows(testRows, reflect.TypeOf(*val))
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, len(m), 2)
 	assert.Equal(t, m["11"].(*testExcel).Lv, uint(12))
@@ -86,7 +94,8 @@ type testStruct struct {
 
 func TestJson(t *testing.T) {
 	jsVal := `{"Name": "ll", "age": 18}`
-	d := Json(jsVal) //doc.JsonMaker.Make([]byte(jsVal))
+	js := Json(jsVal)
+	var d Doc = &js
 
 	var val testStruct
 	err := d.Decode(&val)
@@ -105,33 +114,93 @@ func TestJson(t *testing.T) {
 	assert.Equal(t, val2.Name, "hiank")
 	assert.Equal(t, val2.Hope, "hope")
 	assert.Equal(t, val2.Age, 18)
+
+	assert.Equal(t, string(d.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+
+	var tmpJs Json
+	tmpJs.Encode(val2)
+	assert.Equal(t, string(tmpJs.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+
+	js2 := Json([]byte{})
+	rv := reflect.ValueOf(js2)
+	assert.Equal(t, rv.Kind(), reflect.Slice)
+
+	js2.Encode(val2)
+	assert.Equal(t, string(js2.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+	assert.Equal(t, string((&js2).Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+
+	rv = reflect.ValueOf(Json([]byte{}))
+	assert.Equal(t, rv.Kind(), reflect.Slice)
+
+	rv = reflect.ValueOf(&js2)
+	assert.Equal(t, rv.Kind(), reflect.Ptr)
 }
 
 func TestGob(t *testing.T) {
 	var gb Gob
-	err := gb.Encode(testStruct{Name: "gob", Hope: "ws"})
+	d := &gb
+	err := d.Encode(testStruct{Name: "gob", Hope: "ws"})
 	assert.Assert(t, err == nil, err)
 
 	var val2 testStruct
-	gb.Decode(&val2)
+	d.Decode(&val2)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, val2.Name, "gob")
 	assert.Equal(t, val2.Hope, "ws")
 }
 
-func TestBytesMaker(t *testing.T) {
-	_, ok := PBMaker.Make(nil).(*PB)
-	assert.Assert(t, ok)
+func TestBytesLenght(t *testing.T) {
+	val := &testdata.Test1{Name: "hiank"}
+	var js Json
+	js.Encode(val)
 
-	_, ok = YamlMaker.Make(nil).(*Yaml)
-	assert.Assert(t, ok)
+	var pb PB
+	pb.Encode(val)
 
-	_, ok = JsonMaker.Make(nil).(*Json)
-	assert.Assert(t, ok)
+	var gb Gob
+	gb.Encode(val)
 
-	_, ok = GobMaker.Make(nil).(*Gob)
-	assert.Assert(t, ok)
+	var ym Yaml
+	ym.Encode(val)
 
-	_, ok = NewRows(nil).(*rowsDoc)
-	assert.Assert(t, ok)
+	assert.Assert(t, len(gb) > len(pb))
+	assert.Assert(t, len(js) > len(ym), "jslen(%d) ymlen(%d)", len(js), len(ym))
+	assert.Assert(t, len(ym) > len(pb), "pblen(%d) ymlen(%d)", len(pb), len(ym))
+}
+
+var testYamlStr = `name: host
+m:
+  Age: 11
+  Lv: 22
+  Id: 25`
+
+type testYamlStruct struct {
+	Name string
+	M    map[string]int
+}
+
+func TestYaml(t *testing.T) {
+	ym := Yaml([]byte(testYamlStr))
+	// var val testYamlStruct2
+	var val testYamlStruct //P: map[string]int{}}
+	err := ym.Decode(&val)
+	assert.Assert(t, err == nil, err)
+	assert.Equal(t, val.Name, "host")
+	assert.Equal(t, val.M["Age"], 11)
+	assert.Equal(t, val.M["Lv"], 22)
+	assert.Equal(t, val.M["Id"], 25)
+
+	// var outYm Yaml
+	outYm := new(Yaml)
+	err = outYm.Encode(val)
+	assert.Assert(t, err == nil, err)
+	var val2 testYamlStruct
+	outYm.Decode(&val2)
+
+	assert.Equal(t, val.Name, val2.Name)
+	assert.Equal(t, val.M["Age"], val2.M["Age"])
+	assert.Equal(t, val.M["Lv"], val2.M["Lv"])
+	assert.Equal(t, val.M["Id"], val2.M["Id"])
+
+	// assert.Equal(t, val.M, val2.M)
 }

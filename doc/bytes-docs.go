@@ -24,12 +24,12 @@ func (ym *Yaml) Encode(v interface{}) (err error) {
 	return
 }
 
-func (ym *Yaml) Decode(out interface{}) error {
-	return yaml.Unmarshal(*ym, out)
+func (ym Yaml) Decode(out interface{}) error {
+	return yaml.Unmarshal(ym, out)
 }
 
-func (ym *Yaml) Val() []byte {
-	return *ym
+func (ym Yaml) Val() []byte {
+	return ym
 }
 
 ///********************Json under*******************///
@@ -46,12 +46,12 @@ func (js *Json) Encode(v interface{}) (err error) {
 	return
 }
 
-func (js *Json) Decode(out interface{}) (err error) {
-	return json.Unmarshal(*js, out)
+func (js Json) Decode(out interface{}) (err error) {
+	return json.Unmarshal(js, out)
 }
 
-func (js *Json) Val() []byte {
-	return *js
+func (js Json) Val() []byte {
+	return js
 }
 
 ///********************Protobuf under*******************///
@@ -72,17 +72,17 @@ func (pb *PB) Encode(v interface{}) (err error) {
 	return
 }
 
-func (pb *PB) Decode(out interface{}) (err error) {
+func (pb PB) Decode(out interface{}) (err error) {
 	if msg, ok := out.(proto.Message); ok {
-		err = proto.Unmarshal(*pb, msg)
+		err = proto.Unmarshal(pb, msg)
 	} else {
 		err = errors.New("value to decode should be proto.Message")
 	}
 	return
 }
 
-func (pb *PB) Val() []byte {
-	return *pb
+func (pb PB) Val() []byte {
+	return pb
 }
 
 ///********************Gob under*******************///
@@ -101,10 +101,10 @@ func (gb *Gob) Encode(v interface{}) (err error) {
 	return
 }
 
-func (gb *Gob) Decode(v interface{}) error {
-	return gob.NewDecoder(bytes.NewReader(*gb)).Decode(v)
+func (gb Gob) Decode(v interface{}) error {
+	return gob.NewDecoder(bytes.NewReader(gb)).Decode(v)
 }
 
-func (gb *Gob) Val() []byte {
-	return *gb
+func (gb Gob) Val() []byte {
+	return gb
 }

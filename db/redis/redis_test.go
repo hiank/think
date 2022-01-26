@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/hiank/think/db"
 	rdbc "github.com/hiank/think/db/redis"
-	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"
 )
@@ -84,7 +84,7 @@ func TestRedisCli(t *testing.T) {
 	})
 
 	t.Run("CRUD-PB", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, doc.PBMaker, &redis.Options{
+		cli := rdbc.NewKvDB(ctx, &redis.Options{
 			DB:       0,
 			Password: "",
 			Addr:     "localhost:30211",
@@ -96,35 +96,37 @@ func TestRedisCli(t *testing.T) {
 		var val1 testdata.Test1
 		val1.Name = "val1"
 		err = cli.Set("hs", &val1)
+		assert.Assert(t, err != nil, "must use PB JSON GOB struct value")
+		err = cli.Set("hs", db.PB{V: &val1})
 		assert.Assert(t, err == nil, err)
 
 		var outVal1 testdata.Test1
-		found, err := cli.Get("key1", &outVal1)
+		found, err := cli.Get("key1", db.PB{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil)
 
-		found, err = cli.Get("hs", &outVal1)
+		found, err = cli.Get("hs", db.PB{V: &outVal1})
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1.GetName(), "val1")
 
-		err = cli.Set("hs", &testdata.Test2{Age: 18})
+		err = cli.Set("hs", db.PB{V: &testdata.Test2{Age: 18}})
 		assert.Assert(t, err == nil, err)
 
 		var outVal2 testdata.Test2
-		found, err = cli.Get("hs", &outVal2)
+		found, err = cli.Get("hs", db.PB{V: &outVal2})
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal2.Age, int32(18))
 
 		err = cli.Delete("key1")
 		assert.Assert(t, err == nil, err)
-		found, _ = cli.Get("hs", &outVal2)
+		found, _ = cli.Get("hs", db.PB{V: &outVal2})
 		assert.Assert(t, found)
 
 		err = cli.Delete("hs")
 		assert.Assert(t, err == nil, err)
-		found, _ = cli.Get("hs", &outVal2)
+		found, _ = cli.Get("hs", db.PB{V: &outVal2})
 		assert.Assert(t, !found)
 
 		err = cli.Close()
@@ -132,7 +134,7 @@ func TestRedisCli(t *testing.T) {
 	})
 
 	t.Run("CRUD-Json", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, doc.JsonMaker, &redis.Options{
+		cli := rdbc.NewKvDB(ctx, &redis.Options{
 			DB:       0,
 			Password: "",
 			Addr:     "localhost:30211",
@@ -150,21 +152,23 @@ func TestRedisCli(t *testing.T) {
 			Id:   11,
 		}
 		err = cli.Set("hs", &val1)
+		assert.Assert(t, err != nil, err)
+		err = cli.Set("hs", db.JSON{V: &val1})
 		assert.Assert(t, err == nil, err)
 
 		var outVal1 testDBStruct
-		found, err := cli.Get("key1", &outVal1)
+		found, err := cli.Get("key1", db.JSON{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil)
 
-		found, err = cli.Get("hs", &outVal1)
+		found, err = cli.Get("hs", db.JSON{V: &outVal1})
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1, *val1)
 
 		err = cli.Delete("hs")
 		assert.Assert(t, err == nil)
-		found, err = cli.Get("hs", &outVal1)
+		found, err = cli.Get("hs", db.JSON{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil, err)
 

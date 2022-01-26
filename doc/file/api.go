@@ -24,17 +24,16 @@ const (
 //Fit simple Buffer
 //non-async safe
 func Fit(form Form) Decoder {
-	// fit := &fit{form: form}
 	var d doc.Doc
 	switch form {
 	case FormYaml:
-		d = doc.YamlMaker.Make(nil)
+		d = new(doc.Yaml)
 	case FormJson:
-		d = doc.JsonMaker.Make(nil)
+		d = new(doc.Json)
 	case FormGob:
-		d = doc.GobMaker.Make(nil)
+		d = new(doc.Gob)
 	case FormPB:
-		d = doc.PBMaker.Make(nil)
+		d = new(doc.PB)
 	case FormRows:
 		d = doc.NewRows(excelRowsReader(0))
 	default: ///not support form

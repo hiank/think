@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hiank/think/db"
 	mgo "github.com/hiank/think/db/mongo"
-	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -69,18 +69,14 @@ type testMongoD struct {
 }
 
 func funcTestMongoDriver(t *testing.T) {
-	// proc, err := startMongo("30222")
-	// assert.Assert(t, err == nil, err)
-	// defer proc.Kill()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cli, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:30222"))
 	assert.Assert(t, err == nil, err)
 	defer cli.Disconnect(ctx)
 
-	db := cli.Database("hi")
-	coll := db.Collection("gamer")
+	kvdb := cli.Database("hi")
+	coll := kvdb.Collection("gamer")
 	_, err = coll.InsertOne(ctx, bson.D{{Key: "name", Value: "ws"}, {Key: "age", Value: 18}, {Key: "Id", Value: 25}, {Key: "Lv", Value: 11}}) //&testMongoStruct{Name: "ws", Age: 18, Id: 25, Lv: 11})
 	assert.Assert(t, err == nil, err)
 
@@ -110,44 +106,39 @@ func funcTestMongoDriver(t *testing.T) {
 }
 
 func funcTestKvDBPB(t *testing.T) {
-	// proc, err := startMongo("30222")
-	// assert.Assert(t, err == nil, err)
-	// defer proc.Kill()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := mgo.NewKvDB(ctx, doc.PBMaker, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	kvdb := mgo.NewKvDB(ctx, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
 
 	var outVal1 testdata.Test1
-	found, err := db.Get("token", &outVal1)
+	found, err := kvdb.Get("token", db.PB{V: &outVal1})
 	assert.Assert(t, !found)
 	assert.Assert(t, err != nil)
 
-	err = db.Set("token", "not proto.Message")
+	err = kvdb.Set("token", "not proto.Message")
 	assert.Assert(t, err != nil, "value to set must be a proto.Message")
 
-	err = db.Set("token", &testdata.Test1{Name: "hiank"})
+	err = kvdb.Set("token", db.PB{V: &testdata.Test1{Name: "hiank"}})
 	assert.Assert(t, err == nil, err)
 
 	var outVal2 testdata.Test2
-	found, err = db.Get("token", &outVal2)
+	found, err = kvdb.Get("token", db.PB{V: &outVal2})
 	assert.Assert(t, found, err)
 	assert.Assert(t, err == nil, "protobuf 反序列化时，不同类型也可能会尝试执行，返回的结果不可信")
 	assert.Equal(t, outVal2.GetAge(), int32(0))
-	// db.Set("")
 
-	found, err = db.Get("token", &outVal1)
+	found, err = kvdb.Get("token", db.PB{V: &outVal1})
 	assert.Assert(t, found)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal1.GetName(), "hiank")
 
-	err = db.Delete("token")
+	err = kvdb.Delete("token")
 	assert.Assert(t, err == nil, err)
 
-	found, _ = db.Get("token", &outVal1)
+	found, _ = kvdb.Get("token", db.PB{V: &outVal1})
 	assert.Assert(t, !found)
 
-	err = db.Close()
+	err = kvdb.Close()
 	assert.Assert(t, err == nil, err)
 }
 
@@ -169,17 +160,17 @@ func funcTestKvDBJson(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db := mgo.NewKvDB(ctx, doc.JsonMaker, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	kvdb := mgo.NewKvDB(ctx, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
 
 	var outVal1 testDBJson2
-	found, err := db.Get("51@json", &outVal1)
+	found, err := kvdb.Get("51@json", db.JSON{V: &outVal1})
 	assert.Assert(t, !found)
 	assert.Assert(t, err != nil)
 
-	err = db.Set("51@json", testDBJson{Name: "json", Age: 18, Lv: 22})
+	err = kvdb.Set("51@json", db.JSON{V: testDBJson{Name: "json", Age: 18, Lv: 22}})
 	assert.Assert(t, err == nil, err)
 
-	found, err = db.Get("51@json", &outVal1)
+	found, err = kvdb.Get("51@json", db.JSON{V: &outVal1})
 	assert.Assert(t, found, err)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal1, testDBJson2{
@@ -189,12 +180,12 @@ func funcTestKvDBJson(t *testing.T) {
 		Id:   0,
 	})
 
-	err = db.Delete("51@json")
+	err = kvdb.Delete("51@json")
 	assert.Assert(t, err == nil, err)
-	found, _ = db.Get("51@json", &outVal1)
+	found, _ = kvdb.Get("51@json", db.JSON{V: &outVal1})
 	assert.Assert(t, !found)
 
-	err = db.Close()
+	err = kvdb.Close()
 	assert.Assert(t, err == nil, err)
 }
 

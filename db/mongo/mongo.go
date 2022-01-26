@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/hiank/think/db"
-	"github.com/hiank/think/doc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	mopts "go.mongodb.org/mongo-driver/mongo/options"
@@ -31,11 +30,11 @@ func defaultOptions() options {
 type liteDB struct {
 	ctx context.Context
 	*mongo.Database
-	opts     *options
-	docMaker doc.BytesMaker
+	opts  *options
+	coder db.BytesCoder
 }
 
-func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
+func (ld *liteDB) Get(k string, out interface{}) (found bool, err error) {
 	var m bson.M
 	kconv := newKeyConv(k)
 	coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
@@ -45,7 +44,7 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 	}
 	if err = rlt.Decode(&m); err == nil {
 		if strVal, ok := m[docVal].(string); ok {
-			err = ld.docMaker.Make([]byte(strVal)).Decode(v)
+			err = ld.coder.Decode([]byte(strVal), out)
 		} else {
 			err = fmt.Errorf("cached value not a string: %v", m["_val"])
 		}
@@ -54,11 +53,11 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 }
 
 func (ld *liteDB) Set(k string, v interface{}) (err error) {
-	doc := ld.docMaker.Make(nil)
-	if err = doc.Encode(v); err == nil {
+	bytes, err := ld.coder.Encode(v)
+	if err == nil {
 		kconv := newKeyConv(k)
 		coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
-		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: string(doc.Val())}}, ld.opts.insertOneOpts...)
+		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: string(bytes)}}, ld.opts.insertOneOpts...)
 	}
 	return
 }
@@ -74,7 +73,7 @@ func (ld *liteDB) Close() error {
 	return ld.Client().Disconnect(ld.ctx)
 }
 
-func NewKvDB(ctx context.Context, docMaker doc.BytesMaker, opts ...Option) db.KvDB {
+func NewKvDB(ctx context.Context, opts ...Option) db.KvDB {
 	dopts := defaultOptions()
 	for _, opt := range opts {
 		opt.apply(&dopts)
@@ -87,6 +86,5 @@ func NewKvDB(ctx context.Context, docMaker doc.BytesMaker, opts ...Option) db.Kv
 		ctx:      ctx,
 		Database: cli.Database(dopts.dbName, dopts.databaseOpts...),
 		opts:     &dopts,
-		docMaker: docMaker,
 	}
 }
