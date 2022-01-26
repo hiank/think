@@ -14,10 +14,6 @@ type liteDB struct {
 	docMaker doc.BytesMaker
 }
 
-// func (ld *liteDB) Instance() interface{} {
-// 	return ld.Client
-// }
-
 func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 	str, err := ld.Client.Get(ld.ctx, k).Result()
 	if err == nil {
@@ -38,10 +34,6 @@ func (ld *liteDB) Set(k string, v interface{}) (err error) {
 func (ld *liteDB) Delete(k string) error {
 	return ld.Client.Del(ld.ctx, k).Err()
 }
-
-// func (ld *liteDB) Close() error {
-// 	return ld.cli.Close()
-// }
 
 func NewKvDB(ctx context.Context, docMaker doc.BytesMaker, opt *redis.Options) db.KvDB {
 	return &liteDB{

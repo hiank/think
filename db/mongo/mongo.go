@@ -9,7 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	mopts "go.mongodb.org/mongo-driver/mongo/options"
-	// mopts ""
 )
 
 const (
@@ -32,7 +31,6 @@ func defaultOptions() options {
 type liteDB struct {
 	ctx context.Context
 	*mongo.Database
-	// opt     *Options
 	opts     *options
 	docMaker doc.BytesMaker
 }
@@ -42,10 +40,9 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 	kconv := newKeyConv(k)
 	coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
 	rlt := coll.FindOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}}, ld.opts.findOneOpts...)
-	if err = rlt.Err(); err != nil {
-		return
+	if rlt.Err() != nil {
+		return false, rlt.Err()
 	}
-	found = true
 	if err = rlt.Decode(&m); err == nil {
 		if strVal, ok := m[docVal].(string); ok {
 			err = ld.docMaker.Make([]byte(strVal)).Decode(v)
@@ -53,7 +50,7 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 			err = fmt.Errorf("cached value not a string: %v", m["_val"])
 		}
 	}
-	return
+	return true, err
 }
 
 func (ld *liteDB) Set(k string, v interface{}) (err error) {
@@ -61,7 +58,7 @@ func (ld *liteDB) Set(k string, v interface{}) (err error) {
 	if err = doc.Encode(v); err == nil {
 		kconv := newKeyConv(k)
 		coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
-		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: doc.Val()}}, ld.opts.insertOneOpts...)
+		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: string(doc.Val())}}, ld.opts.insertOneOpts...)
 	}
 	return
 }
