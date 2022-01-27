@@ -83,12 +83,25 @@ func TestRedisCli(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 	})
 
+	t.Run("connect error", func(t *testing.T) {
+		// cli, err := rdbc.Dial(ctx, &redis.Options{
+		// 	DB:          0,
+		// 	Password:    "",
+		// 	Addr:        "localhost:30001",
+		// 	DialTimeout: time.Second,
+		// })
+		cli, err := rdbc.Dial(ctx, db.WithAddr("localhost:30001"), db.WithDB("0"), db.WithDailTimeout(time.Second))
+		assert.Assert(t, cli == nil)
+		assert.Assert(t, err != nil)
+	})
+
 	t.Run("CRUD-PB", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, &redis.Options{
-			DB:       0,
-			Password: "",
-			Addr:     "localhost:30211",
-		})
+		// cli, _ := rdbc.Dial(ctx, &redis.Options{
+		// 	DB:       0,
+		// 	Password: "",
+		// 	Addr:     "localhost:30211",
+		// })
+		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
 		defer cli.Close()
 		err := cli.Set("hs", "key1")
 		assert.Assert(t, err != nil, "value must be proto.Message")
@@ -134,11 +147,12 @@ func TestRedisCli(t *testing.T) {
 	})
 
 	t.Run("CRUD-Json", func(t *testing.T) {
-		cli := rdbc.NewKvDB(ctx, &redis.Options{
-			DB:       0,
-			Password: "",
-			Addr:     "localhost:30211",
-		})
+		// cli, _ := rdbc.Dial(ctx, &redis.Options{
+		// 	DB:       0,
+		// 	Password: "",
+		// 	Addr:     "localhost:30211",
+		// })
+		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
 		defer cli.Close()
 		// err := cli.Set("hs", "key1")
 		// assert.Assert(t, err == nil, err)

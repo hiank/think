@@ -1,10 +1,15 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"regexp"
 )
+
+type KvDialer interface {
+	Dial(ctx context.Context, opts ...DialOption) (KvDB, error)
+}
 
 //KvDB key-value stype database client
 type KvDB interface {

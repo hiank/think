@@ -7,7 +7,7 @@ import (
 	"github.com/hiank/think/db"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	mopts "go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -16,29 +16,17 @@ const (
 	defaultDB string = "0"
 )
 
-func defaultOptions() options {
-	return options{
-		dbName:         defaultDB,
-		clientOpts:     []*mopts.ClientOptions{},
-		databaseOpts:   []*mopts.DatabaseOptions{},
-		collectionOpts: []*mopts.CollectionOptions{},
-		findOneOpts:    []*mopts.FindOneOptions{},
-		deleteOpts:     []*mopts.DeleteOptions{},
-	}
-}
-
 type liteDB struct {
-	ctx context.Context
 	*mongo.Database
-	opts  *options
+	ctx   context.Context
 	coder db.BytesCoder
 }
 
 func (ld *liteDB) Get(k string, out interface{}) (found bool, err error) {
 	var m bson.M
 	kconv := newKeyConv(k)
-	coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
-	rlt := coll.FindOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}}, ld.opts.findOneOpts...)
+	coll := ld.Collection(kconv.GetColl())
+	rlt := coll.FindOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}})
 	if rlt.Err() != nil {
 		return false, rlt.Err()
 	}
@@ -56,16 +44,16 @@ func (ld *liteDB) Set(k string, v interface{}) (err error) {
 	bytes, err := ld.coder.Encode(v)
 	if err == nil {
 		kconv := newKeyConv(k)
-		coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
-		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: string(bytes)}}, ld.opts.insertOneOpts...)
+		coll := ld.Collection(kconv.GetColl())
+		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}, {Key: docVal, Value: string(bytes)}})
 	}
 	return
 }
 
 func (ld *liteDB) Delete(k string) (err error) {
 	kconv := newKeyConv(k)
-	coll := ld.Collection(kconv.GetColl(), ld.opts.collectionOpts...)
-	_, err = coll.DeleteOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}}, ld.opts.deleteOpts...)
+	coll := ld.Collection(kconv.GetColl())
+	_, err = coll.DeleteOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}})
 	return
 }
 
@@ -73,18 +61,22 @@ func (ld *liteDB) Close() error {
 	return ld.Client().Disconnect(ld.ctx)
 }
 
-func NewKvDB(ctx context.Context, opts ...Option) db.KvDB {
-	dopts := defaultOptions()
-	for _, opt := range opts {
-		opt.apply(&dopts)
+//Dial connect to mongodb and return connected client or error
+func Dial(ctx context.Context, opts ...db.DialOption) (kv db.KvDB, err error) {
+	dopts := db.DialOptions(opts...)
+	mopt := options.Client().ApplyURI(dopts.Addr).SetConnectTimeout(dopts.DialTimeout)
+	if dopts.Account != "" || dopts.Password != "" {
+		mopt.SetAuth(options.Credential{
+			Username: dopts.Account,
+			Password: dopts.Password,
+		})
 	}
-	cli, err := mongo.Connect(ctx, dopts.clientOpts...)
-	if err != nil {
-		panic(err)
+	cli, err := mongo.Connect(ctx, mopt)
+	if err == nil {
+		kv = &liteDB{
+			ctx:      ctx,
+			Database: cli.Database(dopts.DB),
+		}
 	}
-	return &liteDB{
-		ctx:      ctx,
-		Database: cli.Database(dopts.dbName, dopts.databaseOpts...),
-		opts:     &dopts,
-	}
+	return
 }

@@ -1,7 +1,6 @@
 package db_test
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -25,13 +24,13 @@ func TestPushError(t *testing.T) {
 	err := db.Export_pushErr(nil, nil)
 	assert.Assert(t, err == nil, err)
 
-	err = db.Export_pushErr(nil, errors.New("err1"))
+	err = db.Export_pushErr(nil, fmt.Errorf("err1"))
 	assert.Equal(t, err.Error(), "err1")
 
 	err = db.Export_pushErr(err, nil)
 	assert.Equal(t, err.Error(), "err1")
 
-	err = db.Export_pushErr(err, errors.New("err2"))
+	err = db.Export_pushErr(err, fmt.Errorf("err2"))
 	assert.Equal(t, err.Error(), "err1&&err2")
 }
 
@@ -164,15 +163,15 @@ func (ts *testKvStore) Set(k string, v interface{}) (err error) {
 // Get retrieves the value for the given key.
 func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 	if k == "" || v == nil {
-		return false, errors.New("invalid key or value")
+		return false, fmt.Errorf("invalid key or value")
 	}
 	stv, found := ts.m[k]
 	if !found {
-		return found, errors.New("cannot found value for given key")
+		return found, fmt.Errorf("cannot found value for given key")
 	}
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr {
-		return true, errors.New("cannot convert value to copy interface")
+		return true, fmt.Errorf("cannot convert value to copy interface")
 	}
 	mrv := reflect.ValueOf(stv)
 	for mrv.Kind() == reflect.Ptr {
@@ -189,7 +188,7 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 // Delete deletes the stored value for the given key.
 func (ts *testKvStore) Delete(k string) error {
 	if k == "" {
-		return errors.New("invalid key")
+		return fmt.Errorf("invalid key")
 	}
 	delete(ts.m, k)
 	return nil

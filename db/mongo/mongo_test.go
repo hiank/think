@@ -108,7 +108,7 @@ func funcTestMongoDriver(t *testing.T) {
 func funcTestKvDBPB(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	kvdb := mgo.NewKvDB(ctx, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	kvdb, _ := mgo.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"))
 
 	var outVal1 testdata.Test1
 	found, err := kvdb.Get("token", db.PB{V: &outVal1})
@@ -160,7 +160,7 @@ func funcTestKvDBJson(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	kvdb := mgo.NewKvDB(ctx, mgo.WithDB("test"), mgo.WithClientOptions(options.Client().ApplyURI("mongodb://localhost:30222")))
+	kvdb, _ := mgo.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"))
 
 	var outVal1 testDBJson2
 	found, err := kvdb.Get("51@json", db.JSON{V: &outVal1})
