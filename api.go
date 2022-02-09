@@ -17,8 +17,8 @@ type utilset interface {
 	//Dataset read-write game data
 	DBS() db.DBS
 
-	//Fat decoder for decode to given values
-	Fat() file.Decoder
+	//Decoder for decode to given values
+	Decoder() file.Decoder
 
 	//message queue
 	Nats() *nats.Conn

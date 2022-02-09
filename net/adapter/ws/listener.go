@@ -3,6 +3,7 @@ package ws
 import (
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
@@ -12,14 +13,14 @@ import (
 
 type listener struct {
 	srv      *http.Server
-	pp       chan net.Conn
+	pp       chan net.IAC
 	upgrader *websocket.Upgrader
-	auther oauth.Auther
+	auther   oauth.Auther
 }
 
 func NewListener(auther oauth.Auther, addr string) net.Listener {
 	l := &listener{
-		pp:       make(chan net.Conn),
+		pp:       make(chan net.IAC),
 		upgrader: &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		auther:   auther,
 	}
@@ -27,14 +28,14 @@ func NewListener(auther oauth.Auther, addr string) net.Listener {
 	httpHandler.Handle("/ws", l)
 	l.srv = &http.Server{Addr: addr, Handler: httpHandler}
 
-	go func(srv *http.Server, pp chan<- net.Conn) {
+	go func(srv *http.Server, pp chan<- net.IAC) {
 		klog.Warning("websocket server stopped: ", srv.ListenAndServe())
 		close(pp)
 	}(l.srv, l.pp)
 	return l
 }
 
-func (l *listener) Accept() (c net.Conn, err error) {
+func (l *listener) Accept() (c net.IAC, err error) {
 	c, ok := <-l.pp
 	if !ok {
 		err = io.EOF
@@ -63,5 +64,5 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		klog.Warning("ws: Upgrade error: ", err)
 		return
 	}
-	l.pp <- &conn{wc: wc, uid: uid}
+	l.pp <- net.IAC{ID: strconv.FormatUint(uid, 10), Conn: &conn{wc: wc}}
 }

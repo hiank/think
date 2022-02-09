@@ -1,13 +1,10 @@
 package net
 
-import "google.golang.org/protobuf/types/known/anypb"
-
 var (
-	Export_newTestConn = func(identity uint64, recvPP <-chan *anypb.Any, sendPP chan<- *anypb.Any) Conn {
+	Export_newTestConn = func(recvPP <-chan *Doc, sendPP chan<- *Doc) Conn {
 		return &testConn{
-			identity: identity,
-			recvPP:   recvPP,
-			sendPP:   sendPP,
+			recvPP: recvPP,
+			sendPP: sendPP,
 		}
 	}
 )

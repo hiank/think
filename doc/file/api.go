@@ -8,6 +8,7 @@ type Decoder interface {
 	LoadFile(paths ...string) error
 	LoadBytes(form Form, vals ...[]byte) error
 	Decode(outVals ...interface{}) error
+	Clear()
 }
 
 type Form int

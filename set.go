@@ -37,8 +37,8 @@ func (sm *uniqueSet) TODO() context.Context {
 	return sm.todo
 }
 
-//Fat get config decoder
-func (sm *uniqueSet) Fat() file.Decoder {
+//Decoder get config decoder
+func (sm *uniqueSet) Decoder() file.Decoder {
 	return sm.decoder
 }
 

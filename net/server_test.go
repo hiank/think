@@ -4,44 +4,32 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/hiank/think/net"
-	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
-type testMessageHandler struct {
-	out chan proto.Message
+type testHandler struct {
+	out chan *net.Doc
 }
 
-func (tch *testMessageHandler) Handle(id uint64, msg proto.Message) {
-	tch.out <- msg
-}
-
-type testCarrierHandler struct {
-	out chan *pb.Carrier
-}
-
-// func (tch *tes)
-
-func (tch *testCarrierHandler) Handle(carrier *pb.Carrier) {
-	tch.out <- carrier
+func (tch *testHandler) Handle(d *net.Doc) {
+	tch.out <- d
 	// return nil
 }
 
 type testListener struct {
 	// once chan uint64
-	connPP chan net.Conn
+	connPP chan *net.IAC
 }
 
-func (tl *testListener) Accept() (conn net.Conn, err error) {
+func (tl *testListener) Accept() (iac net.IAC, err error) {
 	tc, ok := <-tl.connPP
 	if ok {
-		conn = tc //&testConn{identity: identity, recvPP: make(chan *anypb.Any), sendPP: make(chan *anypb.Any)}
+		iac = *tc
 	} else {
 		err = io.EOF
 	}
@@ -54,12 +42,12 @@ func (tl *testListener) Close() error {
 }
 
 func TestNewServer(t *testing.T) {
-	srv := net.NewServer(&testListener{connPP: make(chan net.Conn)}, &testCarrierHandler{})
+	srv := net.NewServer(&testListener{connPP: make(chan *net.IAC)})
 	go func() {
 		srv.Close()
 	}()
 	err := srv.ListenAndServe()
-	assert.Equal(t, err, context.Canceled)
+	assert.Equal(t, err, io.EOF)
 
 	err = srv.Close()
 	assert.Equal(t, err, context.Canceled, "close could called repeatedly")
@@ -68,34 +56,41 @@ func TestNewServer(t *testing.T) {
 func TestServer(t *testing.T) {
 	// srv := net.NewServer(nil)
 	// err := srv.ListenAndServe()
-	accept, handlerPP := make(chan net.Conn), make(chan *pb.Carrier)
-	srv := net.NewServer(&testListener{connPP: accept}, &testCarrierHandler{handlerPP})
+	accept := make(chan *net.IAC)
+	srv := net.NewServer(&testListener{connPP: accept})
 	defer srv.Close()
 	go srv.ListenAndServe()
 
+	handlerPP := make(chan *net.Doc)
+	srv.AddHandler("", &testHandler{out: handlerPP})
+
 	t.Run("accept-recv-send", func(t *testing.T) {
-		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
-		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- tc
+		recvPP, sendPP := make(chan *net.Doc), make(chan *net.Doc)
+		tc := net.Export_newTestConn(recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
+		accept <- &net.IAC{ID: "1", Conn: tc}
 
 		msg := &testdata.S_Example{Value: "pp"}
 		any, _ := anypb.New(msg)
-		recvPP <- any
+		d, _ := proto.Marshal(any)
+		ndoc, _ := net.MakeDoc(d)
+		recvPP <- ndoc
 
-		carrier := <-handlerPP
-		assert.Equal(t, carrier.GetIdentity(), uint64(1))
-		val, _ := carrier.GetMessage().UnmarshalNew()
+		doc := <-handlerPP
+		// assert.Equal(t, carrier.GetIdentity(), uint64(1))
+		val, _ := doc.Any().UnmarshalNew()
 		assert.Equal(t, val.(*testdata.S_Example).GetValue(), "pp")
 
-		err := srv.Send(&pb.Carrier{Identity: 2})
-		assert.Assert(t, err != nil)
+		err := srv.Send(&testdata.AnyTest1{Name: "test1"}, "2")
+		assert.Assert(t, err != nil, "no id 2 conn dialed")
 
-		any, _ = anypb.New(&testdata.AnyTest1{Name: "ws"})
+		// any, _ = anypb.New(&testdata.AnyTest1{Name: "ws"})
 		go func(t *testing.T) {
-			err = srv.Send(&pb.Carrier{Identity: 1, Message: any})
+			err = srv.Send(&testdata.AnyTest1{Name: "ws"}, "1")
 			assert.Equal(t, err, nil)
 		}(t)
-		any = <-sendPP
+		doc = <-sendPP
+		// any = <-sendPP
+		proto.Unmarshal(doc.Bytes(), any)
 		val, _ = any.UnmarshalNew()
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ws")
 	})
@@ -116,106 +111,106 @@ func TestForcedConversion(t *testing.T) {
 	assert.Assert(t, arr == nil)
 }
 
-func TestServerWithHandleMux(t *testing.T) {
-	t.Run("non-option", func(t *testing.T) {
-		accept, handlerPP, handleMux := make(chan net.Conn), make(chan proto.Message), net.NewHandleMux()
-		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
-		defer srv.Close()
-		go srv.ListenAndServe()
+// // func TestServerWithHandleMux(t *testing.T) {
+// // 	t.Run("non-option", func(t *testing.T) {
+// // 		accept, handlerPP, handleMux := make(chan *net.IAC), make(chan proto.Message), net.NewHandleMux()
+// // 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
+// // 		defer srv.Close()
+// // 		go srv.ListenAndServe()
 
-		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP})
+// // 		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP})
 
-		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
-		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- tc
+// // 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
+// // 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
+// // 		accept <- tc
 
-		msg := &testdata.AnyTest2{Hope: "pp"}
-		any, _ := anypb.New(msg)
-		recvPP <- any
-		select {
-		case <-handlerPP:
-			assert.Assert(t, false, "no handler for the message")
-		case <-time.After(time.Millisecond * 100):
-			// default:
-			assert.Assert(t, true)
-		}
+// // 		msg := &testdata.AnyTest2{Hope: "pp"}
+// // 		any, _ := anypb.New(msg)
+// // 		recvPP <- any
+// // 		select {
+// // 		case <-handlerPP:
+// // 			assert.Assert(t, false, "no handler for the message")
+// // 		case <-time.After(time.Millisecond * 100):
+// // 			// default:
+// // 			assert.Assert(t, true)
+// // 		}
 
-		msg2 := &testdata.AnyTest1{Name: "ts1"}
-		any, _ = anypb.New(msg2)
-		recvPP <- any
-		val := <-handlerPP
-		// val.GetIdentity()
-		// val, _ := carrier.GetMessage().UnmarshalNew()
-		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
-	})
-	t.Run("WithDefaultHandler", func(t *testing.T) {
-		accept, handlerPP := make(chan net.Conn), make(chan *pb.Carrier)
-		handleMux := net.NewHandleMux(net.WithDefaultHandler(&testCarrierHandler{handlerPP}))
-		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
-		defer srv.Close()
-		go srv.ListenAndServe()
+// // 		msg2 := &testdata.AnyTest1{Name: "ts1"}
+// // 		any, _ = anypb.New(msg2)
+// // 		recvPP <- any
+// // 		val := <-handlerPP
+// // 		// val.GetIdentity()
+// // 		// val, _ := carrier.GetMessage().UnmarshalNew()
+// // 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
+// // 	})
+// // 	t.Run("WithDefaultHandler", func(t *testing.T) {
+// // 		accept, handlerPP := make(chan net.Conn), make(chan *pb.Carrier)
+// // 		handleMux := net.NewHandleMux(net.WithDefaultHandler(&testCarrierHandler{handlerPP}))
+// // 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
+// // 		defer srv.Close()
+// // 		go srv.ListenAndServe()
 
-		handlerPP2 := make(chan proto.Message)
-		// handleMux.Look("AnyTest1", &testMessageHandler{handlerPP2})
-		handleMux.LookObject(new(testdata.AnyTest1), &testMessageHandler{handlerPP2})
+// // 		handlerPP2 := make(chan proto.Message)
+// // 		// handleMux.Look("AnyTest1", &testMessageHandler{handlerPP2})
+// // 		handleMux.LookObject(new(testdata.AnyTest1), &testMessageHandler{handlerPP2})
 
-		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
-		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- tc
+// // 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
+// // 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
+// // 		accept <- tc
 
-		msg := &testdata.AnyTest2{Hope: "pp"}
-		any, _ := anypb.New(msg)
-		recvPP <- any
-		carrier := <-handlerPP
-		val, _ := carrier.GetMessage().UnmarshalNew()
-		assert.Equal(t, val.(*testdata.AnyTest2).GetHope(), "pp")
+// // 		msg := &testdata.AnyTest2{Hope: "pp"}
+// // 		any, _ := anypb.New(msg)
+// // 		recvPP <- any
+// // 		carrier := <-handlerPP
+// // 		val, _ := carrier.GetMessage().UnmarshalNew()
+// // 		assert.Equal(t, val.(*testdata.AnyTest2).GetHope(), "pp")
 
-		msg2 := &testdata.AnyTest1{Name: "ts2"}
-		any, _ = anypb.New(msg2)
-		recvPP <- any
-		val = <-handlerPP2
-		// val, _ = carrier.GetMessage().UnmarshalNew()
-		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts2")
-	})
-	t.Run("WithConverter", func(t *testing.T) {
-		accept := make(chan net.Conn)
-		handleMux := net.NewHandleMux(net.WithConverter(net.FuncCarrierConverter(func(c *pb.Carrier) (string, bool) {
-			return "anyTest2", true
-		})))
-		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
-		defer srv.Close()
-		go srv.ListenAndServe()
+// // 		msg2 := &testdata.AnyTest1{Name: "ts2"}
+// // 		any, _ = anypb.New(msg2)
+// // 		recvPP <- any
+// // 		val = <-handlerPP2
+// // 		// val, _ = carrier.GetMessage().UnmarshalNew()
+// // 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts2")
+// // 	})
+// // 	t.Run("WithConverter", func(t *testing.T) {
+// // 		accept := make(chan net.Conn)
+// // 		handleMux := net.NewHandleMux(net.WithConverter(net.FuncCarrierConverter(func(c *pb.Carrier) (string, bool) {
+// // 			return "anyTest2", true
+// // 		})))
+// // 		srv := net.NewServer(&testListener{connPP: accept}, handleMux)
+// // 		defer srv.Close()
+// // 		go srv.ListenAndServe()
 
-		handlerPP1, handlerPP2 := make(chan proto.Message), make(chan proto.Message)
-		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP1})
-		handleMux.Look("anyTest2", &testMessageHandler{handlerPP2})
+// // 		handlerPP1, handlerPP2 := make(chan proto.Message), make(chan proto.Message)
+// // 		handleMux.Look("AnyTest1", &testMessageHandler{handlerPP1})
+// // 		handleMux.Look("anyTest2", &testMessageHandler{handlerPP2})
 
-		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
-		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- tc
+// // 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
+// // 		tc := net.Export_newTestConn(1, recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
+// // 		accept <- tc
 
-		msg := &testdata.AnyTest2{Hope: "pp"}
-		any, _ := anypb.New(msg)
-		recvPP <- any
-		select {
-		case <-handlerPP1:
-			assert.Assert(t, false, "no handler for the message")
-		case <-handlerPP2:
-			assert.Assert(t, true, "key is anyTest2")
-		case <-time.After(time.Millisecond * 100):
-			// default:
-			assert.Assert(t, false)
-		}
+// // 		msg := &testdata.AnyTest2{Hope: "pp"}
+// // 		any, _ := anypb.New(msg)
+// // 		recvPP <- any
+// // 		select {
+// // 		case <-handlerPP1:
+// // 			assert.Assert(t, false, "no handler for the message")
+// // 		case <-handlerPP2:
+// // 			assert.Assert(t, true, "key is anyTest2")
+// // 		case <-time.After(time.Millisecond * 100):
+// // 			// default:
+// // 			assert.Assert(t, false)
+// // 		}
 
-		msg2 := &testdata.AnyTest1{Name: "ts1"}
-		any, _ = anypb.New(msg2)
-		recvPP <- any
-		val := <-handlerPP2
-		// val.GetIdentity()
-		// val, _ := carrier.GetMessage().UnmarshalNew()
-		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
-	})
-}
+// // 		msg2 := &testdata.AnyTest1{Name: "ts1"}
+// // 		any, _ = anypb.New(msg2)
+// // 		recvPP <- any
+// // 		val := <-handlerPP2
+// // 		// val.GetIdentity()
+// // 		// val, _ := carrier.GetMessage().UnmarshalNew()
+// // 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ts1")
+// // 	})
+// // }
 
 func TestRedefineOutValue(t *testing.T) {
 	func1 := func() (int, int) {

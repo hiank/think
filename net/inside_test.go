@@ -2,92 +2,233 @@ package net
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"testing"
-	"time"
 
+	"github.com/hiank/think/net/testdata"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
 type testConn struct {
-	identity uint64
-	recvPP   <-chan *anypb.Any
-	sendPP   chan<- *anypb.Any
+	k string
+	// identity uint64
+	recvPP <-chan *Doc
+	sendPP chan<- *Doc
 }
 
-func (tc *testConn) GetIdentity() uint64 {
-	return tc.identity
-}
+// func (tc *testConn) GetIdentity() uint64 {
+// 	return tc.identity
+// }
 
-func (tc *testConn) Recv() (any *anypb.Any, err error) {
-	any, ok := <-tc.recvPP
+func (tc *testConn) Recv() (d *Doc, err error) {
+	d, ok := <-tc.recvPP
 	if !ok {
 		err = io.EOF
 	}
 	return
 }
 
-func (tc *testConn) Send(any *anypb.Any) error {
-	tc.sendPP <- any
+func (tc *testConn) Send(d *Doc) error {
+	tc.sendPP <- d
 	return nil
 }
 
 func (tc *testConn) Close() error {
+	if tc.sendPP != nil {
+		close(tc.sendPP)
+		tc.sendPP = nil
+	}
 	return nil
 }
 
-func TestPrivateServer(t *testing.T) {
-	// newServer(nil, nil)
+// func TestAnyCoder(t *testing.T) {
+// 	var ac coder.AnyBytes
+// 	d, err := ac.Encode(&testdata.AnyTest1{Name: "test1"})
+// 	assert.Assert(t, err == nil, err)
+
+// 	v, err := ac.Decode(d)
+// 	assert.Assert(t, err == nil, err)
+// 	assert.Equal(t, v.(*testdata.AnyTest1).Name, "test1")
+
+// 	amsg, err := anypb.New(&testdata.AnyTest1{Name: "hiank"})
+// 	assert.Assert(t, err == nil, err)
+// 	d, err = ac.Encode(amsg)
+// 	assert.Assert(t, err == nil, err)
+// 	v, _ = ac.Decode(d)
+// 	assert.Equal(t, v.(*testdata.AnyTest1).Name, "hiank")
+
+// 	_, err = ac.Encode(&testConn{})
+// 	assert.Assert(t, err != nil)
+
+// 	_, err = ac.Decode([]byte{1, 2})
+// 	assert.Assert(t, err != nil)
+// }
+
+func TestConnpool(t *testing.T) {
 	t.Run("lookErr", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		srv := &server{ctx: ctx, cancel: cancel}
-		err := srv.lookErr(nil)
-		assert.Equal(t, err, nil)
-		err = srv.lookErr(errors.New("ws-err"))
-		assert.Equal(t, err.Error(), "ws-err")
+		cp, terr := &connpool{ctx: ctx}, fmt.Errorf("terr")
+		assert.Equal(t, cp.lookErr(terr), terr)
+		assert.Equal(t, cp.lookErr(nil), error(nil))
+
 		cancel()
-		err = srv.lookErr(nil)
-		assert.Equal(t, err, context.Canceled)
-		err = srv.lookErr(errors.New("ig-err"))
-		assert.Equal(t, err, context.Canceled)
+		assert.Equal(t, cp.lookErr(nil), ctx.Err())
+		assert.Equal(t, cp.lookErr(terr), ctx.Err())
 	})
 
-	t.Run("handleConn", func(t *testing.T) {
+	t.Run("AddConn", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
-		srv := &server{ctx: ctx, cancel: cancel}
-		note := make(chan bool)
+		cp := newConnpool(ctx, nil) //&connpool{ctx: ctx}
+
+		pp := make(chan *Doc)
+		c1 := &testConn{sendPP: pp, k: "c1"}
+		cp.AddConn("1", c1)
+		_, ok := cp.m.Load("1")
+		assert.Assert(t, ok)
+		// assert.Equal(t, mv.(Conn).(*testConn), c1)
+		wait, pp2 := make(chan byte), make(chan *Doc)
 		go func() {
-			srv.handleConn(&testConn{identity: 1, recvPP: recvPP, sendPP: sendPP})
-			note <- true
+			cp.AddConn("1", &testConn{sendPP: pp2, k: "c2"})
+			close(wait)
 		}()
+		_, ok = <-pp
+		assert.Assert(t, !ok, "closed by Close")
 
-		select {
-		case <-note:
-			assert.Assert(t, false, "should block here")
-		case <-time.After(time.Millisecond * 100):
-			assert.Assert(t, true, "should block in handleConn")
-		}
+		<-wait
 
-		recvPP2, sendPP2 := make(chan *anypb.Any), make(chan *anypb.Any)
-		srv.handleConn(&testConn{identity: 1, recvPP: recvPP2, sendPP: sendPP2})
-		assert.Assert(t, true, "same identity, would not block")
+		cnt := 0
+		cp.m.Range(func(key, value interface{}) bool {
+			cnt++
+			return true
+		})
+		assert.Equal(t, cnt, 1)
 
-		go func() {
-			srv.handleConn(&testConn{identity: 2, recvPP: recvPP2, sendPP: sendPP2})
-		}()
-		<-time.After(time.Millisecond * 100) //NOTE: wait identity 2 ready
+		mv, _ := cp.m.Load("1")
+		k := mv.(*fatconn).Conn.(*testConn).k
+		assert.Equal(t, k, "c2")
 
-		// assert.Equal(t, )
-		val, _ := srv.m.Load(uint64(2))
-		assert.Equal(t, val.(Conn).GetIdentity(), uint64(2))
+		mv.(Conn).Close()
+		// _, ok = <-pp2
+		// assert.Assert(t, !ok)
+		<-mv.(*fatconn).Done()
 
-		val, _ = srv.m.Load(uint64(1))
-		assert.Equal(t, val.(Conn).GetIdentity(), uint64(1))
+		cnt = 0
+		cp.m.Range(func(key, value interface{}) bool {
+			cnt++
+			return true
+		})
+		assert.Equal(t, cnt, 0)
 	})
 
+	t.Run("loopCheck", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cp := &connpool{ctx: ctx}
+		go func(t *testing.T) {
+			// cp.loopCheck()
+			cancel()
+		}(t)
+
+		cp.loopCheck()
+	})
+	t.Run("Send", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		cp := newConnpool(ctx, nil) //&connpool{ctx: ctx}
+
+		pp, pp2 := make(chan *Doc), make(chan *Doc)
+		cp.AddConn("1", &testConn{sendPP: pp, k: "c1"})
+		cp.AddConn("2", &testConn{sendPP: pp2, k: "c2"})
+
+		cnt := 0
+		cp.m.Range(func(key, value interface{}) bool {
+			cnt++
+			return true
+		})
+		assert.Equal(t, cnt, 2)
+
+		err := cp.Send(&testdata.AnyTest1{Name: "hiank"})
+		assert.Assert(t, err == nil, err)
+
+		v := <-pp
+		v2 := <-pp2
+		amsg, _ := anypb.New(&testdata.AnyTest1{Name: "hiank"})
+		tv, err := proto.Marshal(amsg)
+		assert.Assert(t, err == nil, err)
+		assert.Equal(t, len(v.Bytes()), len(v2.Bytes()))
+		assert.Equal(t, len(v.Bytes()), len(tv))
+
+		for i, b := range tv {
+			assert.Equal(t, b, v.Bytes()[i])
+			assert.Equal(t, b, v2.Bytes()[i])
+		}
+	})
 }
+
+func TestCopy(t *testing.T) {
+	l := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	copy(l[5:], l[6:])
+	l = l[:len(l)-1]
+	// t.Log(l)
+	for i, v := range []int{0, 1, 2, 3, 4, 6, 7, 8, 9} {
+		assert.Equal(t, l[i], v)
+	}
+}
+
+// func TestPrivateServer(t *testing.T) {
+// 	// newServer(nil, nil)
+// 	t.Run("lookErr", func(t *testing.T) {
+// 		ctx, cancel := context.WithCancel(context.Background())
+// 		defer cancel()
+// 		srv := &server{ctx: ctx, cancel: cancel}
+// 		err := srv.lookErr(nil)
+// 		assert.Equal(t, err, nil)
+// 		err = srv.lookErr(errors.New("ws-err"))
+// 		assert.Equal(t, err.Error(), "ws-err")
+// 		cancel()
+// 		err = srv.lookErr(nil)
+// 		assert.Equal(t, err, context.Canceled)
+// 		err = srv.lookErr(errors.New("ig-err"))
+// 		assert.Equal(t, err, context.Canceled)
+// 	})
+
+// 	t.Run("handleConn", func(t *testing.T) {
+// 		ctx, cancel := context.WithCancel(context.Background())
+// 		defer cancel()
+// 		recvPP, sendPP := make(chan *anypb.Any), make(chan *anypb.Any)
+// 		srv := &server{ctx: ctx, cancel: cancel}
+// 		note := make(chan bool)
+// 		go func() {
+// 			srv.handleConn(&testConn{identity: 1, recvPP: recvPP, sendPP: sendPP})
+// 			note <- true
+// 		}()
+
+// 		select {
+// 		case <-note:
+// 			assert.Assert(t, false, "should block here")
+// 		case <-time.After(time.Millisecond * 100):
+// 			assert.Assert(t, true, "should block in handleConn")
+// 		}
+
+// 		recvPP2, sendPP2 := make(chan *anypb.Any), make(chan *anypb.Any)
+// 		srv.handleConn(&testConn{identity: 1, recvPP: recvPP2, sendPP: sendPP2})
+// 		assert.Assert(t, true, "same identity, would not block")
+
+// 		go func() {
+// 			srv.handleConn(&testConn{identity: 2, recvPP: recvPP2, sendPP: sendPP2})
+// 		}()
+// 		<-time.After(time.Millisecond * 100) //NOTE: wait identity 2 ready
+
+// 		// assert.Equal(t, )
+// 		val, _ := srv.m.Load(uint64(2))
+// 		assert.Equal(t, val.(Conn).GetIdentity(), uint64(2))
+
+// 		val, _ = srv.m.Load(uint64(1))
+// 		assert.Equal(t, val.(Conn).GetIdentity(), uint64(1))
+// 	})
+
+// }

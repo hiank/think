@@ -1,19 +1,19 @@
 package net
 
-import "github.com/hiank/think/net/pb"
+// import "github.com/hiank/think/net/pb"
 
-type client struct {
-	dialer Dialer
-}
+// type client struct {
+// 	dialer Dialer
+// }
 
-func newClient(dialer Dialer) Client {
-	return &client{dialer: dialer}
-}
+// func newClient(dialer Dialer) Client {
+// 	return &client{dialer: dialer}
+// }
 
-func (cli *client) Send(*pb.Carrier) error {
-	return nil
-}
+// func (cli *client) Send(*pb.Carrier) error {
+// 	return nil
+// }
 
-func (cli *client) Close() error {
-	return nil
-}
+// func (cli *client) Close() error {
+// 	return nil
+// }

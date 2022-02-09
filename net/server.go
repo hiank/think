@@ -2,89 +2,37 @@ package net
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"sync"
-
-	"github.com/hiank/think/net/pb"
-	"google.golang.org/protobuf/proto"
-	"k8s.io/klog/v2"
 )
 
-func defaultHandleOptions() handleOptions {
-	return handleOptions{
-		converter: FuncCarrierConverter(func(carrier *pb.Carrier) (string, bool) {
-			return string(carrier.GetMessage().MessageName().Name()), true
-		}),
-	}
-}
-
-type FuncCarrierConverter func(*pb.Carrier) (string, bool)
-
-func (fcc FuncCarrierConverter) GetKey(carrier *pb.Carrier) (string, bool) {
-	return fcc(carrier)
-}
-
-type handleMux struct {
-	m     sync.Map
-	dopts handleOptions
-}
-
-func NewHandleMux(opts ...HandleOption) *handleMux {
-	hm := &handleMux{dopts: defaultHandleOptions()}
-	for _, opt := range opts {
-		opt.apply(&hm.dopts)
-	}
-	return hm
-}
-
-//Look register handler for key
-func (hm *handleMux) Look(key string, handler MessageHandler) {
-	hm.m.Store(key, handler)
-}
-
-//LookObject register handler by proto.Message instance
-func (hm *handleMux) LookObject(obj proto.Message, handler MessageHandler) {
-	hm.Look(string(obj.ProtoReflect().Descriptor().Name()), handler)
-}
-
-//Handle handle given carrier message
-//the method will find suitable handler to handle the message
-func (hm *handleMux) Handle(carrier *pb.Carrier) {
-	key, ok := hm.dopts.converter.GetKey(carrier)
-	if !ok {
-		klog.Warningf("cannot get key from carrier (%v)", carrier)
-		return
-	}
-	if val, ok := hm.m.Load(key); ok {
-		if msg, err := carrier.GetMessage().UnmarshalNew(); err == nil {
-			handler, _ := val.(MessageHandler)
-			handler.Handle(carrier.GetIdentity(), msg)
-		} else {
-			klog.Warning(err) //NOTE: unmarshal error
-		}
-	} else if hm.dopts.defaultHandler != nil {
-		hm.dopts.defaultHandler.Handle(carrier)
-	} else {
-		klog.Warningf("cannot find handler to handle message (%s)", key)
-	}
-}
+// func defaultServeOptions() serveOptions {
+// 	return serveOptions{
+// 		// handlerKeyDecoder: coder.TypeKey(0),
+// 		// bytesCoder:        coder.AnyBytes(0),
+// 	}
+// }
 
 type server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	listener Listener
-	handler  CarrierHandler
-	m        sync.Map
+	*fathandler
+	*connpool
 }
 
-func newServer(listener Listener, handler CarrierHandler) Server {
+func NewServer(listener Listener) Server {
+	// dopts := defaultServeOptions()
+	// for _, opt := range opts {
+	// 	opt.apply(&dopts)
+	// }
 	ctx, cancel := context.WithCancel(context.Background())
+	// h := &fathandler{kd: dopts.handlerKeyDecoder}
+	h := new(fathandler)
 	return &server{
-		listener: listener,
-		ctx:      ctx,
-		cancel:   cancel,
-		handler:  handler,
+		listener:   listener,
+		ctx:        ctx,
+		cancel:     cancel,
+		fathandler: h,
+		connpool:   newConnpool(ctx, h),
 	}
 }
 
@@ -92,23 +40,15 @@ func newServer(listener Listener, handler CarrierHandler) Server {
 func (srv *server) ListenAndServe() (err error) {
 	defer srv.Close()
 	for {
-		conn, err := srv.listener.Accept()
-		if err = srv.lookErr(err); err != nil {
-			return err
+		iac, err := srv.listener.Accept()
+		if err == nil {
+			if err = srv.ctx.Err(); err == nil {
+				srv.AddConn(iac.ID, iac.Conn)
+				continue
+			}
 		}
-		go srv.handleConn(conn)
+		return err
 	}
-}
-
-//Send send message (with identity) to client (use conn)
-//carrier's identity is target's value
-func (srv *server) Send(carrier *pb.Carrier) (err error) {
-	if val, ok := srv.m.Load(carrier.GetIdentity()); ok {
-		err = val.(Conn).Send(carrier.GetMessage())
-	} else {
-		err = fmt.Errorf("cannot found conn (identity:%x) in the server", carrier.GetIdentity())
-	}
-	return
 }
 
 //Close close the server
@@ -116,43 +56,8 @@ func (srv *server) Send(carrier *pb.Carrier) (err error) {
 //the method could be called multiple
 func (srv *server) Close() (err error) {
 	if err = srv.ctx.Err(); err == nil {
-		srv.cancel()
+		srv.cancel() //will clean connpool by this call
 		err = srv.listener.Close()
-		srv.m.Range(func(key, value interface{}) bool {
-			value.(Conn).Close()
-			return true
-		})
 	}
 	return
-}
-
-//handleConn loop recv message by conn and handle it until conn closed or server closed
-func (srv *server) handleConn(conn Conn) {
-	defer conn.Close()
-	identity := conn.GetIdentity()
-	if _, loaded := srv.m.LoadOrStore(identity, conn); loaded {
-		//identity would loaded already
-		klog.Warningf("conn (identity:%x) already loaded", identity)
-		return
-	}
-
-	defer srv.m.Delete(identity)
-	for {
-		any, err := conn.Recv()
-		if err = srv.lookErr(err); err != nil {
-			if err != io.EOF {
-				klog.Warningf("conn (identity:%x) closed abnormally: %x", identity, err)
-			}
-			return
-		}
-		go srv.handler.Handle(&pb.Carrier{Identity: identity, Message: any})
-	}
-}
-
-//lookErr check wether the ctx would canceled
-func (srv *server) lookErr(err error) error {
-	if srv.ctx.Err() != nil {
-		err = srv.ctx.Err()
-	}
-	return err
 }

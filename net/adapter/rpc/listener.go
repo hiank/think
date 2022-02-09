@@ -11,9 +11,9 @@ import (
 
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter/rpc/pp"
-	"github.com/hiank/think/net/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 )
@@ -34,7 +34,7 @@ func (gc funcCloser) Close() error {
 type listener struct {
 	pp.UnimplementedPipeServer
 	rest   REST
-	linkPP chan net.Conn
+	linkPP chan net.IAC
 	io.Closer
 }
 
@@ -49,7 +49,7 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
 	if err != nil {
 		panic(fmt.Errorf("cannot listen in %x: %x", dopts.addr, err))
 	}
-	srv, linkPP, once := grpc.NewServer(), make(chan net.Conn), new(sync.Once)
+	srv, linkPP, once := grpc.NewServer(), make(chan net.IAC), new(sync.Once)
 	l := &listener{
 		rest:   dopts.rest,
 		linkPP: linkPP,
@@ -70,7 +70,7 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
 	return l
 }
 
-func (l *listener) Accept() (c net.Conn, err error) {
+func (l *listener) Accept() (c net.IAC, err error) {
 	c, ok := <-l.linkPP
 	if !ok {
 		err = io.EOF
@@ -98,16 +98,16 @@ func (l *listener) linkAuth(ls pp.Pipe_LinkServer) (identity uint64, suc bool) {
 func (l *listener) Link(ls pp.Pipe_LinkServer) (err error) {
 	if identity, suc := l.linkAuth(ls); suc {
 		ctx, cancel := context.WithCancel(ls.Context())
-		l.linkPP <- &conn{identity: identity, ctx: ctx, cancel: cancel, sr: ls}
+		l.linkPP <- net.IAC{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
 		<-ctx.Done()
 	}
 	return errors.New("link closed")
 }
 
-func (l *listener) Get(ctx context.Context, req *pb.Carrier) (res *pb.Carrier, err error) {
+func (l *listener) Get(ctx context.Context, req *anypb.Any) (res *anypb.Any, err error) {
 	return l.rest.Get(ctx, req)
 }
 
-func (l *listener) Post(ctx context.Context, req *pb.Carrier) (res *emptypb.Empty, err error) {
+func (l *listener) Post(ctx context.Context, req *anypb.Any) (res *emptypb.Empty, err error) {
 	return l.rest.Post(ctx, req)
 }

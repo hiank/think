@@ -11,6 +11,7 @@ import (
 
 //fit buffer
 //only one valid data (conver old loaded data)
+//not goroutine safe
 type fit struct {
 	form Form
 	doc  doc.Doc
@@ -60,4 +61,8 @@ func (f *fit) Decode(outVals ...interface{}) (err error) {
 		err = pushError(err, f.doc.Decode(out))
 	}
 	return
+}
+
+func (f *fit) Clear() {
+	f.doc.Encode([]byte{})
 }

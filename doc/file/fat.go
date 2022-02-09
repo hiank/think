@@ -71,10 +71,6 @@ func (f *fat) LoadBytes(form Form, vals ...[]byte) error {
 	return nil
 }
 
-// func (f *fat) Encode(v interface{}) error {
-// 	return nil
-// }
-
 func (f *fat) Decode(outVals ...interface{}) (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
@@ -84,20 +80,11 @@ func (f *fat) Decode(outVals ...interface{}) (err error) {
 	return
 }
 
-func (f *fat) Val() []byte {
-	return []byte("not support")
+func (f *fat) Clear() {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	for _, decoder := range f.m {
+		decoder.Clear()
+	}
+	f.m, f.num = make(map[string]Decoder), 0
 }
-
-// //ParseAndClear parse loaded data to configs
-// //clear loaded data at the end
-// func (lm *liteMux) ParseAndClear(configs ...interface{}) {
-// 	lm.mux.Lock()
-// 	defer lm.mux.Unlock()
-// 	for em := lm.list.Front(); em != nil; em = em.Next() {
-// 		// em.Value.(parser).parse(configs...)
-// 		for _, cfg := range configs {
-// 			em.Value.(doc.Decoder).Decode(cfg)
-// 		}
-// 	}
-// 	lm.loaded, lm.list = make(map[string]byte), list.New()
-// }

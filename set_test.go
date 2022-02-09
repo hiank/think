@@ -99,7 +99,7 @@ func TestSetUnique(t *testing.T) {
 	unique := think.Set()
 	assert.Assert(t, unique != nil)
 	assert.Assert(t, unique == think.Set(), "set is singleston")
-	assert.Equal(t, think.Set().Fat(), think.Set().Fat(), "set's part is singleston")
+	assert.Equal(t, think.Set().Decoder(), think.Set().Decoder(), "set's part is singleston")
 	assert.Equal(t, think.Set().TODO(), think.Set().TODO(), "set's part is singleston")
 	assert.Equal(t, think.Set().Nats(), think.Set().Nats(), "set's part is singleston")
 	assert.Equal(t, think.Set().DBS(), think.Set().DBS(), "set's part is singleston")
@@ -109,7 +109,7 @@ func TestSetUnique(t *testing.T) {
 	assert.Assert(t, suc)
 
 	assert.Assert(t, unique != think.Set(), "last value destoryed, new value not same as last value")
-	assert.Assert(t, unique.Fat() != think.Set().Fat(), "set's part is singleston")
+	assert.Assert(t, unique.Decoder() != think.Set().Decoder(), "set's part is singleston")
 	assert.Assert(t, unique.TODO() != think.Set().TODO(), "set's part is singleston")
 	assert.Assert(t, unique.DBS() != think.Set().DBS(), "set's part is singleston")
 	assert.Assert(t, unique.Nats() == think.Set().Nats(), "nats is nil")

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter/ws"
 	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
@@ -91,8 +92,10 @@ func TestConn(t *testing.T) {
 	wait := make(chan bool)
 	// srvConn.Read()
 	go func(t *testing.T) {
-		any, _ := srvConn.Recv()
-		msg, _ := any.UnmarshalNew()
+		d, _ := srvConn.Recv()
+		amsg := new(anypb.Any)
+		proto.Unmarshal(d.Bytes(), amsg)
+		msg, _ := amsg.UnmarshalNew()
 		assert.Equal(t, msg.(*testdata.AnyTest1).GetName(), "ll")
 		// close(wait)
 		wait <- true
@@ -106,8 +109,9 @@ func TestConn(t *testing.T) {
 	<-wait
 
 	any, _ = anypb.New(&testdata.AnyTest2{Hope: "hh"})
-	// b, _ = proto.Marshal(any)
-	srvConn.Send(any)
+	b, _ = proto.Marshal(any)
+	doc, _ := net.MakeDoc(b)
+	srvConn.Send(doc)
 
 	_, b, _ = cliConn.ReadMessage()
 	// var msg anypb.Any
@@ -115,7 +119,7 @@ func TestConn(t *testing.T) {
 	msg, _ := any.UnmarshalNew()
 	assert.Equal(t, msg.(*testdata.AnyTest2).GetHope(), "hh")
 
-	assert.Equal(t, srvConn.GetIdentity(), uint64(11))
+	// assert.Equal(t, srvConn.GetIdentity(), uint64(11))
 
 	srvConn.Close()
 	_, _, err = cliConn.ReadMessage()
