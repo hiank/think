@@ -12,18 +12,25 @@ import (
 )
 
 type connpool struct {
-	ctx  context.Context
-	h    Handler    //Handler for revc message
-	m    sync.Map   //conn map
-	errc chan error //for recv write error conn's identity
+	ctx context.Context
+	h   Handler     //Handler for revc message
+	m   sync.Map    //conn map
+	rm  chan string //for remove conn
+	io.Closer
 }
 
 func newConnpool(ctx context.Context, h Handler) (cp *connpool) {
+	ctx, cancel := context.WithCancel(ctx)
 	cp = &connpool{
-		ctx:  ctx,
-		h:    h,
-		errc: make(chan error),
+		ctx: ctx,
+		h:   h,
+		rm:  make(chan string),
 	}
+	cp.Closer = run.NewOnceCloser(func() error {
+		close(cp.rm)
+		cancel()
+		return ctx.Err()
+	})
 	go cp.loopCheck()
 	return
 }
@@ -32,16 +39,16 @@ func newConnpool(ctx context.Context, h Handler) (cp *connpool) {
 //when existed same id, delete it and close it's conn before
 //wait unit add success
 func (cp *connpool) AddConn(id string, c Conn) {
-	v, loaded := cp.m.LoadOrStore(id, newFatconn(cp.ctx, id, c, cp.errc))
-	if !loaded {
-		///conn stored sucess
-		///loop recv from conn here
-		go cp.loopRecv(id, v.(*fatconn))
-		return
+	fc := newFatconn(cp.ctx, id, c, cp.rm)
+	for {
+		//wait until stored conn deleted
+		v, loaded := cp.m.LoadOrStore(id, fc)
+		if !loaded {
+			break
+		}
+		v.(io.Closer).Close()
 	}
-	//wait until stored conn deleted
-	<-v.(*fatconn).Done()
-	cp.AddConn(id, c)
+	go cp.loopRecv(id, fc)
 }
 
 //loopCheck loop check conn done
@@ -51,11 +58,9 @@ L:
 		select {
 		case <-cp.ctx.Done():
 			break L
-		case err := <-cp.errc:
-			if v, loaded := cp.m.LoadAndDelete(err.Error()); loaded {
-				conn := v.(*fatconn)
-				conn.Cancel()
-				conn.Close()
+		case id := <-cp.rm:
+			if v, loaded := cp.m.LoadAndDelete(id); loaded {
+				v.(*fatconn).Cancel()
 			}
 		}
 	}
@@ -79,18 +84,13 @@ func (cp *connpool) lookErr(err error) error {
 
 //loopRecv loop read from given conn
 func (cp *connpool) loopRecv(identity string, conn *fatconn) {
-	defer conn.Done()
+	defer conn.Close()
 	for {
 		d, err := conn.Recv()
 		if err = cp.lookErr(err); err != nil {
 			return
 		}
-		// if v, err := cp.coder.Encode(d); err == nil {
 		go cp.h.Handle(d)
-		// } else {
-		// 	//print error. err should be encode error(should not be io.EOF/context closed)
-		// 	cp.lookErr(err)
-		// }
 	}
 }
 
@@ -128,34 +128,31 @@ func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
 	return
 }
 
-//Close close connpool
-//Deprecated: close ctx instead of call Close. the resources will be cleaned up automaic after ctx closed
-func (cp *connpool) Close() error {
-	return fmt.Errorf("please close ctx instead of Close. after ctx closed, the conn will be clear automatic")
-}
-
 //fatconn package for basic Conn
 //send in order
 //close with status check
 type fatconn struct {
-	ctx    context.Context
 	Cancel context.CancelFunc
-	Conn
-	id   string
-	t    run.Tasker
-	errc chan error
-	once sync.Once
+	conn   Conn
+	t      run.Tasker
+	io.Closer
 }
 
-func newFatconn(ctx context.Context, id string, conn Conn, errc chan error) *fatconn {
+func newFatconn(ctx context.Context, id string, conn Conn, rm chan string) *fatconn {
 	ctx, cancel := context.WithCancel(ctx)
 	return &fatconn{
-		ctx:    ctx,
 		Cancel: cancel,
-		id:     id,
-		Conn:   conn,
-		errc:   errc,
+		conn:   conn,
 		t:      run.NewTasker(ctx, time.Second),
+		Closer: run.NewOnceCloser(func() error {
+			//when ctx closed, means connloop closed
+			if ctx.Err() == nil {
+				//notice connpool remove this conn
+				rm <- id
+				<-ctx.Done()
+			}
+			return conn.Close()
+		}),
 	}
 }
 
@@ -167,26 +164,18 @@ func (fc *fatconn) Send(d *Doc) error {
 	})
 }
 
-//Done close and wait until conn closed
-func (fc *fatconn) Done() <-chan struct{} {
-	fc.once.Do(func() {
-		if fc.ctx.Err() == nil {
-			//ctx not closed, notice connpool to close and delete this conn
-			fc.errc <- fmt.Errorf("%s", fc.id)
-		}
-	})
-	return fc.ctx.Done()
+func (fc *fatconn) Recv() (*Doc, error) {
+	return fc.conn.Recv()
 }
 
 //handle for Task
 func (fc *fatconn) handle(v interface{}) (err error) {
-	if werr := fc.Conn.Send(v.(*Doc)); werr != nil {
+	if werr := fc.conn.Send(v.(*Doc)); werr != nil {
 		if werr != io.EOF {
-			klog.Warningf("conn for id (%s) write error: %s", fc.id, werr.Error())
+			klog.Warningf("conn write error: %s", werr.Error())
 		}
-		//tell connpool the conn for (id) write error
-		//the id will send by fc.errc (recv in connpool's loopCheck)
-		fc.Done()
+		//close conn and tell connpool to delete this conn
+		fc.Close()
 	}
 	return
 }

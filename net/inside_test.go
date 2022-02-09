@@ -108,13 +108,10 @@ func TestConnpool(t *testing.T) {
 		assert.Equal(t, cnt, 1)
 
 		mv, _ := cp.m.Load("1")
-		k := mv.(*fatconn).Conn.(*testConn).k
+		k := mv.(*fatconn).conn.(*testConn).k
 		assert.Equal(t, k, "c2")
 
 		mv.(Conn).Close()
-		// _, ok = <-pp2
-		// assert.Assert(t, !ok)
-		<-mv.(*fatconn).Done()
 
 		cnt = 0
 		cp.m.Range(func(key, value interface{}) bool {
@@ -179,22 +176,36 @@ func TestCopy(t *testing.T) {
 	}
 }
 
-// func TestPrivateServer(t *testing.T) {
-// 	// newServer(nil, nil)
-// 	t.Run("lookErr", func(t *testing.T) {
-// 		ctx, cancel := context.WithCancel(context.Background())
-// 		defer cancel()
-// 		srv := &server{ctx: ctx, cancel: cancel}
-// 		err := srv.lookErr(nil)
-// 		assert.Equal(t, err, nil)
-// 		err = srv.lookErr(errors.New("ws-err"))
-// 		assert.Equal(t, err.Error(), "ws-err")
-// 		cancel()
-// 		err = srv.lookErr(nil)
-// 		assert.Equal(t, err, context.Canceled)
-// 		err = srv.lookErr(errors.New("ig-err"))
-// 		assert.Equal(t, err, context.Canceled)
-// 	})
+func TestContext(t *testing.T) {
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	_, cancel2 := context.WithCancel(ctx1)
+
+	cancel2()
+	cancel2() //repeated calls are ok
+
+	_, cancel2 = context.WithCancel(ctx1)
+	cancel1()
+	assert.Assert(t, ctx1.Err() != nil)
+	cancel2() //call cancel after parent context closed is ok
+}
+
+func TestPrivateServer(t *testing.T) {
+	// newServer(nil, nil)
+	t.Run("lookErr", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		srv := &server{ctx: ctx, cancel: cancel, connpool: newConnpool(ctx, nil)}
+		err := srv.lookErr(nil)
+		assert.Equal(t, err, nil)
+		err = srv.lookErr(fmt.Errorf("ws-err"))
+		assert.Equal(t, err.Error(), "ws-err")
+		cancel()
+		err = srv.lookErr(nil)
+		assert.Equal(t, err, context.Canceled)
+		err = srv.lookErr(fmt.Errorf("ig-err"))
+		assert.Equal(t, err, context.Canceled)
+	})
+}
 
 // 	t.Run("handleConn", func(t *testing.T) {
 // 		ctx, cancel := context.WithCancel(context.Background())
