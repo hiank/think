@@ -16,7 +16,7 @@ type testHandler struct {
 	out chan *net.Doc
 }
 
-func (tch *testHandler) Process(d *net.Doc) {
+func (tch *testHandler) Process(id string, d *net.Doc) {
 	tch.out <- d
 	// return nil
 }

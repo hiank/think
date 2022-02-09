@@ -42,5 +42,5 @@ type Server interface {
 
 //Handler handle message
 type Handler interface {
-	Process(*Doc)
+	Process(string, *Doc)
 }

@@ -31,7 +31,7 @@ func (fh *fathandler) Handle(k interface{}, h Handler) {
 }
 
 //Process message
-func (fh *fathandler) Process(d *Doc) {
+func (fh *fathandler) Process(id string, d *Doc) {
 	mv, loaded := fh.m.Load(d.TypeName())
 	if !loaded {
 		if mv, loaded = fh.m.Load(DefaultHandler); !loaded {
@@ -39,5 +39,5 @@ func (fh *fathandler) Process(d *Doc) {
 			return
 		}
 	}
-	mv.(Handler).Process(d)
+	mv.(Handler).Process(id, d)
 }

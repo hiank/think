@@ -83,14 +83,14 @@ func (cp *connpool) lookErr(err error) error {
 }
 
 //loopRecv loop read from given conn
-func (cp *connpool) loopRecv(identity string, conn *fatconn) {
+func (cp *connpool) loopRecv(id string, conn *fatconn) {
 	defer conn.Close()
 	for {
 		d, err := conn.Recv()
 		if err = cp.lookErr(err); err != nil {
 			return
 		}
-		go cp.h.Process(d)
+		go cp.h.Process(id, d)
 	}
 }
 
