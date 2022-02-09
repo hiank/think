@@ -2,23 +2,62 @@ package net
 
 import (
 	"context"
-
-	"github.com/hiank/think/token"
-
-	"github.com/hiank/think/net/k8s"
-	"github.com/hiank/think/net/ws"
-	"github.com/hiank/think/pool"
 )
 
-//ServeK8s 启动一个k8s服务，同一个进程只能有一个k8s服务
-func ServeK8s(ip string, msgHandler k8s.MessageHandler) error {
+// func defaultServeOptions() serveOptions {
+// 	return serveOptions{
+// 		// handlerKeyDecoder: coder.TypeKey(0),
+// 		// bytesCoder:        coder.AnyBytes(0),
+// 	}
+// }
 
-	return k8s.ListenAndServe(token.BackgroundLife().Context, ip, msgHandler)
+type server struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	listener Listener
+	*fathandler
+	*connpool
 }
 
-//ServeWS 启动一个ws服务，同一个进程只能有一个ws服务
-//收到的消息交给k8s ClientHub 来处理
-func ServeWS(ip string) error {
+func NewServer(listener Listener) Server {
+	// dopts := defaultServeOptions()
+	// for _, opt := range opts {
+	// 	opt.apply(&dopts)
+	// }
+	ctx, cancel := context.WithCancel(context.Background())
+	// h := &fathandler{kd: dopts.handlerKeyDecoder}
+	h := new(fathandler)
+	return &server{
+		listener:   listener,
+		ctx:        ctx,
+		cancel:     cancel,
+		fathandler: h,
+		connpool:   newConnpool(ctx, h),
+	}
+}
 
-	return ws.ListenAndServe(token.BackgroundLife().Context, ip, k8s.NewClientHub(context.WithValue(token.BackgroundLife().Context, pool.CtxKeyRecvHandler, new(ws.Writer))))
+//ListenAndServe block to accept new conn until the listener closed or server closed
+func (srv *server) ListenAndServe() (err error) {
+	defer srv.Close()
+	for {
+		iac, err := srv.listener.Accept()
+		if err == nil {
+			if err = srv.ctx.Err(); err == nil {
+				srv.AddConn(iac.ID, iac.Conn)
+				continue
+			}
+		}
+		return err
+	}
+}
+
+//Close close the server
+//will close all conns then clear the conns's map
+//the method could be called multiple
+func (srv *server) Close() (err error) {
+	if err = srv.ctx.Err(); err == nil {
+		srv.cancel() //will clean connpool by this call
+		err = srv.listener.Close()
+	}
+	return
 }

@@ -1,2 +1,3 @@
 
-.vscode/
+db/adapter/mongo/testdata/*
+db/adapter/redis/testdata/*
