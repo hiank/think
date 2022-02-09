@@ -9,34 +9,14 @@ import (
 	"github.com/hiank/think/db"
 )
 
-type liteDB struct {
-	ctx context.Context
-	*redis.Client
-	coder db.BytesCoder
-}
+var (
+	Dialer db.KvDialer = dialer(0)
+)
 
-func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
-	str, err := ld.Client.Get(ld.ctx, k).Result()
-	if err == nil {
-		err, found = ld.coder.Decode([]byte(str), v), true
-	}
-	return
-}
-
-func (ld *liteDB) Set(k string, v interface{}) (err error) {
-	bytes, err := ld.coder.Encode(v)
-	if err == nil {
-		err = ld.Client.Set(ld.ctx, k, string(bytes), 0).Err()
-	}
-	return
-}
-
-func (ld *liteDB) Delete(k string) error {
-	return ld.Client.Del(ld.ctx, k).Err()
-}
+type dialer byte
 
 //Dial connect to redis database and return connected client or error
-func Dial(ctx context.Context, opts ...db.DialOption) (kv db.KvDB, err error) {
+func (d dialer) Dial(ctx context.Context, opts ...db.DialOption) (kv db.KvDB, err error) {
 	dopts := db.DialOptions(opts...)
 	var dbVal int64
 	if dbVal, err = strconv.ParseInt(dopts.DB, 10, 32); err != nil {

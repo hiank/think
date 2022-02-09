@@ -7,7 +7,6 @@ import (
 	"github.com/hiank/think/db"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -59,24 +58,4 @@ func (ld *liteDB) Delete(k string) (err error) {
 
 func (ld *liteDB) Close() error {
 	return ld.Client().Disconnect(ld.ctx)
-}
-
-//Dial connect to mongodb and return connected client or error
-func Dial(ctx context.Context, opts ...db.DialOption) (kv db.KvDB, err error) {
-	dopts := db.DialOptions(opts...)
-	mopt := options.Client().ApplyURI(dopts.Addr).SetConnectTimeout(dopts.DialTimeout)
-	if dopts.Account != "" || dopts.Password != "" {
-		mopt.SetAuth(options.Credential{
-			Username: dopts.Account,
-			Password: dopts.Password,
-		})
-	}
-	cli, err := mongo.Connect(ctx, mopt)
-	if err == nil {
-		kv = &liteDB{
-			ctx:      ctx,
-			Database: cli.Database(dopts.DB),
-		}
-	}
-	return
 }

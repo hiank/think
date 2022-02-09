@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/db"
-	rdbc "github.com/hiank/think/db/redis"
+	rdbc "github.com/hiank/think/db/adapter/redis"
 	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"
 )
@@ -90,7 +90,7 @@ func TestRedisCli(t *testing.T) {
 		// 	Addr:        "localhost:30001",
 		// 	DialTimeout: time.Second,
 		// })
-		cli, err := rdbc.Dial(ctx, db.WithAddr("localhost:30001"), db.WithDB("0"), db.WithDailTimeout(time.Second))
+		cli, err := rdbc.Dialer.Dial(ctx, db.WithAddr("localhost:30001"), db.WithDB("0"), db.WithDailTimeout(time.Second))
 		assert.Assert(t, cli == nil)
 		assert.Assert(t, err != nil)
 	})
@@ -101,7 +101,7 @@ func TestRedisCli(t *testing.T) {
 		// 	Password: "",
 		// 	Addr:     "localhost:30211",
 		// })
-		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
+		cli, _ := rdbc.Dialer.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
 		defer cli.Close()
 		err := cli.Set("hs", "key1")
 		assert.Assert(t, err != nil, "value must be proto.Message")
@@ -152,7 +152,7 @@ func TestRedisCli(t *testing.T) {
 		// 	Password: "",
 		// 	Addr:     "localhost:30211",
 		// })
-		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
+		cli, _ := rdbc.Dialer.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"))
 		defer cli.Close()
 		// err := cli.Set("hs", "key1")
 		// assert.Assert(t, err == nil, err)
