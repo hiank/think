@@ -44,3 +44,10 @@ type Server interface {
 type Handler interface {
 	Process(string, *Doc)
 }
+
+//HandlerFunc easy convert func to Handler
+type HandlerFunc func(string, *Doc)
+
+func (hf HandlerFunc) Process(id string, d *Doc) {
+	hf(id, d)
+}
