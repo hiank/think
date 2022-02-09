@@ -16,7 +16,7 @@ type testHandler struct {
 	out chan *net.Doc
 }
 
-func (tch *testHandler) Handle(d *net.Doc) {
+func (tch *testHandler) Process(d *net.Doc) {
 	tch.out <- d
 	// return nil
 }
@@ -62,7 +62,7 @@ func TestServer(t *testing.T) {
 	go srv.ListenAndServe()
 
 	handlerPP := make(chan *net.Doc)
-	srv.AddHandler("", &testHandler{out: handlerPP})
+	srv.Handle("", &testHandler{out: handlerPP})
 
 	t.Run("accept-recv-send", func(t *testing.T) {
 		recvPP, sendPP := make(chan *net.Doc), make(chan *net.Doc)

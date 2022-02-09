@@ -90,7 +90,7 @@ func (cp *connpool) loopRecv(identity string, conn *fatconn) {
 		if err = cp.lookErr(err); err != nil {
 			return
 		}
-		go cp.h.Handle(d)
+		go cp.h.Process(d)
 	}
 }
 

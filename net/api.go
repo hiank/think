@@ -19,7 +19,7 @@ type Dialer interface {
 
 type Client interface {
 	Send(d *Doc, ti string) error
-	AddHandler()
+	Handle(k interface{}, h Handler)
 }
 
 type Listener interface {
@@ -35,12 +35,12 @@ type Server interface {
 	//means send for all conn
 	Send(v interface{}, tis ...string) error
 	//AddHandler add handler for revc message
-	AddHandler(k interface{}, h Handler)
+	Handle(k interface{}, h Handler)
 	//
 	Close() error
 }
 
 //Handler handle message
 type Handler interface {
-	Handle(*Doc)
+	Process(*Doc)
 }

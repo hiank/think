@@ -16,9 +16,9 @@ type fathandler struct {
 	// kd KeyDecoder
 }
 
-//AddHandler add handler for message recv
+//Handle add handler for message recv
 //use k's Type Name as key
-func (fh *fathandler) AddHandler(k interface{}, h Handler) {
+func (fh *fathandler) Handle(k interface{}, h Handler) {
 	sk, ok := k.(string)
 	if !ok {
 		rv := reflect.ValueOf(k)
@@ -30,8 +30,8 @@ func (fh *fathandler) AddHandler(k interface{}, h Handler) {
 	fh.m.Store(sk, h)
 }
 
-//Handle message
-func (fh *fathandler) Handle(d *Doc) {
+//Process message
+func (fh *fathandler) Process(d *Doc) {
 	mv, loaded := fh.m.Load(d.TypeName())
 	if !loaded {
 		if mv, loaded = fh.m.Load(DefaultHandler); !loaded {
@@ -39,5 +39,5 @@ func (fh *fathandler) Handle(d *Doc) {
 			return
 		}
 	}
-	mv.(Handler).Handle(d)
+	mv.(Handler).Process(d)
 }
