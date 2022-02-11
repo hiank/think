@@ -1,8 +1,6 @@
 package net
 
 import (
-	"fmt"
-
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -28,7 +26,7 @@ func MakeDoc(v interface{}) (d *Doc, err error) {
 		d.b, d.v = v, new(anypb.Any)
 		err = proto.Unmarshal(d.b, d.v)
 	default:
-		err = fmt.Errorf("v should be bytes/proto.Message")
+		err = ErrInvalidDocParam
 	}
 	if err != nil {
 		d = nil

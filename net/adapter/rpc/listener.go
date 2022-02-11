@@ -2,8 +2,6 @@ package rpc
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	snet "net"
 	"strconv"
@@ -14,6 +12,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"k8s.io/klog/v2"
+)
+
+const (
+	ErrLinkClosed = run.Err("rpc: Link closed")
 )
 
 func defaultListenOptions() listenOptions {
@@ -39,7 +41,7 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
 	}
 	lis, err := new(snet.ListenConfig).Listen(ctx, "tcp", dopts.addr)
 	if err != nil {
-		panic(fmt.Errorf("cannot listen in %x: %x", dopts.addr, err))
+		panic(err)
 	}
 	srv, linkPP := grpc.NewServer(), make(chan net.IAC)
 	l := &listener{
@@ -91,5 +93,5 @@ func (l *listener) Link(ls pp.Pipe_LinkServer) (err error) {
 		l.linkPP <- net.IAC{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
 		<-ctx.Done()
 	}
-	return errors.New("link closed")
+	return ErrLinkClosed
 }

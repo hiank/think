@@ -1,8 +1,6 @@
 package db
 
 import (
-	"fmt"
-
 	"github.com/hiank/think/doc"
 )
 
@@ -33,7 +31,7 @@ func (bc BytesCoder) Encode(v interface{}) (out []byte, err error) {
 	} else if js, ok := v.(JSON); ok {
 		d, v = new(doc.Json), js.V
 	} else {
-		return nil, fmt.Errorf("invalid param type: support PB GOB JSON now")
+		return nil, ErrInvalidBCParam
 	}
 	if err = d.Encode(v); err == nil {
 		out = d.Val()
@@ -55,5 +53,5 @@ func (bc BytesCoder) Decode(v []byte, out interface{}) error {
 		d := doc.Json(v)
 		return d.Decode(js.V)
 	}
-	return fmt.Errorf("invalid param type: support PB GOB JSON now")
+	return ErrInvalidBCParam
 }

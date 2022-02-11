@@ -2,13 +2,17 @@ package net
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/hiank/think/run"
 	"k8s.io/klog/v2"
+)
+
+const (
+	ErrNoConn          = run.Err("net: no conn")
+	ErrInvalidDocParam = run.Err("net: invalid doc param: should be bytes/proto.Message")
 )
 
 type connpool struct {
@@ -123,7 +127,7 @@ func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
 		return len(tis) > 0
 	})
 	if len(tis) > 0 {
-		err = fmt.Errorf("cannot found conn for (%v)", tis)
+		err = ErrNoConn
 	}
 	return
 }

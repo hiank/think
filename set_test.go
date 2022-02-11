@@ -49,10 +49,13 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 	return
 }
 
-// Delete deletes the stored value for the given key.
-func (ts *testKvStore) Delete(k string) error {
+// Del deletes the stored value for the given key.
+func (ts *testKvStore) Del(k string, outs ...interface{}) error {
 	if k == "" {
 		return fmt.Errorf("invalid key")
+	}
+	if _, ok := ts.m[k]; !ok {
+		return db.ErrNotFound
 	}
 	delete(ts.m, k)
 	return nil

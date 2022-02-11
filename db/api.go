@@ -15,7 +15,9 @@ type KvDialer interface {
 type KvDB interface {
 	Get(k string, out interface{}) (found bool, err error)
 	Set(k string, v interface{}) error
-	Delete(k string) error
+	//Del delete value for k
+	//when contains outs, decode these before delete
+	Del(k string, outs ...interface{}) error
 	io.Closer
 }
 

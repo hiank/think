@@ -116,7 +116,7 @@ func TestRedisCli(t *testing.T) {
 		var outVal1 testdata.Test1
 		found, err := cli.Get("key1", db.PB{V: &outVal1})
 		assert.Assert(t, !found)
-		assert.Assert(t, err != nil)
+		assert.Equal(t, err, db.ErrNotFound)
 
 		found, err = cli.Get("hs", db.PB{V: &outVal1})
 		assert.Assert(t, found)
@@ -132,13 +132,16 @@ func TestRedisCli(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal2.Age, int32(18))
 
-		err = cli.Delete("key1")
-		assert.Assert(t, err == nil, err)
+		err = cli.Del("key1")
+		// assert.Assert(t, err == nil, err)
+		assert.Equal(t, err, db.ErrNotFound, "delete not existed key")
 		found, _ = cli.Get("hs", db.PB{V: &outVal2})
 		assert.Assert(t, found)
 
-		err = cli.Delete("hs")
+		var outVal3 testdata.Test2
+		err = cli.Del("hs", db.PB{V: &outVal3})
 		assert.Assert(t, err == nil, err)
+		assert.Equal(t, outVal3.GetAge(), int32(18))
 		found, _ = cli.Get("hs", db.PB{V: &outVal2})
 		assert.Assert(t, !found)
 
@@ -180,7 +183,7 @@ func TestRedisCli(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1, *val1)
 
-		err = cli.Delete("hs")
+		err = cli.Del("hs")
 		assert.Assert(t, err == nil)
 		found, err = cli.Get("hs", db.JSON{V: &outVal1})
 		assert.Assert(t, !found)
