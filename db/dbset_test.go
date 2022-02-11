@@ -48,7 +48,7 @@ func TestRobustDB(t *testing.T) {
 	rdb.Get(db.KTDisk.Encode("key"), &val)
 	assert.Equal(t, val, 1)
 
-	err = rdb.Delete(db.KTMix.Encode("key"))
+	err = rdb.Del(db.KTMix.Encode("key"))
 	assert.Assert(t, err == nil, err)
 	found, err := rdb.Get(db.KTDisk.Encode("key"), &val)
 	assert.Assert(t, !found)
@@ -173,7 +173,21 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 	if rv.Kind() != reflect.Ptr {
 		return true, fmt.Errorf("cannot convert value to copy interface")
 	}
-	mrv := reflect.ValueOf(stv)
+	// mrv := reflect.ValueOf(stv)
+	// for mrv.Kind() == reflect.Ptr {
+	// 	mrv = mrv.Elem()
+	// }
+	// for rv.Kind() == reflect.Ptr {
+	// 	rv = rv.Elem()
+	// }
+	// //
+	// rv.Set(mrv)
+	ts.decode(stv, v)
+	return
+}
+
+func (ts *testKvStore) decode(s, out interface{}) {
+	mrv, rv := reflect.ValueOf(s), reflect.ValueOf(out)
 	for mrv.Kind() == reflect.Ptr {
 		mrv = mrv.Elem()
 	}
@@ -182,13 +196,17 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 	}
 	//
 	rv.Set(mrv)
-	return
 }
 
 // Delete deletes the stored value for the given key.
-func (ts *testKvStore) Delete(k string) error {
+func (ts *testKvStore) Del(k string, outs ...interface{}) error {
 	if k == "" {
 		return fmt.Errorf("invalid key")
+	}
+	if v, ok := ts.m[k]; ok {
+		for _, out := range outs {
+			ts.decode(v, out)
+		}
 	}
 	delete(ts.m, k)
 	return nil
@@ -237,7 +255,7 @@ func TestDataset(t *testing.T) {
 		dataset.KvDB().Set(db.KTDisk.Encode("name"), "hiank")
 		assert.Equal(t, len(tks.m), 2)
 
-		err = dataset.KvDB().Delete(db.KTDisk.Encode("id"))
+		err = dataset.KvDB().Del(db.KTDisk.Encode("id"))
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(tks.m), 1)
 	}
@@ -288,7 +306,7 @@ func TestDataset(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, name, "h")
 
-		err = dataset.KvDB().Delete(db.KTMix.Encode("name"))
+		err = dataset.KvDB().Del(db.KTMix.Encode("name"))
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, len(memStore.m), 2)
 		assert.Equal(t, len(diskStore.m), 0)

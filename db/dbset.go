@@ -19,19 +19,15 @@ func pushError(err, ex error) error {
 }
 
 func decode(k string) (kt KeyTag, baseKey string, err error) {
-	var val int
-	if strs := regexp.MustCompile(ktRegexp).FindStringSubmatch(k); len(strs) < 2 {
-		err = fmt.Errorf("invalid key(%s): non KeyTag information(%v)", k, strs)
-	} else if len(strs[0]) == len(k) {
-		err = fmt.Errorf("invalid key(%s): non base key information", k)
-	} else if val, err = strconv.Atoi(strs[1]); err == nil {
-		if kt = KeyTag(val); KTMix.equal(kt) {
-			baseKey = k[len(strs[0]):] //strs[0] is "[`kt`@KT]"
-		} else {
-			kt, err = 0, fmt.Errorf("invalid key(%s): overflow keytag(%d)", k, val)
+	if strs := regexp.MustCompile(ktRegexp).FindStringSubmatch(k); len(strs) > 1 && len(strs[0]) != len(k) {
+		if val, err := strconv.ParseUint(strs[1], 10, 8); err == nil {
+			if kt = KeyTag(val); KTMix.equal(kt) {
+				//strs[0] is "[`kt`@KT]"
+				return kt, k[len(strs[0]):], nil
+			}
 		}
 	}
-	return
+	return 0, "", ErrInvalidKey
 }
 
 //robustDB encapsulation of client
@@ -51,9 +47,9 @@ func (rd *robustDB) Get(k string, v interface{}) (found bool, err error) {
 }
 
 // Delete deletes the stored value for the given key.
-func (rd *robustDB) Delete(k string) error {
+func (rd *robustDB) Del(k string, outs ...interface{}) error {
 	_, k, _ = decode(k)
-	return rd.store.Delete(k)
+	return rd.store.Del(k, outs...)
 }
 
 func (rd *robustDB) Close() (err error) {
@@ -124,18 +120,18 @@ func (md *mixDB) Get(k string, v interface{}) (found bool, err error) {
 	return
 }
 
-// Delete deletes the stored value for the given key.
-func (md *mixDB) Delete(k string) error {
+// Del deletes the stored value for the given key.
+func (md *mixDB) Del(k string, outs ...interface{}) error {
 	kt, k, err := md.decode(k)
 	if err != nil {
 		return err
 	}
 	for mkt, store := range md.mstore {
 		if kt.equal(mkt) {
-			err = pushError(err, store.Delete(k))
+			err = pushError(err, store.Del(k, outs...))
 		}
 	}
-	md.mstore[KTMem].Delete(fmt.Sprintf("KTCACHE@%s", k))
+	md.mstore[KTMem].Del(fmt.Sprintf("KTCACHE@%s", k), outs...)
 	return err
 }
 

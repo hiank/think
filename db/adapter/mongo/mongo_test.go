@@ -113,7 +113,7 @@ func funcTestKvDBPB(t *testing.T) {
 	var outVal1 testdata.Test1
 	found, err := kvdb.Get("token", db.PB{V: &outVal1})
 	assert.Assert(t, !found)
-	assert.Assert(t, err != nil)
+	assert.Equal(t, err, db.ErrNotFound)
 
 	err = kvdb.Set("token", "not proto.Message")
 	assert.Assert(t, err != nil, "value to set must be a proto.Message")
@@ -132,7 +132,7 @@ func funcTestKvDBPB(t *testing.T) {
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal1.GetName(), "hiank")
 
-	err = kvdb.Delete("token")
+	err = kvdb.Del("token")
 	assert.Assert(t, err == nil, err)
 
 	found, _ = kvdb.Get("token", db.PB{V: &outVal1})
@@ -180,8 +180,10 @@ func funcTestKvDBJson(t *testing.T) {
 		Id:   0,
 	})
 
-	err = kvdb.Delete("51@json")
+	var outVal3 testDBJson2
+	err = kvdb.Del("51@json", db.JSON{V: &outVal3})
 	assert.Assert(t, err == nil, err)
+	assert.Equal(t, outVal3.Age, 18)
 	found, _ = kvdb.Get("51@json", db.JSON{V: &outVal1})
 	assert.Assert(t, !found)
 

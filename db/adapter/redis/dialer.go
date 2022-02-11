@@ -31,8 +31,8 @@ func (d dialer) Dial(ctx context.Context, opts ...db.DialOption) (kv db.KvDB, er
 	})
 	if err = cli.Ping(ctx).Err(); err == nil {
 		kv = &liteDB{
-			ctx:    ctx,
-			Client: cli,
+			ctx:  ctx,
+			rcli: cli,
 		}
 	}
 	return

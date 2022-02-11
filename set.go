@@ -2,14 +2,17 @@ package think
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/hiank/think/db"
 	"github.com/hiank/think/doc/file"
+	"github.com/hiank/think/run"
 	"github.com/nats-io/nats.go"
 	"k8s.io/klog/v2"
 )
+
+//ErrNoAwake `Awake` has not been executed
+const ErrNoAwake = run.Err("think: should do `Awake` before")
 
 //makeOptions make options with given Option
 //some field maybe contains default value
@@ -91,7 +94,7 @@ func Awake(opts ...Option) (done bool) {
 func Set() utilset {
 	once.Do(func() {
 		once = new(sync.Once)
-		panic(errors.New("unique not generate now. you should call 'set.Init' to generate an unique object"))
+		panic(ErrNoAwake)
 	})
 	return unique
 }
@@ -103,7 +106,7 @@ func Destroy() {
 		unique, once = nil, new(sync.Once)
 	}()
 	once.Do(func() {
-		panic(errors.New("unique not generate now. should not call Release"))
+		panic(ErrNoAwake)
 	})
 	unique.natsconn.Close()
 	unique.cancel() //cancel todo
