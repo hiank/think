@@ -42,7 +42,9 @@ func (tl *testListener) Close() error {
 }
 
 func TestNewServer(t *testing.T) {
-	srv := net.NewServer(&testListener{connPP: make(chan *net.IAC)})
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	srv := net.NewServer(ctx, &testListener{connPP: make(chan *net.IAC)})
 	go func() {
 		srv.Close()
 	}()
@@ -54,10 +56,10 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	// srv := net.NewServer(nil)
-	// err := srv.ListenAndServe()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	accept := make(chan *net.IAC)
-	srv := net.NewServer(&testListener{connPP: accept})
+	srv := net.NewServer(ctx, &testListener{connPP: accept})
 	defer srv.Close()
 	go srv.ListenAndServe()
 

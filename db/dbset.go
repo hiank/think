@@ -142,6 +142,24 @@ func (md *mixDB) Close() (err error) {
 	return
 }
 
+type emptyDB byte
+
+func (emptyDB) Get(string, interface{}) (bool, error) {
+	return false, ErrUnimplemented
+}
+
+func (emptyDB) Set(string, interface{}) error {
+	return ErrUnimplemented
+}
+
+func (emptyDB) Del(string, ...interface{}) error {
+	return ErrUnimplemented
+}
+
+func (emptyDB) Close() error {
+	return ErrUnimplemented
+}
+
 type liteSet struct {
 	store KvDB
 }
@@ -162,7 +180,7 @@ func NewDBS(mstore map[KeyTag]KvDB) DBS {
 	case 2:
 		store = &mixDB{mstore: mstore}
 	default:
-		panic("at least one k-v database is required")
+		store = emptyDB(0)
 	}
 	return &liteSet{store: store}
 }

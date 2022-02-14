@@ -4,13 +4,6 @@ import (
 	"context"
 )
 
-// func defaultServeOptions() serveOptions {
-// 	return serveOptions{
-// 		// handlerKeyDecoder: coder.TypeKey(0),
-// 		// bytesCoder:        coder.AnyBytes(0),
-// 	}
-// }
-
 type server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -19,13 +12,8 @@ type server struct {
 	*connpool
 }
 
-func NewServer(listener Listener) Server {
-	// dopts := defaultServeOptions()
-	// for _, opt := range opts {
-	// 	opt.apply(&dopts)
-	// }
-	ctx, cancel := context.WithCancel(context.Background())
-	// h := &fathandler{kd: dopts.handlerKeyDecoder}
+func NewServer(ctx context.Context, listener Listener) Server {
+	ctx, cancel := context.WithCancel(ctx)
 	h := new(fathandler)
 	return &server{
 		listener:   listener,

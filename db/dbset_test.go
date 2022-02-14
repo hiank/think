@@ -218,11 +218,17 @@ func (ts *testKvStore) Close() (err error) {
 
 func TestDataset(t *testing.T) {
 	t.Run("non store in param", func(t *testing.T) {
-		defer func(t *testing.T) {
-			r := recover()
-			assert.Assert(t, r != nil, "at least one store need to crate Dataset")
-		}(t)
-		db.NewDBS(nil)
+		// defer func(t *testing.T) {
+		// 	r := recover()
+		// 	assert.Assert(t, r != nil, "at least one store need to crate Dataset")
+		// }(t)
+		kv := db.NewDBS(nil)
+		assert.Equal(t, kv.KvDB().Set("id", 12), db.ErrUnimplemented)
+		assert.Equal(t, kv.KvDB().Del("id"), db.ErrUnimplemented)
+		assert.Equal(t, kv.KvDB().Close(), db.ErrUnimplemented)
+		var id uint64
+		_, err := kv.KvDB().Get("id", &id)
+		assert.Equal(t, err, db.ErrUnimplemented)
 	})
 
 	onlyOneStoreTest := func(kt db.KeyTag, t *testing.T) {
