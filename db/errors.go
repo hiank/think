@@ -8,5 +8,6 @@ const (
 	//invalid param for BytesCoder. must be PB/GOB/JSON
 	ErrInvalidBCParam = run.Err("db: invalid BytesCoder param: only support PB GOB JSON now")
 	//
-	ErrInvalidKey = run.Err("db: invalid key (should form [`kt`@KT]`baseKey`)")
+	ErrInvalidKey    = run.Err("db: invalid key (should form [`kt`@KT]`baseKey`)")
+	ErrUnimplemented = run.Err("db: unimplemented interface")
 )
