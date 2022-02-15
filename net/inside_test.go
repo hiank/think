@@ -163,6 +163,13 @@ func TestConnpool(t *testing.T) {
 			assert.Equal(t, b, v.Bytes()[i])
 			assert.Equal(t, b, v2.Bytes()[i])
 		}
+
+		err = cp.Send(&testdata.AnyTest2{Hope: "hope"}, "3")
+		assert.Equal(t, err, ErrNoConn)
+
+		tids := []string{"1", "2"}
+		err = cp.Send(&testdata.AnyTest2{Hope: "hope"}, tids...)
+		assert.Equal(t, err, nil)
 	})
 }
 

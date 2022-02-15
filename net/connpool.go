@@ -113,20 +113,20 @@ func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
 		})
 		return
 	}
+	km := make(map[interface{}]byte)
+	for _, k := range tis {
+		km[k] = 1
+	}
 	cp.m.Range(func(key, value interface{}) bool {
-		for i, id := range tis {
-			if id == key {
-				copy(tis[i:], tis[i+1:])
-				tis = tis[:len(tis)-1]
-				if tmperr := cp.lookErr(value.(*fatconn).Send(d)); tmperr != nil {
-					err = tmperr
-				}
-				break
+		if _, ok := km[key]; ok {
+			if tmperr := cp.lookErr(value.(*fatconn).Send(d)); tmperr != nil {
+				err = tmperr
 			}
+			delete(km, key)
 		}
-		return len(tis) > 0
+		return len(km) > 0
 	})
-	if len(tis) > 0 {
+	if len(km) > 0 {
 		err = ErrNoConn
 	}
 	return
