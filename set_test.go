@@ -84,13 +84,13 @@ func TestSetUnique(t *testing.T) {
 		}(t)
 		think.Destroy()
 	})
-	t.Run("call Awake panice without necessary options", func(t *testing.T) {
-		defer func(t *testing.T) {
-			rcv := recover()
-			assert.Assert(t, rcv != nil, "must contians necessary options")
-		}(t)
-		think.Awake()
-	})
+	// t.Run("call Awake panice without necessary options", func(t *testing.T) {
+	// 	defer func(t *testing.T) {
+	// 		rcv := recover()
+	// 		assert.Assert(t, rcv != nil, "must contians necessary options")
+	// 	}(t)
+	// 	think.Awake()
+	// })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

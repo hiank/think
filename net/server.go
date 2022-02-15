@@ -2,25 +2,31 @@ package net
 
 import (
 	"context"
+	"reflect"
+	"sync"
+
+	"github.com/hiank/think/run"
+	"k8s.io/klog/v2"
+)
+
+const (
+	DefaultHandler string = ""
 )
 
 type server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	listener Listener
-	*fathandler
 	*connpool
 }
 
-func NewServer(ctx context.Context, listener Listener) Server {
-	ctx, cancel := context.WithCancel(ctx)
-	h := new(fathandler)
+func NewServer(listener Listener, h Handler) Server {
+	ctx, cancel := context.WithCancel(run.TODO())
 	return &server{
-		listener:   listener,
-		ctx:        ctx,
-		cancel:     cancel,
-		fathandler: h,
-		connpool:   newConnpool(ctx, h),
+		listener: listener,
+		ctx:      ctx,
+		cancel:   cancel,
+		connpool: newConnpool(ctx, h),
 	}
 }
 
@@ -48,4 +54,31 @@ func (srv *server) Close() (err error) {
 		err = srv.listener.Close()
 	}
 	return
+}
+
+type RouteMux struct {
+	m sync.Map
+}
+
+func (rm *RouteMux) Handle(k interface{}, h Handler) {
+	sk, ok := k.(string)
+	if !ok {
+		rv := reflect.ValueOf(k)
+		for rv.Kind() == reflect.Ptr {
+			rv = rv.Elem()
+		}
+		sk = rv.Type().Name()
+	}
+	rm.m.Store(sk, h)
+}
+
+func (rm *RouteMux) Route(id string, d *Doc) {
+	mv, loaded := rm.m.Load(d.TypeName())
+	if !loaded {
+		if mv, loaded = rm.m.Load(DefaultHandler); !loaded {
+			klog.Warning("cannot find handler for handle message recv by conn: ", d.TypeName())
+			return
+		}
+	}
+	mv.(Handler).Route(id, d)
 }

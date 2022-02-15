@@ -42,8 +42,11 @@ func (d *Doc) Any() *anypb.Any {
 	return d.v
 }
 
-func (d *Doc) TypeName() string {
-	return string(d.v.ProtoReflect().Descriptor().Name())
+func (d *Doc) TypeName() (tn string) {
+	if fn := d.v.MessageName(); fn.IsValid() {
+		tn = string(fn.Name())
+	}
+	return
 }
 
 // type anyDoc struct {

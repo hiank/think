@@ -94,7 +94,7 @@ func (cp *connpool) loopRecv(id string, conn *fatconn) {
 		if err = cp.lookErr(err); err != nil {
 			return
 		}
-		go cp.h.Process(id, d)
+		go cp.h.Route(id, d)
 	}
 }
 
