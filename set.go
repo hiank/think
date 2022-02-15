@@ -71,6 +71,7 @@ func Awake(opts ...Option) (done bool) {
 		dopts := makeOptions(opts...)
 		unique = &uniqueSet{decoder: file.Fat()}
 		unique.todo, unique.cancel = context.WithCancel(dopts.todo)
+		run.TODO(unique.todo)
 		var err error
 		if dopts.natsUrl != "" {
 			if unique.natsconn, err = nats.Connect(dopts.natsUrl); err != nil {

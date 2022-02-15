@@ -16,7 +16,7 @@ type testHandler struct {
 	out chan *net.Doc
 }
 
-func (tch *testHandler) Process(id string, d *net.Doc) {
+func (tch *testHandler) Route(id string, d *net.Doc) {
 	tch.out <- d
 	// return nil
 }
@@ -42,9 +42,10 @@ func (tl *testListener) Close() error {
 }
 
 func TestNewServer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-	srv := net.NewServer(ctx, &testListener{connPP: make(chan *net.IAC)})
+	// ctx, cancel := context.WithCancel(context.TODO())
+	// defer cancel()
+	router := &net.RouteMux{}
+	srv := net.NewServer(&testListener{connPP: make(chan *net.IAC)}, router)
 	go func() {
 		srv.Close()
 	}()
@@ -55,16 +56,43 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, err, context.Canceled, "close could called repeatedly")
 }
 
+func TestDoc(t *testing.T) {
+	doc, err := net.MakeDoc(&testdata.G_Example{})
+	assert.Assert(t, err == nil, err)
+	assert.Equal(t, doc.TypeName(), "G_Example", doc.TypeName())
+
+	_, err = net.MakeDoc(11)
+	assert.Assert(t, err != nil, "param for makedoc should be a proto.Message")
+
+	// b := doc.Bytes()
+	var amsg anypb.Any
+	err = proto.Unmarshal(doc.Bytes(), &amsg)
+	assert.Assert(t, err == nil, err)
+}
+
+func TestRouteMux(t *testing.T) {
+	rm := &net.RouteMux{}
+	nt := make(chan *net.Doc, 1)
+	rm.Handle("S_Example", net.HandlerFunc(func(s string, d *net.Doc) {
+		nt <- d
+	}))
+
+	d, _ := net.MakeDoc(&testdata.S_Example{Value: "route"})
+	rm.Route("tmp", d)
+
+	d = <-nt
+	v, _ := d.Any().UnmarshalNew()
+	assert.Equal(t, v.(*testdata.S_Example).GetValue(), "route")
+}
+
 func TestServer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-	accept := make(chan *net.IAC)
-	srv := net.NewServer(ctx, &testListener{connPP: accept})
-	defer srv.Close()
-	go srv.ListenAndServe()
 
 	handlerPP := make(chan *net.Doc)
-	srv.Handle("", &testHandler{out: handlerPP})
+	accept, router := make(chan *net.IAC), &net.RouteMux{}
+	router.Handle("", &testHandler{out: handlerPP})
+	srv := net.NewServer(&testListener{connPP: accept}, router)
+	defer srv.Close()
+	go srv.ListenAndServe()
 
 	t.Run("accept-recv-send", func(t *testing.T) {
 		recvPP, sendPP := make(chan *net.Doc), make(chan *net.Doc)

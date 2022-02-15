@@ -19,7 +19,7 @@ type Dialer interface {
 
 type Client interface {
 	Send(d *Doc, ti string) error
-	Handle(k interface{}, h Handler)
+	// Handle(k interface{}, h Handler)
 }
 
 type Listener interface {
@@ -34,20 +34,20 @@ type Server interface {
 	//ti is target identity. when len(ti) == 0
 	//means send for all conn
 	Send(v interface{}, tis ...string) error
-	//AddHandler add handler for revc message
-	Handle(k interface{}, h Handler)
+	// //AddHandler add handler for revc message
+	// Handle(k interface{}, h Handler)
 	//
 	Close() error
 }
 
 //Handler handle message
 type Handler interface {
-	Process(string, *Doc)
+	Route(string, *Doc)
 }
 
 //HandlerFunc easy convert func to Handler
 type HandlerFunc func(string, *Doc)
 
-func (hf HandlerFunc) Process(id string, d *Doc) {
+func (hf HandlerFunc) Route(id string, d *Doc) {
 	hf(id, d)
 }
