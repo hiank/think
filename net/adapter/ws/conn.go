@@ -19,10 +19,12 @@ func (l *conn) Send(d *net.Doc) error {
 
 func (l *conn) Recv() (out *net.Doc, err error) {
 	t, bs, err := l.wc.ReadMessage()
-	if t != websocket.BinaryMessage {
-		err = ErrUnsupportMessageType
-	} else if err == nil {
-		out, err = net.MakeDoc(bs)
+	if err == nil {
+		if t == websocket.BinaryMessage {
+			out, err = net.MakeDoc(bs)
+		} else {
+			err = ErrUnsupportMessageType
+		}
 	}
 	return
 }
