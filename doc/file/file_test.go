@@ -95,3 +95,35 @@ type testConfig struct {
 	Tik string `json:"sys.Tik"`
 	Tok int    `yaml:"Tok"`
 }
+
+type testYaml struct {
+	A    string `yaml:"a"`
+	Hope string `yaml:"Hope"`
+	Hp   string `yaml:"hp"`
+	P    string `yaml:"redis.slave"`
+}
+
+func TestFat(t *testing.T) {
+	fat := file.Fat()
+	err := fat.LoadFile("testdata/config.yaml")
+	assert.Equal(t, err, nil, err)
+
+	var val testYaml
+	err = fat.Decode(&val)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, val.A, "ws")
+	assert.Equal(t, val.Hp, "hp")
+	assert.Equal(t, val.Hope, "love")
+	assert.Equal(t, val.P, "slave")
+
+	fat.Clear()
+	var val2 testYaml
+	err = fat.Decode(&val2)
+	assert.Equal(t, err, nil)
+
+	assert.Equal(t, val2.A, "", "cleared")
+	assert.Equal(t, val2.Hp, "")
+	assert.Equal(t, val2.Hope, "")
+	assert.Equal(t, val2.P, "")
+}

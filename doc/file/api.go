@@ -44,5 +44,5 @@ func Fit(form Form) Decoder {
 }
 
 func Fat() Decoder {
-	return new(fat)
+	return &fat{m: make(map[string]Decoder)} //new(fat)
 }
