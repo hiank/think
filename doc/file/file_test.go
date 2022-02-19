@@ -1,7 +1,6 @@
 package file_test
 
 import (
-	"strconv"
 	"testing"
 
 	"github.com/hiank/think/doc/file"
@@ -39,27 +38,26 @@ func TestFit(t *testing.T) {
 		err = buffer.Decode(&val)
 		assert.Assert(t, err != nil, "only support array or map param")
 
-		m := map[string]interface{}{}
-		m["ID"] = new(testExcelConfig)
+		m := map[uint]*testExcelConfig{}
 		err = buffer.Decode(m)
 		assert.Assert(t, err == nil, err)
 
 		for _, v := range wantExcel {
-			assert.Equal(t, *m[strconv.FormatUint(uint64(v.ID), 10)].(*testExcelConfig), *v)
+			assert.DeepEqual(t, *m[v.ID], *v)
 		}
 
-		l := []interface{}{new(testExcelConfig)}
+		l := []*testExcelConfig{}
 		err = buffer.Decode(&l)
 		assert.Assert(t, err == nil, err)
 		for i, v := range wantExcel {
-			assert.Equal(t, *l[i].(*testExcelConfig), *v)
+			assert.DeepEqual(t, *l[i], *v)
 		}
 
-		l = []interface{}{testExcelConfig{}}
+		l = []*testExcelConfig{}
 		err = buffer.Decode(&l)
 		assert.Assert(t, err == nil, err)
 		for i, v := range wantExcel {
-			assert.Equal(t, *l[i].(*testExcelConfig), *v)
+			assert.Equal(t, *l[i], *v)
 		}
 	})
 	t.Run("Json", func(t *testing.T) {

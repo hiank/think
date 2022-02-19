@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think/net"
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -13,11 +14,11 @@ import (
 )
 
 type testHandler struct {
-	out chan *net.Doc
+	out chan pb.M
 }
 
-func (tch *testHandler) Route(id string, d *net.Doc) {
-	tch.out <- d
+func (tch *testHandler) Route(id string, m pb.M) {
+	tch.out <- m
 	// return nil
 }
 
@@ -57,11 +58,11 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestDoc(t *testing.T) {
-	doc, err := net.MakeDoc(&testdata.G_Example{})
+	doc, err := pb.MakeM(&testdata.G_Example{})
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, doc.TypeName(), "G_Example", doc.TypeName())
 
-	_, err = net.MakeDoc(11)
+	_, err = pb.MakeM(11)
 	assert.Assert(t, err != nil, "param for makedoc should be a proto.Message")
 
 	// b := doc.Bytes()
@@ -72,12 +73,12 @@ func TestDoc(t *testing.T) {
 
 func TestRouteMux(t *testing.T) {
 	rm := &net.RouteMux{}
-	nt := make(chan *net.Doc, 1)
-	rm.Handle("S_Example", net.HandlerFunc(func(s string, d *net.Doc) {
-		nt <- d
+	nt := make(chan pb.M, 1)
+	rm.Handle("S_Example", net.HandlerFunc(func(s string, m pb.M) {
+		nt <- m
 	}))
 
-	d, _ := net.MakeDoc(&testdata.S_Example{Value: "route"})
+	d, _ := pb.MakeM(&testdata.S_Example{Value: "route"})
 	rm.Route("tmp", d)
 
 	d = <-nt
@@ -87,7 +88,7 @@ func TestRouteMux(t *testing.T) {
 
 func TestServer(t *testing.T) {
 
-	handlerPP := make(chan *net.Doc)
+	handlerPP := make(chan pb.M)
 	accept, router := make(chan *net.IAC), &net.RouteMux{}
 	router.Handle("", &testHandler{out: handlerPP})
 	srv := net.NewServer(&testListener{connPP: accept}, router)
@@ -95,14 +96,14 @@ func TestServer(t *testing.T) {
 	go srv.ListenAndServe()
 
 	t.Run("accept-recv-send", func(t *testing.T) {
-		recvPP, sendPP := make(chan *net.Doc), make(chan *net.Doc)
+		recvPP, sendPP := make(chan pb.M), make(chan pb.M)
 		tc := net.Export_newTestConn(recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
 		accept <- &net.IAC{ID: "1", Conn: tc}
 
 		msg := &testdata.S_Example{Value: "pp"}
 		any, _ := anypb.New(msg)
 		d, _ := proto.Marshal(any)
-		ndoc, _ := net.MakeDoc(d)
+		ndoc, _ := pb.MakeM(d)
 		recvPP <- ndoc
 
 		doc := <-handlerPP

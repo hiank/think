@@ -3,7 +3,7 @@ package rpc
 import (
 	"context"
 
-	"github.com/hiank/think/net"
+	"github.com/hiank/think/net/pb"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -23,18 +23,18 @@ type conn struct {
 // 	return c.identity
 // }
 
-func (c *conn) Send(b *net.Doc) (err error) {
+func (c *conn) Send(m pb.M) (err error) {
 	if err = c.ctx.Err(); err == nil {
-		err = c.s.Send(b.Any())
+		err = c.s.Send(m.Any())
 	}
 	return
 }
 
-func (c *conn) Recv() (out *net.Doc, err error) {
+func (c *conn) Recv() (out pb.M, err error) {
 	if err = c.ctx.Err(); err == nil {
 		var amsg *anypb.Any
 		if amsg, err = c.s.Recv(); err == nil {
-			out, err = net.MakeDoc(amsg)
+			out, err = pb.MakeM(amsg)
 		}
 	}
 	return

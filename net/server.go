@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/run"
 	"k8s.io/klog/v2"
 )
@@ -72,13 +73,13 @@ func (rm *RouteMux) Handle(k interface{}, h Handler) {
 	rm.m.Store(sk, h)
 }
 
-func (rm *RouteMux) Route(id string, d *Doc) {
-	mv, loaded := rm.m.Load(d.TypeName())
+func (rm *RouteMux) Route(id string, m pb.M) {
+	mv, loaded := rm.m.Load(m.TypeName())
 	if !loaded {
 		if mv, loaded = rm.m.Load(DefaultHandler); !loaded {
-			klog.Warning("cannot find handler for handle message recv by conn: ", d.TypeName())
+			klog.Warning("cannot find handler for handle message recv by conn: ", m.TypeName())
 			return
 		}
 	}
-	mv.(Handler).Route(id, d)
+	mv.(Handler).Route(id, m)
 }

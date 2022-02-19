@@ -14,7 +14,8 @@ import (
 //not goroutine safe
 type fit struct {
 	form Form
-	doc  doc.Doc
+	// doc  doc.Doc
+	b *doc.B
 }
 
 func (f *fit) LoadFile(paths ...string) error {
@@ -46,23 +47,23 @@ func (f *fit) load(path string) (suc bool) {
 
 //LoadBytes load given form bytes value
 //the value will cover the old bytes value
-func (f *fit) LoadBytes(form Form, vals ...[]byte) error {
+func (f *fit) LoadBytes(form Form, vals ...[]byte) (err error) {
 	if form != f.form {
 		return fmt.Errorf("only support Form (%d), but given Form (%d)", f.form, form)
 	}
 	if len(vals) == 0 {
 		return fmt.Errorf("non bytes value passed")
 	}
-	return f.doc.Encode(vals[0])
+	return f.b.Encode(vals[0])
 }
 
 func (f *fit) Decode(outVals ...interface{}) (err error) {
 	for _, out := range outVals {
-		err = pushError(err, f.doc.Decode(out))
+		err = pushError(err, f.b.Decode(out))
 	}
 	return
 }
 
 func (f *fit) Clear() {
-	f.doc.Encode([]byte{})
+	f.b.Encode([]byte{})
 }

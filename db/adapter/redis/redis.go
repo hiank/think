@@ -5,13 +5,15 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/db"
+	"github.com/hiank/think/doc"
 	"k8s.io/klog/v2"
 )
 
 type liteDB struct {
-	ctx   context.Context
-	rcli  *redis.Client
-	coder db.BytesCoder
+	ctx  context.Context
+	rcli *redis.Client
+	// coder db.Docoder
+	coder doc.Tcoder
 }
 
 func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {

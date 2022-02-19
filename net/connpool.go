@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/run"
 	"k8s.io/klog/v2"
 )
@@ -101,14 +102,14 @@ func (cp *connpool) loopRecv(id string, conn *fatconn) {
 //Send send given message
 //does not block
 func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
-	d, err := MakeDoc(v)
+	m, err := pb.MakeM(v)
 	if err != nil {
 		return
 	}
 	if len(tis) == 0 {
 		//send for all conn
 		cp.m.Range(func(_, value interface{}) bool {
-			cp.lookErr(value.(*fatconn).Send(d))
+			cp.lookErr(value.(*fatconn).Send(m))
 			return true
 		})
 		return
@@ -119,7 +120,7 @@ func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
 	}
 	cp.m.Range(func(key, value interface{}) bool {
 		if _, ok := km[key]; ok {
-			if tmperr := cp.lookErr(value.(*fatconn).Send(d)); tmperr != nil {
+			if tmperr := cp.lookErr(value.(*fatconn).Send(m)); tmperr != nil {
 				err = tmperr
 			}
 			delete(km, key)
@@ -161,20 +162,20 @@ func newFatconn(ctx context.Context, id string, conn Conn, rm chan string) *fatc
 }
 
 //Write bytes to remote
-func (fc *fatconn) Send(d *Doc) error {
+func (fc *fatconn) Send(m pb.M) error {
 	return fc.t.Add(run.Task{
 		H: fc.handle,
-		V: d,
+		V: m,
 	})
 }
 
-func (fc *fatconn) Recv() (*Doc, error) {
+func (fc *fatconn) Recv() (pb.M, error) {
 	return fc.conn.Recv()
 }
 
 //handle for Task
 func (fc *fatconn) handle(v interface{}) (err error) {
-	if werr := fc.conn.Send(v.(*Doc)); werr != nil {
+	if werr := fc.conn.Send(v.(pb.M)); werr != nil {
 		if werr != io.EOF {
 			klog.Warningf("conn write error: %s", werr.Error())
 		}

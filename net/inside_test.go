@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -15,24 +16,24 @@ import (
 type testConn struct {
 	k string
 	// identity uint64
-	recvPP <-chan *Doc
-	sendPP chan<- *Doc
+	recvPP <-chan pb.M
+	sendPP chan<- pb.M
 }
 
 // func (tc *testConn) GetIdentity() uint64 {
 // 	return tc.identity
 // }
 
-func (tc *testConn) Recv() (d *Doc, err error) {
-	d, ok := <-tc.recvPP
+func (tc *testConn) Recv() (m pb.M, err error) {
+	m, ok := <-tc.recvPP
 	if !ok {
 		err = io.EOF
 	}
 	return
 }
 
-func (tc *testConn) Send(d *Doc) error {
-	tc.sendPP <- d
+func (tc *testConn) Send(m pb.M) error {
+	tc.sendPP <- m
 	return nil
 }
 
@@ -84,13 +85,13 @@ func TestConnpool(t *testing.T) {
 		defer cancel()
 		cp := newConnpool(ctx, nil) //&connpool{ctx: ctx}
 
-		pp := make(chan *Doc)
+		pp := make(chan pb.M)
 		c1 := &testConn{sendPP: pp, k: "c1"}
 		cp.AddConn("1", c1)
 		_, ok := cp.m.Load("1")
 		assert.Assert(t, ok)
 		// assert.Equal(t, mv.(Conn).(*testConn), c1)
-		wait, pp2 := make(chan byte), make(chan *Doc)
+		wait, pp2 := make(chan byte), make(chan pb.M)
 		go func() {
 			cp.AddConn("1", &testConn{sendPP: pp2, k: "c2"})
 			close(wait)
@@ -137,7 +138,7 @@ func TestConnpool(t *testing.T) {
 
 		cp := newConnpool(ctx, nil) //&connpool{ctx: ctx}
 
-		pp, pp2 := make(chan *Doc), make(chan *Doc)
+		pp, pp2 := make(chan pb.M), make(chan pb.M)
 		cp.AddConn("1", &testConn{sendPP: pp, k: "c1"})
 		cp.AddConn("2", &testConn{sendPP: pp2, k: "c2"})
 

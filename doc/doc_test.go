@@ -1,17 +1,45 @@
-package doc
+package doc_test
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
-	"google.golang.org/protobuf/proto"
 	"gotest.tools/v3/assert"
 )
 
+type testJson struct {
+	Id   int
+	Name string
+	Age  int `json:"tag.age"`
+	Non  bool
+}
+
+const testJsonStr = `{"id":112,"Name":"hiank","tag.age":31,"NON":true}`
+
+type testYaml struct {
+	Name string
+	ID   int
+	L    []int `yaml:"list"`
+	M    map[string]int
+}
+
+var testYamlStr = `name: host
+id: 25
+list:
+- 320
+- 325
+- 330
+- 340
+m:
+  Id: 25
+  Lv: 22
+  age: 11
+`
+
 type testExcel struct {
 	Lv   uint   `excel:"怪物等级"`
-	ID   string `excel:"关卡ID"`
+	ID   int    `excel:"关卡ID"`
 	Name string `excel:"关卡名字"`
 }
 
@@ -21,186 +49,279 @@ var testRows [][]string = [][]string{
 	{"1", "2", "优质"},
 }
 
-type testRowsReader byte
+type testRowsConverter byte
 
-func (trr testRowsReader) Read([]byte) ([][]string, error) {
+func (trr testRowsConverter) ToRows([]byte) ([][]string, error) {
 	return testRows, nil
 }
 
-func TestRowsDoc(t *testing.T) {
-	val := &testExcel{}
-	fv := reflect.ValueOf(val)
-	assert.Equal(t, fv.Kind(), reflect.Ptr)
-
-	fv = fv.Elem()
-	assert.Equal(t, fv.Kind(), reflect.Struct)
-
-	ff, _ := fv.Type().FieldByName("ID")
-	tag := ff.Tag.Get("excel")
-	assert.Equal(t, tag, "关卡ID")
-	assert.Equal(t, ff.Name, "ID")
-
-	ed := NewRows(testRowsReader(0))
-	err := ed.Encode([]byte{})
-	assert.Assert(t, err == nil, err)
-	// var ed rowsDoc
-	// // ed.LoadFile()
-	// ed.head = testRows[0]
-	// ed.rows = testRows[1:]
-	// rc := newRowsConv(testRows, reflect.TypeOf(*val))
-	m := map[string]interface{}{"ID": val}
-	err = ed.Decode(m) //rc.Unmarshal() //unmarshalRows(testRows, reflect.TypeOf(*val))
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, len(m), 2)
-	assert.Equal(t, m["11"].(*testExcel).Lv, uint(12))
-	assert.Equal(t, m["1"].(*testExcel).Lv, uint(2))
-
-	l := []interface{}{val}
-	err = ed.Decode(&l)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, len(l), 2)
-	assert.Equal(t, l[0].(*testExcel).Lv, uint(12))
+func (trr testRowsConverter) ToBytes([][]string) ([]byte, error) {
+	return []byte{}, nil
 }
 
-func TestPB(t *testing.T) {
-	// var doc docPB
-	msg := &testdata.Test1{Name: "ll"}
-	buf, err := proto.Marshal(msg)
-	assert.Assert(t, err == nil, err)
+func verifyT(tc doc.T, data []byte, final interface{}, t *testing.T) {
+	_, err := tc.Encode()
+	assert.Equal(t, err, nil, "encode empty V")
+	// assert.Equal(t, len(b), 0)
 
-	d := PB(buf)
+	err = tc.Decode(data)
+	assert.Equal(t, err, nil)
 
-	var msg1 testdata.Test1
-	err = d.Decode(&msg1)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, msg1.GetName(), "ll")
+	//
+	assert.DeepEqual(t, tc.V, final)
 
-	// docStr := string(doc)
-	d.Encode(&testdata.Test2{Age: 18})
-	// assert.Equal(t, docStr, string(doc))
-
-	var msg2 testdata.Test2
-	d.Decode(&msg2)
-	assert.Equal(t, msg2.GetAge(), int32(18))
-
-	// assert.Equal(t, string(buf), d.Val())
+	//
+	b, err := tc.Encode()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(b), len(data))
 }
 
-type testStruct struct {
-	Name string
-	Hope string
-	Age  int
+func TestT(t *testing.T) {
+	tc := doc.T{V: &testJson{}}
+	err := tc.Decode([]byte(testJsonStr))
+	assert.Assert(t, err != nil, "no coder for T. only support make by Maker")
+
+	// val := &testJson{}
+	var val testJson
+	tc = doc.J.MakeT(&val)
+	err = tc.Decode([]byte(testJsonStr))
+	assert.Equal(t, err, nil)
+	// json decode will ignore all character case
+	assert.DeepEqual(t, val, testJson{Id: 112, Name: "hiank", Age: 31, Non: true})
+
+	val.Id = 9
+	val.Non = false
+	b, err := tc.Encode()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, string(b), `{"Id":9,"Name":"hiank","tag.age":31,"Non":false}`)
+
+	tc = doc.J.MakeT(val)
+	err = tc.Decode([]byte(testJsonStr))
+	assert.Assert(t, err != nil, "T's V must be a pointer for struct")
+
+	b2, err := tc.Encode()
+	assert.Equal(t, err, nil, "encode is ok")
+	assert.DeepEqual(t, b, b2)
+
+	t.Run("json", func(t *testing.T) {
+		var val testJson
+		tc := doc.J.MakeT(val)
+		err := tc.Decode([]byte(testJsonStr))
+		assert.Assert(t, err != nil, "cannot decode to not pointer v")
+
+		target := &testJson{
+			Id:   112,
+			Name: "hiank",
+			Age:  31,
+			Non:  true,
+		}
+		verifyT(doc.J.MakeT(&testJson{}), []byte(testJsonStr), target, t)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		var val testYaml
+		tc := doc.Y.MakeT(val)
+		err := tc.Decode([]byte(testYamlStr))
+		assert.Assert(t, err != nil, "cannot decode to not pointer v")
+
+		target := &testYaml{
+			ID:   25,
+			Name: "host",
+			L:    []int{320, 325, 330, 340},
+			M: map[string]int{
+				"age": 11,
+				"Lv":  22,
+				"Id":  25,
+			},
+		}
+		verifyT(doc.Y.MakeT(&testYaml{}), []byte(testYamlStr), target, t)
+	})
+
+	t.Run("gob", func(t *testing.T) {
+		target := &testYaml{
+			Name: "gob",
+			ID:   1,
+			L:    []int{110, 111},
+			M: map[string]int{
+				"hh": 2,
+				"ip": 10,
+			},
+		}
+		// var val testYaml
+		tc := doc.G.MakeT(target)
+
+		b, err := tc.Encode()
+		assert.Equal(t, err, nil)
+
+		verifyT(doc.G.MakeT(&testYaml{}), b, target, t)
+	})
+
+	t.Run("protobuf", func(t *testing.T) {
+		target := &testdata.Test1{Name: "test protobuf T"}
+		// var val testYaml
+		tc := doc.P.MakeT(target)
+
+		b, err := tc.Encode()
+		assert.Equal(t, err, nil)
+
+		var val testdata.Test1
+		tc = doc.P.MakeT(&val)
+		tc.Decode(b)
+		assert.Equal(t, val.Name, target.Name)
+	})
+
+	t.Run("rows", func(t *testing.T) {
+		maker := doc.NewMaker(&doc.RowsCoder{RC: testRowsConverter(0)})
+		target := []*testExcel{}
+		tc := maker.MakeT(&target)
+
+		//RC will convert any data to testRows
+		err := tc.Decode([]byte{})
+		assert.Equal(t, err, nil)
+		assert.Equal(t, len(target), 2)
+
+		tm := map[int]*testExcel{}
+		maker = doc.NewMaker(&doc.RowsCoder{KT: "ID", RC: testRowsConverter(0)})
+
+		tc = maker.MakeT(tm)
+		err = tc.Decode([]byte{})
+		assert.Equal(t, err, nil)
+
+		assert.Equal(t, len(tm), 2)
+		assert.DeepEqual(t, tm[11], &testExcel{
+			ID: 11,
+			Lv: 12,
+		})
+		assert.DeepEqual(t, tm[1], &testExcel{
+			ID: 1,
+			Lv: 2,
+		})
+	})
 }
 
-func TestJson(t *testing.T) {
-	jsVal := `{"Name": "ll", "age": 18}`
-	js := Json(jsVal)
-	var d Doc = &js
+func TestB(t *testing.T) {
+	bc := &doc.B{D: []byte(testJsonStr)}
+	err := bc.Decode(&testJson{})
+	assert.Assert(t, err != nil, "no coder for B. only support make by Maker")
 
-	var val testStruct
-	err := d.Decode(&val)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, val.Name, "ll")
+	// val := &testJson{}
+	// var val testJson
 
-	val.Name = "hiank"
-	val.Hope = "hope"
-	err = d.Encode(&val)
-	assert.Assert(t, err == nil, err)
-	// assert.Equal(t, d.Val(), `{"Name":"hiank","Hope":"hope"}`)
+	t.Run("json", func(t *testing.T) {
+		bc := doc.J.MakeB(nil)
+		err := bc.Encode([]byte(testJsonStr))
+		assert.Equal(t, err, nil)
+		assert.DeepEqual(t, bc.D, []byte(testJsonStr))
 
-	var val2 testStruct
-	err = d.Decode(&val2)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, val2.Name, "hiank")
-	assert.Equal(t, val2.Hope, "hope")
-	assert.Equal(t, val2.Age, 18)
+		var val testJson
+		bc.Decode(&val)
+		// json decode will ignore all character case
+		assert.DeepEqual(t, val, testJson{Id: 112, Name: "hiank", Age: 31, Non: true})
+	})
 
-	assert.Equal(t, string(d.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+	t.Run("yaml", func(t *testing.T) {
+		bc := doc.Y.MakeB([]byte(testYamlStr))
+		assert.DeepEqual(t, bc.D, []byte(testYamlStr))
 
-	var tmpJs Json
-	tmpJs.Encode(val2)
-	assert.Equal(t, string(tmpJs.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+		var val testYaml
+		bc.Decode(&val)
+		// json decode will ignore all character case
+		assert.DeepEqual(t, val, testYaml{
+			ID:   25,
+			Name: "host",
+			L:    []int{320, 325, 330, 340},
+			M: map[string]int{
+				"age": 11,
+				"Lv":  22,
+				"Id":  25,
+			},
+		})
 
-	js2 := Json([]byte{})
-	rv := reflect.ValueOf(js2)
-	assert.Equal(t, rv.Kind(), reflect.Slice)
+		val.M = map[string]int{"new": 2}
+		bc.Encode(val)
+		str1 := string(bc.D)
+		bc.Encode(&val)
+		str2 := string(bc.D)
+		assert.Equal(t, str1, str2)
 
-	js2.Encode(val2)
-	assert.Equal(t, string(js2.Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
-	assert.Equal(t, string((&js2).Val()), `{"Name":"hiank","Hope":"hope","Age":18}`)
+		var val2 testYaml
+		bc.Decode(&val2)
+		assert.DeepEqual(t, val, val2)
+	})
 
-	rv = reflect.ValueOf(Json([]byte{}))
-	assert.Equal(t, rv.Kind(), reflect.Slice)
+	t.Run("gob", func(t *testing.T) {
+		bc := doc.G.MakeB(nil)
+		// assert.DeepEqual(t, bc.D, []byte(testYamlStr))
+		val1 := testYaml{ID: 21, Name: "ws", L: []int{11, 12, 13}, M: map[string]int{"hope": 21}}
+		bc.Encode(val1)
+		var val2 testYaml
+		bc.Decode(&val2)
+		// json decode will ignore all character case
+		assert.DeepEqual(t, val1, val2)
+	})
 
-	rv = reflect.ValueOf(&js2)
-	assert.Equal(t, rv.Kind(), reflect.Ptr)
+	t.Run("protobuf", func(t *testing.T) {
+		bc := doc.G.MakeB(nil)
+		// assert.DeepEqual(t, bc.D, []byte(testYamlStr))
+		val1 := &testdata.Test2{Age: 18}
+		bc.Encode(val1)
+		var val2 testdata.Test2
+		bc.Decode(&val2)
+		// json decode will ignore all character case
+		assert.Equal(t, val1.Age, val2.Age)
+	})
+
+	t.Run("rows", func(t *testing.T) {
+		maker := doc.NewMaker(&doc.RowsCoder{RC: testRowsConverter(0)})
+		// target := []*testExcel{}
+		bc := maker.MakeB(nil)
+
+		l := []*testExcel{}
+		//RC will convert any data to testRows
+		err := bc.Decode(&l)
+		assert.Equal(t, err, nil)
+		assert.Equal(t, len(l), 2)
+
+		tm := map[int]*testExcel{}
+		maker = doc.NewMaker(&doc.RowsCoder{KT: "ID", RC: testRowsConverter(0)})
+
+		bc = maker.MakeB(nil)
+		err = bc.Decode(tm)
+		assert.Equal(t, err, nil)
+
+		assert.Equal(t, len(tm), 2)
+		assert.DeepEqual(t, tm[11], &testExcel{
+			ID: 11,
+			Lv: 12,
+		})
+		assert.DeepEqual(t, tm[1], &testExcel{
+			ID: 1,
+			Lv: 2,
+		})
+	})
+
 }
 
-func TestGob(t *testing.T) {
-	var gb Gob
-	d := &gb
-	err := d.Encode(testStruct{Name: "gob", Hope: "ws"})
-	assert.Assert(t, err == nil, err)
+func TestTcoder(t *testing.T) {
+	var tcoder doc.Tcoder
 
-	var val2 testStruct
-	d.Decode(&val2)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, val2.Name, "gob")
-	assert.Equal(t, val2.Hope, "ws")
-}
+	jv := &testJson{
+		Id:   12,
+		Name: "hp",
+		Age:  39,
+		Non:  true,
+	}
+	tc := doc.J.MakeT(jv)
+	b, err := tcoder.Encode(tc)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, string(b), `{"Id":12,"Name":"hp","tag.age":39,"Non":true}`)
 
-func TestBytesLenght(t *testing.T) {
-	val := &testdata.Test1{Name: "hiank"}
-	var js Json
-	js.Encode(val)
+	err = tcoder.Decode([]byte(`{"Id":2,"Name":"hope","tag.age":40,"Non":false}`), tc)
+	assert.Equal(t, err, nil)
 
-	var pb PB
-	pb.Encode(val)
-
-	var gb Gob
-	gb.Encode(val)
-
-	var ym Yaml
-	ym.Encode(val)
-
-	assert.Assert(t, len(gb) > len(pb))
-	assert.Assert(t, len(js) > len(ym), "jslen(%d) ymlen(%d)", len(js), len(ym))
-	assert.Assert(t, len(ym) > len(pb), "pblen(%d) ymlen(%d)", len(pb), len(ym))
-}
-
-var testYamlStr = `name: host
-m:
-  Age: 11
-  Lv: 22
-  Id: 25`
-
-type testYamlStruct struct {
-	Name string
-	M    map[string]int
-}
-
-func TestYaml(t *testing.T) {
-	ym := Yaml([]byte(testYamlStr))
-	// var val testYamlStruct2
-	var val testYamlStruct //P: map[string]int{}}
-	err := ym.Decode(&val)
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, val.Name, "host")
-	assert.Equal(t, val.M["Age"], 11)
-	assert.Equal(t, val.M["Lv"], 22)
-	assert.Equal(t, val.M["Id"], 25)
-
-	// var outYm Yaml
-	outYm := new(Yaml)
-	err = outYm.Encode(val)
-	assert.Assert(t, err == nil, err)
-	var val2 testYamlStruct
-	outYm.Decode(&val2)
-
-	assert.Equal(t, val.Name, val2.Name)
-	assert.Equal(t, val.M["Age"], val2.M["Age"])
-	assert.Equal(t, val.M["Lv"], val2.M["Lv"])
-	assert.Equal(t, val.M["Id"], val2.M["Id"])
-
-	// assert.Equal(t, val.M, val2.M)
+	assert.DeepEqual(t, jv, &testJson{
+		Id:   2,
+		Name: "hope",
+		Age:  40,
+	})
 }

@@ -1,5 +1,7 @@
 package run
 
+import "context"
+
 type Task struct {
 	//for handle value (V)
 	H func(v interface{}) error
@@ -12,6 +14,16 @@ type Task struct {
 type Tasker interface {
 	Add(Task) error
 	Stop()
+}
+
+type Token interface {
+	context.Context
+	Cancel()
+	Fork(ForkOptions) Token
+}
+
+type TokenSet interface {
+	Get(uid uint64) Token
 }
 
 // type Handler interface {
