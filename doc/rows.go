@@ -79,7 +79,11 @@ func (rd RowsCoder) rowToValue(row []string, vt reflect.Type, ftoh map[int]int) 
 	v = reflect.New(vt)
 	fv := v.Elem()
 	for fidx, hidx := range ftoh {
-		if err := decodeToValue(row[hidx], fv.Field(fidx)); err != nil {
+		var s string
+		if hidx < len(row) { //fill in blanks
+			s = row[hidx]
+		}
+		if err := decodeToValue(s, fv.Field(fidx)); err != nil {
 			klog.Warning("doc: cannot decode %s to field %s", fv.Field(fidx).Type().Name())
 		}
 	}
