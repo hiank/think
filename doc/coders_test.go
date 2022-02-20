@@ -63,7 +63,6 @@ func TestRowsCoder(t *testing.T) {
 		rt = reflect.TypeOf(m2).Elem()
 		assert.Equal(t, rt.Kind(), reflect.Struct)
 	})
-
 	t.Run("refelct slice set", func(t *testing.T) {
 		l := []string{"0"}
 		rv := reflect.ValueOf(&l)
@@ -144,6 +143,10 @@ func TestRowsCoder(t *testing.T) {
 
 		_, err = rd.Encode(m)
 		assert.Equal(t, err, ErrUnimplemented)
+
+		rows := [][]string{}
+		rd.Decode([]byte{}, &rows)
+		assert.DeepEqual(t, rows, testRows)
 	})
 }
 

@@ -27,6 +27,10 @@ func (rd RowsCoder) Decode(data []byte, out interface{}) (err error) {
 		//don't pass here often, so don't need to consider process optimization
 		return
 	}
+	if v, ok := out.(*[][]string); ok {
+		*v = rows
+		return
+	}
 	rv := reflect.ValueOf(out)
 	switch rv.Kind() {
 	case reflect.Map:
