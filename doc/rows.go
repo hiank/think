@@ -5,127 +5,136 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/hiank/think/run"
 	"k8s.io/klog/v2"
 )
 
-type rowsDoc struct {
-	head   []string
-	rows   [][]string
-	reader RowsReader
+const (
+	ErrNotSliceptrOrMap = run.Err("doc: RowsCoder only support slice(ptr when decode)|map")
+	ErrNonTemplateValue = run.Err("doc: requires a template value for decode")
+	ErrUnimplemented    = run.Err("doc: unimplemented method")
+)
+
+type RowsCoder struct {
+	// Key Tag for map's key (value of one of rows[0]'s value)
+	KT string
+	RC RowsConverter
 }
 
-func (rd *rowsDoc) Encode(v interface{}) (err error) {
-	rows, ok := v.([][]string)
-	if !ok {
-		buf, ok := v.([]byte)
-		if !ok || rd.reader == nil {
-			return fmt.Errorf("invalid param (only support []byte/[][]string) or no RowsReader (for read []byte to [][]string)")
-		}
-		if rows, err = rd.reader.Read(buf); err != nil {
-			return
-		}
+func (rd RowsCoder) Decode(data []byte, out interface{}) (err error) {
+	rows, err := rd.RC.ToRows(data)
+	if err != nil {
+		//don't pass here often, so don't need to consider process optimization
+		return
 	}
-	if len(rows) < 2 {
-		return fmt.Errorf("at least 2 len needed for rows")
+	if v, ok := out.(*[][]string); ok {
+		*v = rows
+		return
 	}
-	rd.head, rd.rows = rows[0], rows[1:]
+	rv := reflect.ValueOf(out)
+	switch rv.Kind() {
+	case reflect.Map:
+		err = rd.toMap(rows, rv)
+	case reflect.Ptr: //ptr for slice
+		err = rd.toArray(rows, rv.Elem())
+	default:
+		err = ErrNotSliceptrOrMap
+	}
 	return
 }
 
-func (rd *rowsDoc) Decode(out interface{}) (err error) {
-	if m, ok := out.(map[string]interface{}); ok {
-		err = rd.decodeM(m)
-	} else if l, ok := out.(*[]interface{}); ok {
-		err = rd.decodeL(l)
-	} else {
-		err = fmt.Errorf("invalid param: only support *[]interface{} or map[string]interface{}")
-	}
-	return
+func (rd RowsCoder) Encode(v interface{}) (out []byte, err error) {
+	// out, ok := v.([]byte)
+	// if !ok {
+	// 	err = ErrUnimplemented
+	// }
+	return nil, ErrUnimplemented
 }
 
-func (rd *rowsDoc) Val() []byte {
-	return []byte("not support")
-}
-
-//typeOf struct type
-func (rd *rowsDoc) typeOf(v interface{}) reflect.Type {
-	rv := reflect.ValueOf(v)
-	for rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
+//parseHead parse head slice
+//vt cannot be Ptr
+//@return map[fieldindex]sliceindex, key index in field
+func (rd RowsCoder) parseHead(h []string, vt reflect.Type) (ftoh map[int]int, kidx int) {
+	ftoh, kt := make(map[int]int), rd.KT
+	if kt == "" {
+		kt = "ID"
 	}
-	return rv.Type()
-}
-
-func (rd *rowsDoc) rangeVal(ftoh map[int]int, rt reflect.Type, f func([]string, interface{})) {
-	for _, row := range rd.rows {
-		v := reflect.New(rt)
-		fv := v.Elem()
-		for fidx, hidx := range ftoh {
-			if err := decodeToValue(row[hidx], fv.Field(fidx)); err != nil {
-				klog.Warning("cannot decode %s to field %s", fv.Field(fidx).Type().Name())
-			}
-		}
-		f(row, v.Interface())
-	}
-}
-
-func (rd *rowsDoc) decodeL(l *[]interface{}) error {
-	if len(*l) != 1 {
-		return fmt.Errorf("invalid param: non template in []interface{}")
-	}
-	rt, out := rd.typeOf((*l)[0]), *l
-	if cap(out) < len(rd.rows) {
-		out = make([]interface{}, 0, len(rd.rows))
-	}
-	ftoh, _ := rd.headIndexInRow(rt)
-	rd.rangeVal(ftoh, rt, func(row []string, v interface{}) {
-		out = append(out, v)
-	})
-	*l = out
-	return nil
-}
-
-func (rd *rowsDoc) decodeM(m map[string]interface{}) error {
-	if len(m) != 1 {
-		return fmt.Errorf("invalid param: non template in map[string]interface{}")
-	}
-	var ktag string
-	var rt reflect.Type
-	for k, v := range m {
-		ktag, rt = k, rd.typeOf(v)
-		delete(m, k) //NOTE: delete template k-v
-		break
-	}
-	ftoh, tinf := rd.headIndexInRow(rt, ktag)
-	if tinf == -1 {
-		return fmt.Errorf("cannot find Tag(%s) in given tmplate", ktag)
-	}
-	rd.rangeVal(ftoh, rt, func(row []string, v interface{}) {
-		m[row[tinf]] = v
-	})
-	return nil
-}
-
-func (rd *rowsDoc) headIndexInRow(t reflect.Type, ktag ...string) (ftoh map[int]int, tinh int) {
-	ftoh, tinh = make(map[int]int), -1
 L:
-	for fidx := 0; fidx < t.NumField(); fidx++ {
-		field := t.Field(fidx)
+	for fidx := 0; fidx < vt.NumField(); fidx++ {
+		field := vt.Field(fidx)
 		tag := field.Tag.Get("excel")
 		if tag == "" {
 			tag = field.Name
 		}
-		for hidx, key := range rd.head {
+		for hidx, key := range h {
 			if key == tag {
 				ftoh[fidx] = hidx
-				if len(ktag) > 0 && ktag[0] == field.Name {
-					tinh = hidx
+				if kt == field.Name {
+					kidx = fidx
 				}
 				continue L
 			}
 		}
 	}
 	return
+}
+
+func (rd RowsCoder) rowToValue(row []string, vt reflect.Type, ftoh map[int]int) (v reflect.Value) {
+	v = reflect.New(vt)
+	fv := v.Elem()
+	for fidx, hidx := range ftoh {
+		var s string
+		if hidx < len(row) { //fill in blanks
+			s = row[hidx]
+		}
+		if err := decodeToValue(s, fv.Field(fidx)); err != nil {
+			klog.Warning("doc: cannot decode %s to field %s", fv.Field(fidx).Type().Name())
+		}
+	}
+	return
+}
+
+func (rd RowsCoder) toMap(rows [][]string, rv reflect.Value) error {
+	rd.rangeVal(rows, rv, func(v reflect.Value, i int) {
+		sv := v
+		if v.Kind() == reflect.Ptr {
+			sv = v.Elem()
+		}
+		rv.SetMapIndex(sv.Field(i), v)
+	})
+	return nil
+}
+
+func (rd RowsCoder) toArray(rows [][]string, rv reflect.Value) error {
+	if rv.Kind() != reflect.Slice {
+		return ErrNotSliceptrOrMap
+	}
+	tmp := rv
+	rd.rangeVal(rows, rv, func(v reflect.Value, _ int) {
+		tmp = reflect.Append(tmp, v)
+	})
+	rv.Set(tmp)
+	return nil
+}
+
+//out must be slice or map
+func (rd RowsCoder) rangeVal(rows [][]string, out reflect.Value, f func(reflect.Value, int)) {
+	vt := out.Type().Elem() //value of slice or map
+	ptr := vt.Kind() == reflect.Ptr
+	if ptr {
+		if vt = vt.Elem(); vt.Kind() == reflect.Ptr {
+			klog.Warning("doc: cannot decode to pointer-pointer-value")
+			return
+		}
+	}
+	ftoh, kidx := rd.parseHead(rows[0], vt)
+	for _, row := range rows[1:] {
+		v := rd.rowToValue(row, vt, ftoh)
+		if !ptr {
+			v = v.Elem()
+		}
+		f(v, kidx)
+	}
 }
 
 func decodeToValue(strv string, v reflect.Value) (err error) {

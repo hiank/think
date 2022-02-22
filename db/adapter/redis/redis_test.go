@@ -11,6 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/db"
 	rdbc "github.com/hiank/think/db/adapter/redis"
+	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"
 )
@@ -110,24 +111,24 @@ func TestRedisCli(t *testing.T) {
 		val1.Name = "val1"
 		err = cli.Set("hs", &val1)
 		assert.Assert(t, err != nil, "must use PB JSON GOB struct value")
-		err = cli.Set("hs", db.PB{V: &val1})
+		err = cli.Set("hs", doc.P.MakeT(&val1)) //db.PB{V: &val1})
 		assert.Assert(t, err == nil, err)
 
 		var outVal1 testdata.Test1
-		found, err := cli.Get("key1", db.PB{V: &outVal1})
+		found, err := cli.Get("key1", doc.P.MakeT(&outVal1)) //db.PB{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Equal(t, err, db.ErrNotFound)
 
-		found, err = cli.Get("hs", db.PB{V: &outVal1})
+		found, err = cli.Get("hs", doc.P.MakeT(&outVal1))
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1.GetName(), "val1")
 
-		err = cli.Set("hs", db.PB{V: &testdata.Test2{Age: 18}})
+		err = cli.Set("hs", doc.P.MakeT(&testdata.Test2{Age: 18}))
 		assert.Assert(t, err == nil, err)
 
 		var outVal2 testdata.Test2
-		found, err = cli.Get("hs", db.PB{V: &outVal2})
+		found, err = cli.Get("hs", doc.P.MakeT(&outVal2))
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal2.Age, int32(18))
@@ -135,14 +136,14 @@ func TestRedisCli(t *testing.T) {
 		err = cli.Del("key1")
 		// assert.Assert(t, err == nil, err)
 		assert.Equal(t, err, db.ErrNotFound, "delete not existed key")
-		found, _ = cli.Get("hs", db.PB{V: &outVal2})
+		found, _ = cli.Get("hs", doc.P.MakeT(&outVal2))
 		assert.Assert(t, found)
 
 		var outVal3 testdata.Test2
-		err = cli.Del("hs", db.PB{V: &outVal3})
+		err = cli.Del("hs", doc.P.MakeT(&outVal3))
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal3.GetAge(), int32(18))
-		found, _ = cli.Get("hs", db.PB{V: &outVal2})
+		found, _ = cli.Get("hs", doc.P.MakeT(&outVal2))
 		assert.Assert(t, !found)
 
 		err = cli.Close()
@@ -170,22 +171,22 @@ func TestRedisCli(t *testing.T) {
 		}
 		err = cli.Set("hs", &val1)
 		assert.Assert(t, err != nil, err)
-		err = cli.Set("hs", db.JSON{V: &val1})
+		err = cli.Set("hs", doc.J.MakeT(&val1)) //db.T{D: doc.JsonMaker.MakeT(), V: &val1})
 		assert.Assert(t, err == nil, err)
 
 		var outVal1 testDBStruct
-		found, err := cli.Get("key1", db.JSON{V: &outVal1})
+		found, err := cli.Get("key1", doc.J.MakeT(&outVal1)) //db.JSON{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil)
 
-		found, err = cli.Get("hs", db.JSON{V: &outVal1})
+		found, err = cli.Get("hs", doc.J.MakeT(&outVal1)) //db.JSON{V: &outVal1})
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1, *val1)
 
 		err = cli.Del("hs")
 		assert.Assert(t, err == nil)
-		found, err = cli.Get("hs", db.JSON{V: &outVal1})
+		found, err = cli.Get("hs", doc.J.MakeT(&outVal1)) //db.JSON{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Assert(t, err != nil, err)
 

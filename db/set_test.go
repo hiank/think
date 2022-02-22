@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/hiank/think/db"
-	"github.com/hiank/think/doc/testdata"
 	"gotest.tools/v3/assert"
 )
 
@@ -318,51 +317,5 @@ func TestDataset(t *testing.T) {
 		assert.Equal(t, len(diskStore.m), 0)
 
 		// err = dataset.KvDB().Delete(db.)
-	})
-}
-
-type testJsonStruct struct {
-	Name string
-}
-
-func TestBytesCoder(t *testing.T) {
-	var coder db.BytesCoder
-
-	t.Run("JSON", func(t *testing.T) {
-		_, err := coder.Encode(&testJsonStruct{Name: "hiank"})
-		assert.Assert(t, err != nil, "not PB GOB JSON")
-
-		buf, err := coder.Encode(db.JSON{V: &testJsonStruct{Name: "hiank"}})
-		assert.Assert(t, err == nil, err)
-		assert.Equal(t, string(buf), `{"Name":"hiank"}`)
-	})
-
-	t.Run("PB", func(t *testing.T) {
-		pb1 := &testdata.Test1{Name: "pb"}
-		_, err := coder.Encode(pb1)
-		assert.Assert(t, err != nil, "not PB GOB JSON")
-
-		buf, err := coder.Encode(db.PB{V: pb1})
-		assert.Assert(t, err == nil, err)
-		// assert.Equal(t, string(buf), `{"Name":"hiank"}`)
-
-		var pb2 = new(testdata.Test1)
-		err = coder.Decode(buf, db.PB{V: pb2})
-		assert.Assert(t, err == nil, err)
-		assert.Equal(t, pb2.Name, "pb")
-	})
-
-	t.Run("GOB", func(t *testing.T) {
-		pb1 := &testdata.Test1{Name: "gob"}
-		_, err := coder.Encode(pb1)
-		assert.Assert(t, err != nil, "not PB GOB JSON")
-
-		buf, err := coder.Encode(db.GOB{V: pb1})
-		assert.Assert(t, err == nil, err)
-
-		var pb2 = new(testdata.Test1)
-		err = coder.Decode(buf, db.GOB{V: pb2})
-		assert.Assert(t, err == nil, err)
-		assert.Equal(t, pb2.Name, "gob")
 	})
 }

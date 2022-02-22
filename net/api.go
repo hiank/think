@@ -1,8 +1,10 @@
 package net
 
+import "github.com/hiank/think/net/pb"
+
 type Conn interface {
-	Send(*Doc) error
-	Recv() (*Doc, error)
+	Send(pb.M) error
+	Recv() (pb.M, error)
 	Close() error
 }
 
@@ -18,7 +20,7 @@ type Dialer interface {
 }
 
 type Client interface {
-	Send(d *Doc, ti string) error
+	Send(d pb.M, ti string) error
 	// Handle(k interface{}, h Handler)
 }
 
@@ -42,12 +44,12 @@ type Server interface {
 
 //Handler handle message
 type Handler interface {
-	Route(string, *Doc)
+	Route(string, pb.M)
 }
 
 //HandlerFunc easy convert func to Handler
-type HandlerFunc func(string, *Doc)
+type HandlerFunc func(string, pb.M)
 
-func (hf HandlerFunc) Route(id string, d *Doc) {
-	hf(id, d)
+func (hf HandlerFunc) Route(id string, m pb.M) {
+	hf(id, m)
 }

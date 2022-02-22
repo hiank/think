@@ -9,6 +9,7 @@ import (
 
 	"github.com/hiank/think/db"
 	mgo "github.com/hiank/think/db/adapter/mongo"
+	"github.com/hiank/think/doc"
 	"github.com/hiank/think/doc/testdata"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -111,23 +112,23 @@ func funcTestKvDBPB(t *testing.T) {
 	kvdb, _ := mgo.Dialer.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"))
 
 	var outVal1 testdata.Test1
-	found, err := kvdb.Get("token", db.PB{V: &outVal1})
+	found, err := kvdb.Get("token", doc.P.MakeT(&outVal1))
 	assert.Assert(t, !found)
 	assert.Equal(t, err, db.ErrNotFound)
 
 	err = kvdb.Set("token", "not proto.Message")
 	assert.Assert(t, err != nil, "value to set must be a proto.Message")
 
-	err = kvdb.Set("token", db.PB{V: &testdata.Test1{Name: "hiank"}})
+	err = kvdb.Set("token", doc.P.MakeT(&testdata.Test1{Name: "hiank"}))
 	assert.Assert(t, err == nil, err)
 
 	var outVal2 testdata.Test2
-	found, err = kvdb.Get("token", db.PB{V: &outVal2})
+	found, err = kvdb.Get("token", doc.P.MakeT(&outVal2))
 	assert.Assert(t, found, err)
 	assert.Assert(t, err == nil, "protobuf 反序列化时，不同类型也可能会尝试执行，返回的结果不可信")
 	assert.Equal(t, outVal2.GetAge(), int32(0))
 
-	found, err = kvdb.Get("token", db.PB{V: &outVal1})
+	found, err = kvdb.Get("token", doc.P.MakeT(&outVal1))
 	assert.Assert(t, found)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal1.GetName(), "hiank")
@@ -135,7 +136,7 @@ func funcTestKvDBPB(t *testing.T) {
 	err = kvdb.Del("token")
 	assert.Assert(t, err == nil, err)
 
-	found, _ = kvdb.Get("token", db.PB{V: &outVal1})
+	found, _ = kvdb.Get("token", doc.P.MakeT(&outVal1))
 	assert.Assert(t, !found)
 
 	err = kvdb.Close()
@@ -163,14 +164,14 @@ func funcTestKvDBJson(t *testing.T) {
 	kvdb, _ := mgo.Dialer.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"))
 
 	var outVal1 testDBJson2
-	found, err := kvdb.Get("51@json", db.JSON{V: &outVal1})
+	found, err := kvdb.Get("51@json", doc.J.MakeT(&outVal1))
 	assert.Assert(t, !found)
 	assert.Assert(t, err != nil)
 
-	err = kvdb.Set("51@json", db.JSON{V: testDBJson{Name: "json", Age: 18, Lv: 22}})
+	err = kvdb.Set("51@json", doc.J.MakeT(testDBJson{Name: "json", Age: 18, Lv: 22}))
 	assert.Assert(t, err == nil, err)
 
-	found, err = kvdb.Get("51@json", db.JSON{V: &outVal1})
+	found, err = kvdb.Get("51@json", doc.J.MakeT(&outVal1))
 	assert.Assert(t, found, err)
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal1, testDBJson2{
@@ -181,10 +182,10 @@ func funcTestKvDBJson(t *testing.T) {
 	})
 
 	var outVal3 testDBJson2
-	err = kvdb.Del("51@json", db.JSON{V: &outVal3})
+	err = kvdb.Del("51@json", doc.J.MakeT(&outVal3))
 	assert.Assert(t, err == nil, err)
 	assert.Equal(t, outVal3.Age, 18)
-	found, _ = kvdb.Get("51@json", db.JSON{V: &outVal1})
+	found, _ = kvdb.Get("51@json", doc.J.MakeT(&outVal1))
 	assert.Assert(t, !found)
 
 	err = kvdb.Close()

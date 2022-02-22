@@ -1,7 +1,6 @@
 package file_test
 
 import (
-	"strconv"
 	"testing"
 
 	"github.com/hiank/think/doc/file"
@@ -13,19 +12,22 @@ type testExcelConfig struct {
 	Name string `excel:"关卡名"`
 	Lv   uint   `excel:"怪物等级"`
 	T1   uint   `excel:"队伍1神兽"`
+	TM1  string `excel:"队伍1"`
+	T2   uint   `excel:"队伍2神兽"`
+	TM2  string `excel:"队伍2"`
 }
 
 var wantExcel = []*testExcelConfig{
-	{ID: 1, Name: "唐朝精锐", Lv: 100, T1: 20303},
-	{ID: 2, Name: "唐朝精锐", Lv: 100, T1: 20301},
-	{ID: 3, Name: "唐朝精锐", Lv: 100, T1: 20303},
-	{ID: 4, Name: "明朝精锐", Lv: 100, T1: 20301},
-	{ID: 5, Name: "明朝精锐", Lv: 100, T1: 20303},
-	{ID: 6, Name: "明朝精锐", Lv: 100, T1: 20303},
-	{ID: 7, Name: "宋朝精锐", Lv: 100, T1: 20303},
-	{ID: 8, Name: "宋朝精锐", Lv: 100, T1: 20303},
-	{ID: 9, Name: "宋朝精锐", Lv: 100, T1: 20303},
-	{ID: 10, Name: "宋朝精锐", Lv: 100, T1: 20303},
+	{ID: 1, Name: "唐朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 2, Name: "唐朝精锐", Lv: 100, T1: 20301, TM1: "11378;11379;11380;11381;11382", T2: 20302, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 3, Name: "唐朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 4, Name: "明朝精锐", Lv: 100, T1: 20301, TM1: "11378;11379;11380;11381;11382", T2: 20302, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 5, Name: "明朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 6, Name: "明朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 7, Name: "宋朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 8, Name: "宋朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 9, Name: "宋朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382", T2: 20304, TM2: "11378;11379;11380;11381;11382"},
+	{ID: 10, Name: "宋朝精锐", Lv: 100, T1: 20303, TM1: "11378;11379;11380;11381;11382"},
 }
 
 func TestFit(t *testing.T) {
@@ -39,27 +41,26 @@ func TestFit(t *testing.T) {
 		err = buffer.Decode(&val)
 		assert.Assert(t, err != nil, "only support array or map param")
 
-		m := map[string]interface{}{}
-		m["ID"] = new(testExcelConfig)
+		m := map[uint]*testExcelConfig{}
 		err = buffer.Decode(m)
 		assert.Assert(t, err == nil, err)
 
 		for _, v := range wantExcel {
-			assert.Equal(t, *m[strconv.FormatUint(uint64(v.ID), 10)].(*testExcelConfig), *v)
+			assert.DeepEqual(t, *m[v.ID], *v)
 		}
 
-		l := []interface{}{new(testExcelConfig)}
+		l := []*testExcelConfig{}
 		err = buffer.Decode(&l)
 		assert.Assert(t, err == nil, err)
 		for i, v := range wantExcel {
-			assert.Equal(t, *l[i].(*testExcelConfig), *v)
+			assert.DeepEqual(t, *l[i], *v)
 		}
 
-		l = []interface{}{testExcelConfig{}}
+		l = []*testExcelConfig{}
 		err = buffer.Decode(&l)
 		assert.Assert(t, err == nil, err)
 		for i, v := range wantExcel {
-			assert.Equal(t, *l[i].(*testExcelConfig), *v)
+			assert.Equal(t, *l[i], *v)
 		}
 	})
 	t.Run("Json", func(t *testing.T) {

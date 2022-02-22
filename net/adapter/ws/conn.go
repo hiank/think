@@ -2,7 +2,7 @@ package ws
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/net"
+	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/run"
 )
 
@@ -13,15 +13,15 @@ type conn struct {
 	wc *websocket.Conn
 }
 
-func (l *conn) Send(d *net.Doc) error {
-	return l.wc.WriteMessage(websocket.BinaryMessage, d.Bytes())
+func (l *conn) Send(m pb.M) error {
+	return l.wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
 }
 
-func (l *conn) Recv() (out *net.Doc, err error) {
+func (l *conn) Recv() (out pb.M, err error) {
 	t, bs, err := l.wc.ReadMessage()
 	if err == nil {
 		if t == websocket.BinaryMessage {
-			out, err = net.MakeDoc(bs)
+			out, err = pb.MakeM(bs)
 		} else {
 			err = ErrUnsupportMessageType
 		}

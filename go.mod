@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/go-redis/redis/v8 v8.11.4
-	github.com/gorilla/websocket v1.4.2
+	github.com/gorilla/websocket v1.5.0
 	github.com/nats-io/nats.go v1.13.1-0.20220121202836-972a071d373d
 	github.com/xuri/excelize/v2 v2.5.0
 	go.mongodb.org/mongo-driver v1.8.3

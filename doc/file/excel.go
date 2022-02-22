@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/hiank/think/doc"
 	"github.com/xuri/excelize/v2"
 	"k8s.io/klog/v2"
 )
@@ -16,7 +17,7 @@ import (
 //NOTE: only support first not empty sheet
 type excelRowsReader byte
 
-func (reader excelRowsReader) Read(v []byte) (rows [][]string, err error) {
+func (excelRowsReader) ToRows(v []byte) (rows [][]string, err error) {
 	f, err := excelize.OpenReader(bytes.NewReader(v))
 	if err != nil {
 		klog.Warning(err)
@@ -31,4 +32,8 @@ func (reader excelRowsReader) Read(v []byte) (rows [][]string, err error) {
 		}
 	}
 	return nil, fmt.Errorf("invalid param: cannot read legitimate rows value")
+}
+
+func (excelRowsReader) ToBytes([][]string) ([]byte, error) {
+	return nil, doc.ErrUnimplemented
 }

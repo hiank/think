@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hiank/think/db"
+	"github.com/hiank/think/doc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"k8s.io/klog/v2"
@@ -19,7 +20,7 @@ const (
 type liteDB struct {
 	*mongo.Database
 	ctx   context.Context
-	coder db.BytesCoder
+	coder doc.Tcoder
 }
 
 func (ld *liteDB) Get(k string, out interface{}) (found bool, err error) {

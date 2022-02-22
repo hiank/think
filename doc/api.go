@@ -1,21 +1,30 @@
 package doc
 
-type Doc interface {
-	Decode(out interface{}) error
-	Encode(v interface{}) error
-	Val() []byte
+//RowsConverter convert between []byte and [][]string
+type RowsConverter interface {
+	ToRows([]byte) ([][]string, error)
+	ToBytes([][]string) ([]byte, error)
 }
 
-//RowsReader read []byte data to [][]string data
-type RowsReader interface {
-	Read(v []byte) ([][]string, error)
+//Coder decode|encode between bytes and struct
+type Coder interface {
+	Decode(b []byte, out interface{}) error
+	Encode(v interface{}) ([]byte, error)
 }
 
-//NewRows new rowsDoc
-func NewRows(reader RowsReader, dvals ...[][]string) Doc {
-	rd := &rowsDoc{reader: reader}
-	if len(dvals) > 0 {
-		rd.Encode(dvals[0])
-	}
-	return rd
+//Maker for make T *B value
+type Maker interface {
+	MakeT(v interface{}) T
+	MakeB(d []byte) *B
 }
+
+var (
+	// Yaml maker use yamlCoder
+	Y Maker = &maker{coder: yamlCoder{}}
+	// Json maker use jsonCoder
+	J Maker = &maker{coder: jsonCoder{}}
+	// Gob maker use gobCoder
+	G Maker = &maker{coder: gobCoder{}}
+	// Proto maker use protoCoder
+	P Maker = &maker{coder: protoCoder{}}
+)

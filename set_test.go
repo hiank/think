@@ -118,3 +118,20 @@ func TestSetUnique(t *testing.T) {
 	assert.Assert(t, unique.Nats() == think.Set().Nats(), "nats is nil")
 	assert.Assert(t, unique.Nats() == nil, "nats is nil")
 }
+
+func TestMap(t *testing.T) {
+	m := make(map[int]int)
+	var i interface{} = m
+	_, ok := i.(map[int]interface{})
+	assert.Assert(t, !ok)
+
+	rv := reflect.ValueOf(m)
+	assert.Equal(t, rv.Kind(), reflect.Map)
+
+	rt := rv.Type().Elem()
+	assert.Equal(t, rt.Kind(), reflect.Int)
+
+	rt = reflect.TypeOf(m).Elem()
+	assert.Equal(t, rt.Kind(), reflect.Int)
+	// t.Log(rv.Type().Elem())
+}
