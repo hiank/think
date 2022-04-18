@@ -59,7 +59,7 @@ func (trr testRowsConverter) ToBytes([][]string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func verifyT(tc doc.T, data []byte, final interface{}, t *testing.T) {
+func verifyT(tc doc.T, data []byte, final any, t *testing.T) {
 	_, err := tc.Encode()
 	assert.Equal(t, err, nil, "encode empty V")
 	// assert.Equal(t, len(b), 0)

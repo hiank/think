@@ -21,11 +21,11 @@ const (
 // encode struct -> []byte
 type jsonCoder struct{}
 
-func (jsonCoder) Decode(data []byte, out interface{}) error {
+func (jsonCoder) Decode(data []byte, out any) error {
 	return json.Unmarshal(data, out)
 }
 
-func (jsonCoder) Encode(v interface{}) ([]byte, error) {
+func (jsonCoder) Encode(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
@@ -34,11 +34,11 @@ func (jsonCoder) Encode(v interface{}) ([]byte, error) {
 // encode struct -> []byte
 type yamlCoder struct{}
 
-func (yamlCoder) Decode(data []byte, out interface{}) error {
+func (yamlCoder) Decode(data []byte, out any) error {
 	return yaml.Unmarshal(data, out)
 }
 
-func (yamlCoder) Encode(v interface{}) ([]byte, error) {
+func (yamlCoder) Encode(v any) ([]byte, error) {
 	return yaml.Marshal(v)
 }
 
@@ -47,11 +47,11 @@ func (yamlCoder) Encode(v interface{}) ([]byte, error) {
 // encode struct -> []byte
 type gobCoder struct{}
 
-func (gobCoder) Decode(data []byte, out interface{}) error {
+func (gobCoder) Decode(data []byte, out any) error {
 	return gob.NewDecoder(bytes.NewReader(data)).Decode(out)
 }
 
-func (gobCoder) Encode(v interface{}) (out []byte, err error) {
+func (gobCoder) Encode(v any) (out []byte, err error) {
 	buf := new(bytes.Buffer)
 	if err = gob.NewEncoder(buf).Encode(v); err == nil {
 		out = buf.Bytes()
@@ -64,14 +64,14 @@ func (gobCoder) Encode(v interface{}) (out []byte, err error) {
 // encode struct -> []byte
 type protoCoder struct{}
 
-func (protoCoder) Decode(data []byte, out interface{}) error {
+func (protoCoder) Decode(data []byte, out any) error {
 	if msg, ok := out.(proto.Message); ok {
 		return proto.Unmarshal(data, msg)
 	}
 	return ErrNotProtoMessage
 }
 
-func (protoCoder) Encode(v interface{}) ([]byte, error) {
+func (protoCoder) Encode(v any) ([]byte, error) {
 	if msg, ok := v.(proto.Message); ok {
 		return proto.Marshal(msg)
 	}
@@ -85,7 +85,7 @@ type Tcoder byte
 
 //Encode encode v to bytes
 //NOTE: v must be doc.Doc
-func (dc Tcoder) Encode(v interface{}) (out []byte, err error) {
+func (dc Tcoder) Encode(v any) (out []byte, err error) {
 	t, err := dc.check(v)
 	if err == nil {
 		out, err = t.Encode()
@@ -93,7 +93,7 @@ func (dc Tcoder) Encode(v interface{}) (out []byte, err error) {
 	return
 }
 
-func (dc Tcoder) Decode(data []byte, out interface{}) (err error) {
+func (dc Tcoder) Decode(data []byte, out any) (err error) {
 	t, err := dc.check(out)
 	if err == nil {
 		err = t.Decode(data)
@@ -101,7 +101,7 @@ func (dc Tcoder) Decode(data []byte, out interface{}) (err error) {
 	return
 }
 
-func (Tcoder) check(v interface{}) (t T, err error) {
+func (Tcoder) check(v any) (t T, err error) {
 	t, ok := v.(T)
 	if !ok {
 		err = ErrValueMustBeT

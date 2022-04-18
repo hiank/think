@@ -13,11 +13,11 @@ type KvDialer interface {
 
 //KvDB key-value stype database client
 type KvDB interface {
-	Get(k string, out interface{}) (found bool, err error)
-	Set(k string, v interface{}) error
+	Get(k string, out any) (found bool, err error)
+	Set(k string, v any) error
 	//Del delete value for k
 	//when contains outs, decode these before delete
-	Del(k string, outs ...interface{}) error
+	Del(k string, outs ...any) error
 	io.Closer
 }
 

@@ -102,7 +102,7 @@ func TestConnpool(t *testing.T) {
 		<-wait
 
 		cnt := 0
-		cp.m.Range(func(key, value interface{}) bool {
+		cp.m.Range(func(key, value any) bool {
 			cnt++
 			return true
 		})
@@ -115,7 +115,7 @@ func TestConnpool(t *testing.T) {
 		mv.(Conn).Close()
 
 		cnt = 0
-		cp.m.Range(func(key, value interface{}) bool {
+		cp.m.Range(func(key, value any) bool {
 			cnt++
 			return true
 		})
@@ -143,7 +143,7 @@ func TestConnpool(t *testing.T) {
 		cp.AddConn("2", &testConn{sendPP: pp2, k: "c2"})
 
 		cnt := 0
-		cp.m.Range(func(key, value interface{}) bool {
+		cp.m.Range(func(key, value any) bool {
 			cnt++
 			return true
 		})

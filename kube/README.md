@@ -1,6 +1,6 @@
 # Kubernetes base servers and config
 
-基础服务的配置，包括
+Server config for k8s
 
 * `redis:` 所有部署文件(deploy, configmap 等)
 * `nats:` 所有部署文件

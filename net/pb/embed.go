@@ -20,7 +20,7 @@ func toAny(m proto.Message) (out *anypb.Any, err error) {
 }
 
 //MakeM make M
-func MakeM(v interface{}) (m M, err error) {
+func MakeM(v any) (m M, err error) {
 	switch v := v.(type) {
 	case proto.Message:
 		if m.a, err = toAny(v); err == nil {

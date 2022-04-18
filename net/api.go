@@ -21,7 +21,7 @@ type Dialer interface {
 
 type Client interface {
 	Send(d pb.M, ti string) error
-	// Handle(k interface{}, h Handler)
+	// Handle(k any, h Handler)
 }
 
 type Listener interface {
@@ -35,9 +35,9 @@ type Server interface {
 	//Send message to client (by conn)
 	//ti is target identity. when len(ti) == 0
 	//means send for all conn
-	Send(v interface{}, tis ...string) error
+	Send(v any, tis ...string) error
 	// //AddHandler add handler for revc message
-	// Handle(k interface{}, h Handler)
+	// Handle(k any, h Handler)
 	//
 	Close() error
 }

@@ -57,7 +57,7 @@ func (f *fit) LoadBytes(form Form, vals ...[]byte) (err error) {
 	return f.b.Encode(vals[0])
 }
 
-func (f *fit) Decode(outVals ...interface{}) (err error) {
+func (f *fit) Decode(outVals ...any) (err error) {
 	for _, out := range outVals {
 		err = pushError(err, f.b.Decode(out))
 	}

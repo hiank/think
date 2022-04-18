@@ -34,7 +34,7 @@ func TestPushError(t *testing.T) {
 }
 
 func TestRobustDB(t *testing.T) {
-	tks := &testKvStore{m: map[string]interface{}{}}
+	tks := &testKvStore{m: map[string]any{}}
 	rdb := db.Export_newRobustDB(tks)
 	//
 	err := rdb.Set("key", 1)
@@ -147,11 +147,11 @@ func TestKeyTag(t *testing.T) {
 }
 
 type testKvStore struct {
-	m map[string]interface{}
+	m map[string]any
 }
 
 // func (ts *testKvStore)
-func (ts *testKvStore) Set(k string, v interface{}) (err error) {
+func (ts *testKvStore) Set(k string, v any) (err error) {
 	if k == "" || v == nil {
 		return fmt.Errorf("invalid key or value: %s : %v", k, v)
 	}
@@ -160,7 +160,7 @@ func (ts *testKvStore) Set(k string, v interface{}) (err error) {
 }
 
 // Get retrieves the value for the given key.
-func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
+func (ts *testKvStore) Get(k string, v any) (found bool, err error) {
 	if k == "" || v == nil {
 		return false, fmt.Errorf("invalid key or value")
 	}
@@ -185,7 +185,7 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 	return
 }
 
-func (ts *testKvStore) decode(s, out interface{}) {
+func (ts *testKvStore) decode(s, out any) {
 	mrv, rv := reflect.ValueOf(s), reflect.ValueOf(out)
 	for mrv.Kind() == reflect.Ptr {
 		mrv = mrv.Elem()
@@ -198,7 +198,7 @@ func (ts *testKvStore) decode(s, out interface{}) {
 }
 
 // Delete deletes the stored value for the given key.
-func (ts *testKvStore) Del(k string, outs ...interface{}) error {
+func (ts *testKvStore) Del(k string, outs ...any) error {
 	if k == "" {
 		return fmt.Errorf("invalid key")
 	}
@@ -232,7 +232,7 @@ func TestDataset(t *testing.T) {
 
 	onlyOneStoreTest := func(kt db.KeyTag, t *testing.T) {
 		mstore := map[db.KeyTag]db.KvDB{}
-		tks := &testKvStore{m: map[string]interface{}{}}
+		tks := &testKvStore{m: map[string]any{}}
 		mstore[kt] = tks
 		dataset := db.NewDBS(mstore)
 		err := dataset.KvDB().Set("id", 12)
@@ -275,7 +275,7 @@ func TestDataset(t *testing.T) {
 
 	t.Run("mix store", func(t *testing.T) {
 		mstore := map[db.KeyTag]db.KvDB{}
-		memStore, diskStore := &testKvStore{m: map[string]interface{}{}}, &testKvStore{m: map[string]interface{}{}}
+		memStore, diskStore := &testKvStore{m: map[string]any{}}, &testKvStore{m: map[string]any{}}
 		mstore[db.KTMem], mstore[db.KTDisk] = memStore, diskStore
 		dataset := db.NewDBS(mstore)
 		err := dataset.KvDB().Set("id", 12)

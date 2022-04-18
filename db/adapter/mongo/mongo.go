@@ -23,7 +23,7 @@ type liteDB struct {
 	coder doc.Tcoder
 }
 
-func (ld *liteDB) Get(k string, out interface{}) (found bool, err error) {
+func (ld *liteDB) Get(k string, out any) (found bool, err error) {
 	kconv := newKeyConv(k)
 	coll := ld.Collection(kconv.GetColl())
 	rlt := coll.FindOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}})
@@ -33,7 +33,7 @@ func (ld *liteDB) Get(k string, out interface{}) (found bool, err error) {
 	return found, ld.updateErr(err)
 }
 
-func (ld *liteDB) Set(k string, v interface{}) (err error) {
+func (ld *liteDB) Set(k string, v any) (err error) {
 	bytes, err := ld.coder.Encode(v)
 	if err == nil {
 		kconv := newKeyConv(k)
@@ -43,7 +43,7 @@ func (ld *liteDB) Set(k string, v interface{}) (err error) {
 	return
 }
 
-func (ld *liteDB) Del(k string, outs ...interface{}) (err error) {
+func (ld *liteDB) Del(k string, outs ...any) (err error) {
 	kconv := newKeyConv(k)
 	coll := ld.Collection(kconv.GetColl())
 	// _, err = coll.DeleteOne(ld.ctx, bson.D{{Key: docKey, Value: kconv.GetDoc()}})
@@ -58,7 +58,7 @@ func (ld *liteDB) Del(k string, outs ...interface{}) (err error) {
 	return ld.updateErr(err)
 }
 
-func (ld *liteDB) decode(rlt *mongo.SingleResult, out interface{}) (err error) {
+func (ld *liteDB) decode(rlt *mongo.SingleResult, out any) (err error) {
 	var m bson.M
 	if err = rlt.Decode(&m); err == nil {
 		if strVal, ok := m[docVal].(string); ok {

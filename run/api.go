@@ -4,9 +4,9 @@ import "context"
 
 type Task struct {
 	//for handle value (V)
-	H func(v interface{}) error
+	H func(v any) error
 	//value for handle (H)
-	V interface{}
+	V any
 	//for notice handle (H) error
 	C chan error
 }
@@ -27,5 +27,5 @@ type TokenSet interface {
 }
 
 // type Handler interface {
-// 	Handle(v interface{}) error
+// 	Handle(v any) error
 // }

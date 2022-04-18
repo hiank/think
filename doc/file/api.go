@@ -7,7 +7,7 @@ import (
 type Decoder interface {
 	LoadFile(paths ...string) error
 	LoadBytes(form Form, vals ...[]byte) error
-	Decode(outVals ...interface{}) error
+	Decode(outVals ...any) error
 	Clear()
 }
 

@@ -16,7 +16,7 @@ type liteDB struct {
 	coder doc.Tcoder
 }
 
-func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
+func (ld *liteDB) Get(k string, v any) (found bool, err error) {
 	str, err := ld.rcli.Get(ld.ctx, k).Result()
 	if err == nil {
 		err, found = ld.coder.Decode([]byte(str), v), true
@@ -24,7 +24,7 @@ func (ld *liteDB) Get(k string, v interface{}) (found bool, err error) {
 	return found, ld.updateErr(err)
 }
 
-func (ld *liteDB) Set(k string, v interface{}) error {
+func (ld *liteDB) Set(k string, v any) error {
 	bytes, err := ld.coder.Encode(v)
 	if err == nil {
 		err = ld.rcli.Set(ld.ctx, k, string(bytes), 0).Err()
@@ -32,7 +32,7 @@ func (ld *liteDB) Set(k string, v interface{}) error {
 	return ld.updateErr(err)
 }
 
-func (ld *liteDB) Del(k string, outs ...interface{}) (err error) {
+func (ld *liteDB) Del(k string, outs ...any) (err error) {
 	str, err := ld.rcli.GetDel(ld.ctx, k).Result()
 	if err == nil {
 		for _, out := range outs {

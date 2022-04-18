@@ -21,7 +21,7 @@ type RowsCoder struct {
 	RC RowsConverter
 }
 
-func (rd RowsCoder) Decode(data []byte, out interface{}) (err error) {
+func (rd RowsCoder) Decode(data []byte, out any) (err error) {
 	rows, err := rd.RC.ToRows(data)
 	if err != nil {
 		//don't pass here often, so don't need to consider process optimization
@@ -43,7 +43,7 @@ func (rd RowsCoder) Decode(data []byte, out interface{}) (err error) {
 	return
 }
 
-func (rd RowsCoder) Encode(v interface{}) (out []byte, err error) {
+func (rd RowsCoder) Encode(v any) (out []byte, err error) {
 	// out, ok := v.([]byte)
 	// if !ok {
 	// 	err = ErrUnimplemented

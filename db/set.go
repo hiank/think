@@ -35,19 +35,19 @@ type robustDB struct {
 	store KvDB
 }
 
-func (rd *robustDB) Set(k string, v interface{}) error {
+func (rd *robustDB) Set(k string, v any) error {
 	_, k, _ = decode(k)
 	return rd.store.Set(k, v)
 }
 
 // Get retrieves the value for the given key.
-func (rd *robustDB) Get(k string, v interface{}) (found bool, err error) {
+func (rd *robustDB) Get(k string, v any) (found bool, err error) {
 	_, k, _ = decode(k)
 	return rd.store.Get(k, v)
 }
 
 // Delete deletes the stored value for the given key.
-func (rd *robustDB) Del(k string, outs ...interface{}) error {
+func (rd *robustDB) Del(k string, outs ...any) error {
 	_, k, _ = decode(k)
 	return rd.store.Del(k, outs...)
 }
@@ -83,7 +83,7 @@ func (md *mixDB) decode(k string) (kt KeyTag, baseKey string, err error) {
 	return
 }
 
-func (md *mixDB) Set(k string, v interface{}) error {
+func (md *mixDB) Set(k string, v any) error {
 	kt, k, err := md.decode(k)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (md *mixDB) Set(k string, v interface{}) error {
 }
 
 // Get retrieves the value for the given key.
-func (md *mixDB) Get(k string, v interface{}) (found bool, err error) {
+func (md *mixDB) Get(k string, v any) (found bool, err error) {
 	kt, k, err := md.decode(k)
 	if err != nil {
 		return
@@ -121,7 +121,7 @@ func (md *mixDB) Get(k string, v interface{}) (found bool, err error) {
 }
 
 // Del deletes the stored value for the given key.
-func (md *mixDB) Del(k string, outs ...interface{}) error {
+func (md *mixDB) Del(k string, outs ...any) error {
 	kt, k, err := md.decode(k)
 	if err != nil {
 		return err
@@ -144,15 +144,15 @@ func (md *mixDB) Close() (err error) {
 
 type emptyDB byte
 
-func (emptyDB) Get(string, interface{}) (bool, error) {
+func (emptyDB) Get(string, any) (bool, error) {
 	return false, ErrUnimplemented
 }
 
-func (emptyDB) Set(string, interface{}) error {
+func (emptyDB) Set(string, any) error {
 	return ErrUnimplemented
 }
 
-func (emptyDB) Del(string, ...interface{}) error {
+func (emptyDB) Del(string, ...any) error {
 	return ErrUnimplemented
 }
 

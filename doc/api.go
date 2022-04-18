@@ -8,13 +8,13 @@ type RowsConverter interface {
 
 //Coder decode|encode between bytes and struct
 type Coder interface {
-	Decode(b []byte, out interface{}) error
-	Encode(v interface{}) ([]byte, error)
+	Decode(b []byte, out any) error
+	Encode(v any) ([]byte, error)
 }
 
 //Maker for make T *B value
 type Maker interface {
-	MakeT(v interface{}) T
+	MakeT(v any) T
 	MakeB(d []byte) *B
 }
 

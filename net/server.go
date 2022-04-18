@@ -61,7 +61,7 @@ type RouteMux struct {
 	m sync.Map
 }
 
-func (rm *RouteMux) Handle(k interface{}, h Handler) {
+func (rm *RouteMux) Handle(k any, h Handler) {
 	sk, ok := k.(string)
 	if !ok {
 		rv := reflect.ValueOf(k)

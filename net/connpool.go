@@ -69,7 +69,7 @@ L:
 			}
 		}
 	}
-	cp.m.Range(func(_, value interface{}) bool {
+	cp.m.Range(func(_, value any) bool {
 		cp.lookErr(value.(Conn).Close())
 		return true
 	})
@@ -101,24 +101,24 @@ func (cp *connpool) loopRecv(id string, conn *fatconn) {
 
 //Send send given message
 //does not block
-func (cp *connpool) Send(v interface{}, tis ...string) (err error) {
+func (cp *connpool) Send(v any, tis ...string) (err error) {
 	m, err := pb.MakeM(v)
 	if err != nil {
 		return
 	}
 	if len(tis) == 0 {
 		//send for all conn
-		cp.m.Range(func(_, value interface{}) bool {
+		cp.m.Range(func(_, value any) bool {
 			cp.lookErr(value.(*fatconn).Send(m))
 			return true
 		})
 		return
 	}
-	km := make(map[interface{}]byte)
+	km := make(map[any]byte)
 	for _, k := range tis {
 		km[k] = 1
 	}
-	cp.m.Range(func(key, value interface{}) bool {
+	cp.m.Range(func(key, value any) bool {
 		if _, ok := km[key]; ok {
 			if tmperr := cp.lookErr(value.(*fatconn).Send(m)); tmperr != nil {
 				err = tmperr
@@ -174,7 +174,7 @@ func (fc *fatconn) Recv() (pb.M, error) {
 }
 
 //handle for Task
-func (fc *fatconn) handle(v interface{}) (err error) {
+func (fc *fatconn) handle(v any) (err error) {
 	if werr := fc.conn.Send(v.(pb.M)); werr != nil {
 		if werr != io.EOF {
 			klog.Warningf("conn write error: %s", werr.Error())

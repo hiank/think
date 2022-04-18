@@ -130,7 +130,7 @@ func TestServer(t *testing.T) {
 
 func TestForcedConversion(t *testing.T) {
 	data := &testdata.AnyTest1{Name: "hp"}
-	var tmp interface{} = data
+	var tmp any = data
 	val, _ := tmp.(*testdata.AnyTest2)
 	// assert.Assert(t, !ok)
 	assert.Assert(t, val == nil)
@@ -275,7 +275,7 @@ type testKey1 string
 func TestInterfaceType(t *testing.T) {
 	// var key1 testKey1 = "key1"
 	var key testKey = "key"
-	var it interface{} = key
+	var it any = key
 	val, ok := it.(testKey1)
 	assert.Assert(t, !ok)
 	assert.Equal(t, val, testKey1(""))

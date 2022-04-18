@@ -71,7 +71,7 @@ func (f *fat) LoadBytes(form Form, vals ...[]byte) error {
 	return nil
 }
 
-func (f *fat) Decode(outVals ...interface{}) (err error) {
+func (f *fat) Decode(outVals ...any) (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	for _, buffer := range f.m {

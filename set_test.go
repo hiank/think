@@ -12,11 +12,11 @@ import (
 )
 
 type testKvStore struct {
-	m map[string]interface{}
+	m map[string]any
 }
 
 // func (ts *testKvStore)
-func (ts *testKvStore) Set(k string, v interface{}) (err error) {
+func (ts *testKvStore) Set(k string, v any) (err error) {
 	if k == "" || v == nil {
 		return fmt.Errorf("invalid key or value: %s : %v", k, v)
 	}
@@ -25,7 +25,7 @@ func (ts *testKvStore) Set(k string, v interface{}) (err error) {
 }
 
 // Get retrieves the value for the given key.
-func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
+func (ts *testKvStore) Get(k string, v any) (found bool, err error) {
 	if k == "" || v == nil {
 		return false, fmt.Errorf("invalid key or value")
 	}
@@ -50,7 +50,7 @@ func (ts *testKvStore) Get(k string, v interface{}) (found bool, err error) {
 }
 
 // Del deletes the stored value for the given key.
-func (ts *testKvStore) Del(k string, outs ...interface{}) error {
+func (ts *testKvStore) Del(k string, outs ...any) error {
 	if k == "" {
 		return fmt.Errorf("invalid key")
 	}
@@ -66,7 +66,7 @@ func (ts *testKvStore) Close() (err error) {
 }
 
 var testKvDialer = think.FuncKvDialer(func(c context.Context, do ...db.DialOption) (db.KvDB, error) {
-	return &testKvStore{m: map[string]interface{}{}}, nil
+	return &testKvStore{m: map[string]any{}}, nil
 })
 
 func TestSetUnique(t *testing.T) {
@@ -121,8 +121,8 @@ func TestSetUnique(t *testing.T) {
 
 func TestMap(t *testing.T) {
 	m := make(map[int]int)
-	var i interface{} = m
-	_, ok := i.(map[int]interface{})
+	var i any = m
+	_, ok := i.(map[int]any)
 	assert.Assert(t, !ok)
 
 	rv := reflect.ValueOf(m)
