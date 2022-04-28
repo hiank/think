@@ -1,4 +1,4 @@
-package file
+package sys_test
 
 import (
 	"io/fs"
