@@ -1,31 +1,60 @@
 package net
 
-import "github.com/hiank/think/net/pb"
+import (
+	"context"
+	"io"
 
-type Conn interface {
-	Send(pb.M) error
-	Recv() (pb.M, error)
-	Close() error
+	"github.com/hiank/think/net/box"
+	"google.golang.org/protobuf/proto"
+)
+
+type Sender interface {
+	Send(*box.Message) error
 }
 
-//IAC identity and conn
-type IAC struct {
+type Receiver interface {
+	Recv() (*box.Message, error)
+}
+
+type Conn interface {
+	Sender
+	Receiver
+	io.Closer
+}
+
+// type Rest interface {
+// 	Get(context.Context, *anypb.Any) (*anypb.Any, error)
+// 	Post(context.Context, *anypb.Any) (*emptypb.Empty, error)
+// 	io.Closer
+// }
+
+//IdentityConn conn with identity
+type IdentityConn struct {
 	ID string
 	Conn
 }
 
-//Dialer dial to server
-type Dialer interface {
-	Dial(addr string) (IAC, error)
+type IdentityMessage struct {
+	ID string
+	M  *box.Message
 }
 
-type Client interface {
-	Send(d pb.M, ti string) error
-	// Handle(k any, h Handler)
+//Knower unpack box.Message to want data
+type Knower interface {
+	//Identiy uid to identity
+	Identity(uid string) (string, error)
+
+	//ServeAddr get server addr from box.message
+	ServeAddr(*box.Message) (string, error)
+}
+
+//Dialer
+type Dialer interface {
+	Dial(ctx context.Context, addr string) (Conn, error)
 }
 
 type Listener interface {
-	Accept() (IAC, error)
+	Accept() (IdentityConn, error)
 	Close() error
 }
 
@@ -35,21 +64,18 @@ type Server interface {
 	//Send message to client (by conn)
 	//ti is target identity. when len(ti) == 0
 	//means send for all conn
-	Send(v any, tis ...string) error
-	// //AddHandler add handler for revc message
-	// Handle(k any, h Handler)
-	//
-	Close() error
+	Send(v proto.Message, tis ...string) error
+	io.Closer
 }
 
 //Handler handle message
 type Handler interface {
-	Route(string, pb.M)
+	Route(string, *box.Message)
 }
 
 //HandlerFunc easy convert func to Handler
-type HandlerFunc func(string, pb.M)
+type HandlerFunc func(id string, m *box.Message)
 
-func (hf HandlerFunc) Route(id string, m pb.M) {
+func (hf HandlerFunc) Route(id string, m *box.Message) {
 	hf(id, m)
 }

@@ -2,11 +2,11 @@ package net
 
 import (
 	"context"
-	"reflect"
 	"sync"
 
-	"github.com/hiank/think/net/pb"
+	"github.com/hiank/think/net/box"
 	"github.com/hiank/think/run"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -18,7 +18,7 @@ type server struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	listener Listener
-	*connpool
+	cp       *connpool
 }
 
 func NewServer(listener Listener, h Handler) Server {
@@ -27,7 +27,7 @@ func NewServer(listener Listener, h Handler) Server {
 		listener: listener,
 		ctx:      ctx,
 		cancel:   cancel,
-		connpool: newConnpool(ctx, h),
+		cp:       newConnpool(ctx, h),
 	}
 }
 
@@ -38,12 +38,25 @@ func (srv *server) ListenAndServe() (err error) {
 		iac, err := srv.listener.Accept()
 		if err == nil {
 			if err = srv.ctx.Err(); err == nil {
-				srv.AddConn(iac.ID, iac.Conn)
+				srv.cp.add(iac.ID, iac.Conn)
 				continue
 			}
 		}
 		return err
 	}
+}
+
+func (srv *server) Send(pm proto.Message, tis ...string) (err error) {
+	m, err := box.New(pm)
+	if err == nil {
+		switch len(tis) {
+		case 0:
+			err = srv.cp.broadcast(m)
+		default:
+			err = srv.cp.multiSend(m, tis...)
+		}
+	}
+	return
 }
 
 //Close close the server
@@ -61,23 +74,27 @@ type RouteMux struct {
 	m sync.Map
 }
 
+//Handle register Handler for k
+//k must be string/proto.Message value
 func (rm *RouteMux) Handle(k any, h Handler) {
-	sk, ok := k.(string)
-	if !ok {
-		rv := reflect.ValueOf(k)
-		for rv.Kind() == reflect.Ptr {
-			rv = rv.Elem()
-		}
-		sk = rv.Type().Name()
+	var sk string
+	switch v := k.(type) {
+	case string:
+		sk = v
+	case proto.Message:
+		sk = string(v.ProtoReflect().Descriptor().FullName())
+	default:
+		klog.Warning("net: unsupport k value type")
 	}
 	rm.m.Store(sk, h)
 }
 
-func (rm *RouteMux) Route(id string, m pb.M) {
-	mv, loaded := rm.m.Load(m.TypeName())
+func (rm *RouteMux) Route(id string, m *box.Message) {
+	k := string(m.GetAny().MessageName().Name())
+	mv, loaded := rm.m.Load(k)
 	if !loaded {
 		if mv, loaded = rm.m.Load(DefaultHandler); !loaded {
-			klog.Warning("cannot find handler for handle message recv by conn: ", m.TypeName())
+			klog.Warning("cannot find handler for handle message recv by conn: ", k)
 			return
 		}
 	}

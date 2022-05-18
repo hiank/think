@@ -2,28 +2,28 @@ package ws
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/run"
+	"github.com/hiank/think/net/box"
+	"google.golang.org/protobuf/types/known/anypb"
+	"k8s.io/klog/v2"
 )
 
-const ErrUnsupportMessageType = run.Err("ws: unsupport message type recved")
-
 type conn struct {
-	// uid uint64
 	wc *websocket.Conn
 }
 
-func (l *conn) Send(m pb.M) error {
-	return l.wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
+func (c *conn) Send(m *box.Message) error {
+	return c.wc.WriteMessage(websocket.BinaryMessage, m.GetBytes())
 }
 
-func (l *conn) Recv() (out pb.M, err error) {
-	t, bs, err := l.wc.ReadMessage()
+func (c *conn) Recv() (out *box.Message, err error) {
+	mt, buf, err := c.wc.ReadMessage()
 	if err == nil {
-		if t == websocket.BinaryMessage {
-			out, err = pb.MakeM(bs)
-		} else {
-			err = ErrUnsupportMessageType
+		switch mt {
+		case websocket.BinaryMessage:
+			out = new(box.Message)
+			err = box.Unmarshal[*anypb.Any](buf, out)
+		default:
+			klog.Warning("ws: unsupport message type:", mt)
 		}
 	}
 	return

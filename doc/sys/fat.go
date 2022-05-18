@@ -76,3 +76,7 @@ L:
 	}
 	return
 }
+
+func (fat *Fat) Release() {
+	*fat = *NewFat()
+}

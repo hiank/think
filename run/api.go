@@ -1,20 +1,32 @@
 package run
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
-type Task struct {
-	//for handle value (V)
-	H func(v any) error
-	//value for handle (H)
-	V any
-	//for notice handle (H) error
-	C chan error
-}
+// type Task struct {
+// 	//for handle value (V)
+// 	H func(v any) error
+// 	//value for handle (H)
+// 	V any
+// 	//for notice handle (H) error
+// 	C chan error
+// }
 
 type Tasker interface {
 	Add(Task) error
-	Stop()
+	io.Closer
 }
+
+type Task interface {
+	Process() error
+}
+
+// type Tasker interface {
+// 	Add(Task) error
+// 	Stop()
+// }
 
 type Token interface {
 	context.Context

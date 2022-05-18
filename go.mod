@@ -5,14 +5,14 @@ go 1.18
 require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/websocket v1.5.0
-	github.com/nats-io/nats.go v1.14.0
+	github.com/nats-io/nats.go v1.15.0
 	github.com/xuri/excelize/v2 v2.6.0
-	go.mongodb.org/mongo-driver v1.9.0
-	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
-	google.golang.org/grpc v1.45.0
+	go.mongodb.org/mongo-driver v1.9.1
+	golang.org/x/exp v0.0.0-20220516143420-24438e51023a
+	google.golang.org/grpc v1.46.2
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
-	gotest.tools/v3 v3.1.0
+	gotest.tools/v3 v3.2.0
 	k8s.io/klog/v2 v2.60.1
 )
 
@@ -23,10 +23,10 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/google/go-cmp v0.5.5 // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/klauspost/compress v1.14.4 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/nats-io/nats-server/v2 v2.7.4 // indirect
+	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

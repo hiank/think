@@ -2,96 +2,121 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	snet "net"
 	"strconv"
 
 	"github.com/hiank/think/net"
-	"github.com/hiank/think/net/adapter/rpc/pp"
+	"github.com/hiank/think/net/adapter"
+	"github.com/hiank/think/net/adapter/rpc/pipe"
 	"github.com/hiank/think/run"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"k8s.io/klog/v2"
 )
 
 const (
 	ErrLinkClosed = run.Err("rpc: Link closed")
+
+	linkMetadataIdentity = "identity"
+	linkMetadataSuccess  = "success"
 )
 
-func defaultListenOptions() listenOptions {
-	return listenOptions{
-		addr: ":10250",
-		rest: new(pp.UnimplementedPipeServer),
-	}
-}
-
 type listener struct {
-	pp.UnsafePipeServer //for PipeServcer
-	REST                //for PipeServer
+	addr      string //listen address with port
+	keepalive pipe.KeepaliveServer
+	rest      pipe.RestServer
+	// healthy   *run.Healthy
+	pipe.UnsafeKeepaliveServer
 	io.Closer
-	linkPP chan net.IAC
+	adapter.ChanAccepter
 }
 
-//NewListener new a rpc listener
-//NOTE: default addr is ":10250"
-func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
-	dopts := defaultListenOptions()
-	for _, opt := range opts {
-		opt.apply(&dopts)
-	}
-	lis, err := new(snet.ListenConfig).Listen(ctx, "tcp", dopts.addr)
-	if err != nil {
-		panic(err)
-	}
-	srv, linkPP := grpc.NewServer(), make(chan net.IAC)
-	l := &listener{
-		REST:   dopts.rest,
-		linkPP: linkPP,
-		Closer: run.NewOnceCloser(func() error {
-			close(linkPP)
-			srv.Stop()
-			return lis.Close()
-		}),
-	}
-	go func() {
-		defer l.Close()
-		pp.RegisterPipeServer(srv, l)
-		srv.Serve(lis)
-	}()
-	return l
-}
-
-func (l *listener) Accept() (c net.IAC, err error) {
-	c, ok := <-l.linkPP
-	if !ok {
-		err = io.EOF
+//Link for LinkServer
+func (lis *listener) Link(ls pipe.Keepalive_LinkServer) (err error) {
+	identity, err := linkAuth2(ls)
+	if err == nil {
+		ctx, cancel := context.WithCancel(ls.Context())
+		defer cancel()
+		lis.ChanAccepter <- net.IdentityConn{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
+		<-ctx.Done()
+		err = ErrLinkClosed
 	}
 	return
+}
+
+//servePipe serve pipeServer
+func (lis *listener) servePipe(slis snet.Listener) {
+	defer lis.Close()
+	srv := grpc.NewServer()
+	defer srv.Stop()
+	pipe.RegisterKeepaliveServer(srv, lis.keepalive)
+	pipe.RegisterRestServer(srv, lis.rest)
+	srv.Serve(slis)
 }
 
 //linkAuth get 'identity' value from metadata
 //NOTE: identity is generated in grpc client. it was generated with key "hostname.uid" in redis (IStorage)
-func (l *listener) linkAuth(ls pp.Pipe_LinkServer) (identity uint64, suc bool) {
+func linkAuth2(ls pipe.Keepalive_LinkServer) (identity uint64, err error) {
+	err = fmt.Errorf("rpc: identity metadata for grpc-link invalided")
 	if md, ok := metadata.FromIncomingContext(ls.Context()); ok {
-		if arr := md.Get("identity"); arr != nil || len(arr) > 0 {
-			if identity, err := strconv.ParseUint(arr[0], 10, 64); err == nil {
-				ls.SetHeader(metadata.Pairs("success", "true"))
-				if err = ls.SendHeader(nil); err == nil {
-					return identity, true
+		if arr := md.Get(linkMetadataIdentity); arr != nil || len(arr) > 0 {
+			if identity, err = strconv.ParseUint(arr[0], 10, 64); err == nil {
+				if err = ls.SetHeader(metadata.Pairs(linkMetadataSuccess, "true")); err == nil {
+					err = ls.SendHeader(nil)
 				}
 			}
 		}
 	}
-	klog.Warning("identity metadata for grpc invalid")
 	return
 }
 
-//Link for pp.PipeServer
-func (l *listener) Link(ls pp.Pipe_LinkServer) (err error) {
-	if identity, suc := l.linkAuth(ls); suc {
-		ctx, cancel := context.WithCancel(ls.Context())
-		l.linkPP <- net.IAC{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
-		<-ctx.Done()
+type ListenOption run.Option[*listener]
+
+func defaultListener() listener {
+	return listener{
+		keepalive: pipe.UnimplementedKeepaliveServer{},
+		rest:      pipe.UnimplementedRestServer{},
+		addr:      ":30202",
+		// healthy:      run.NewHealthy(),
+		ChanAccepter: make(adapter.ChanAccepter),
 	}
-	return ErrLinkClosed
+}
+
+func WithAddress(addr string) ListenOption {
+	return run.FuncOption[*listener](func(lis *listener) {
+		lis.addr = addr
+	})
+}
+
+func WithDefaultKeepaliveServer() ListenOption {
+	return run.FuncOption[*listener](func(lis *listener) {
+		lis.keepalive = lis
+	})
+}
+
+func WithRestServer(rest pipe.RestServer) ListenOption {
+	return run.FuncOption[*listener](func(lis *listener) {
+		lis.rest = rest
+	})
+}
+
+func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
+	lis := defaultListener()
+	for _, opt := range opts {
+		opt.Apply(&lis)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	slis, err := new(snet.ListenConfig).Listen(ctx, "tcp", lis.addr)
+	if err != nil {
+		panic(err) //failed listen in given address
+	}
+	healthy := run.NewHealthy()
+	lis.Closer = run.NewHealthyCloser(healthy, cancel)
+	go healthy.Monitoring(ctx, func() {
+		close(lis.ChanAccepter)
+		slis.Close()
+	}) //monitor ctx
+	go lis.servePipe(slis)
+	return &lis
 }

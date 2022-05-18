@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think/net"
-	"github.com/hiank/think/net/pb"
+	"github.com/hiank/think/net/box"
 	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -14,20 +14,20 @@ import (
 )
 
 type testHandler struct {
-	out chan pb.M
+	out chan *box.Message
 }
 
-func (tch *testHandler) Route(id string, m pb.M) {
+func (tch *testHandler) Route(id string, m *box.Message) {
 	tch.out <- m
 	// return nil
 }
 
 type testListener struct {
 	// once chan uint64
-	connPP chan *net.IAC
+	connPP chan *net.IdentityConn
 }
 
-func (tl *testListener) Accept() (iac net.IAC, err error) {
+func (tl *testListener) Accept() (iac net.IdentityConn, err error) {
 	tc, ok := <-tl.connPP
 	if ok {
 		iac = *tc
@@ -46,7 +46,7 @@ func TestNewServer(t *testing.T) {
 	// ctx, cancel := context.WithCancel(context.TODO())
 	// defer cancel()
 	router := &net.RouteMux{}
-	srv := net.NewServer(&testListener{connPP: make(chan *net.IAC)}, router)
+	srv := net.NewServer(&testListener{connPP: make(chan *net.IdentityConn)}, router)
 	go func() {
 		srv.Close()
 	}()
@@ -58,57 +58,58 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestDoc(t *testing.T) {
-	doc, err := pb.MakeM(&testdata.G_Example{})
+	doc, err := box.New(&testdata.G_Example{}) //pb.MakeM(&testdata.G_Example{})
 	assert.Assert(t, err == nil, err)
-	assert.Equal(t, doc.TypeName(), "G_Example", doc.TypeName())
+	assert.Equal(t, string(doc.GetAny().MessageName().Name()), "G_Example", doc.GetAny().MessageName().Name())
 
-	_, err = pb.MakeM(11)
+	_, err = box.New(nil) //pb.MakeM(11)
 	assert.Assert(t, err != nil, "param for makedoc should be a proto.Message")
 
 	// b := doc.Bytes()
 	var amsg anypb.Any
-	err = proto.Unmarshal(doc.Bytes(), &amsg)
+	err = proto.Unmarshal(doc.GetBytes(), &amsg)
 	assert.Assert(t, err == nil, err)
 }
 
 func TestRouteMux(t *testing.T) {
 	rm := &net.RouteMux{}
-	nt := make(chan pb.M, 1)
-	rm.Handle("S_Example", net.HandlerFunc(func(s string, m pb.M) {
+	nt := make(chan *box.Message, 1)
+	rm.Handle("S_Example", net.HandlerFunc(func(s string, m *box.Message) {
 		nt <- m
 	}))
 
-	d, _ := pb.MakeM(&testdata.S_Example{Value: "route"})
+	d, _ := box.New(&testdata.S_Example{Value: "route"})
 	rm.Route("tmp", d)
 
 	d = <-nt
-	v, _ := d.Any().UnmarshalNew()
+	v, _ := d.GetAny().UnmarshalNew()
 	assert.Equal(t, v.(*testdata.S_Example).GetValue(), "route")
 }
 
 func TestServer(t *testing.T) {
 
-	handlerPP := make(chan pb.M)
-	accept, router := make(chan *net.IAC), &net.RouteMux{}
+	handlerPP := make(chan *box.Message)
+	accept, router := make(chan *net.IdentityConn), &net.RouteMux{}
 	router.Handle("", &testHandler{out: handlerPP})
 	srv := net.NewServer(&testListener{connPP: accept}, router)
 	defer srv.Close()
 	go srv.ListenAndServe()
 
 	t.Run("accept-recv-send", func(t *testing.T) {
-		recvPP, sendPP := make(chan pb.M), make(chan pb.M)
-		tc := net.Export_newTestConn(recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- &net.IAC{ID: "1", Conn: tc}
+		recvPP, sendPP := make(chan *box.Message), make(chan *box.Message)
+		tc := net.Export_newTmpConn(recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
+		accept <- &net.IdentityConn{ID: "1", Conn: tc}
 
 		msg := &testdata.S_Example{Value: "pp"}
 		any, _ := anypb.New(msg)
 		d, _ := proto.Marshal(any)
-		ndoc, _ := pb.MakeM(d)
-		recvPP <- ndoc
+		m := new(box.Message)
+		box.Unmarshal[*anypb.Any](d, m) //box.New(d)
+		recvPP <- m
 
 		doc := <-handlerPP
 		// assert.Equal(t, carrier.GetIdentity(), uint64(1))
-		val, _ := doc.Any().UnmarshalNew()
+		val, _ := doc.GetAny().UnmarshalNew()
 		assert.Equal(t, val.(*testdata.S_Example).GetValue(), "pp")
 
 		err := srv.Send(&testdata.AnyTest1{Name: "test1"}, "2")
@@ -121,7 +122,7 @@ func TestServer(t *testing.T) {
 		}(t)
 		doc = <-sendPP
 		// any = <-sendPP
-		proto.Unmarshal(doc.Bytes(), any)
+		proto.Unmarshal(doc.GetBytes(), any)
 		val, _ = any.UnmarshalNew()
 		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ws")
 	})
