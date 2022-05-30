@@ -9,7 +9,6 @@ import (
 	"github.com/hiank/think/run"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
-	"k8s.io/klog/v2"
 )
 
 //Dial connect to redis database and return connected client or error
@@ -27,15 +26,13 @@ func Dial(ctx context.Context, opts ...db.DialOption) (d store.Dictionary[string
 		Addr:        dopts.Addr,
 	})
 	if err = cli.Ping(ctx).Err(); err == nil {
-		ctx, cancel := context.WithCancel(ctx)
-		healthy := run.NewHealthy()
+		ctx, closer := run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(cli))
 		d = &liteDB{
 			ctx:    ctx,
 			rcli:   cli,
 			coder:  dopts.Coder,
-			Closer: run.NewHealthyCloser(healthy, cancel),
+			Closer: closer,
 		}
-		go healthy.Monitoring(ctx, func() { klog.Warning(cli.Close()) })
 	}
 	return
 }

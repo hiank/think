@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/hiank/think/doc/sys"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
 
@@ -16,7 +17,11 @@ import (
 //only provide 'Set' method to get
 type utilset interface {
 	//TODO base context
+	//one.TODO()
 	TODO() context.Context
+
+	//TokenSet one.TokenSet()
+	TokenSet() one.Tokenset
 
 	//DB get cached database
 	DB(tag DBTag) (ed store.EasyDictionary, found bool)

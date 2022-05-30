@@ -3,22 +3,27 @@ package box_test
 import (
 	"testing"
 
-	"github.com/hiank/think/net/testdata"
 	"github.com/hiank/think/net/box"
+	"github.com/hiank/think/net/testdata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gotest.tools/v3/assert"
 )
 
 func TestNew(t *testing.T) {
-	msg, err := box.New(&testdata.AnyTest1{Name: "test new"})
-	assert.Equal(t, err, nil, err)
+	t.Run("empty", func(t *testing.T) {
+		msg := box.New()
+		var empty []byte
+		assert.DeepEqual(t, msg.GetBytes(), empty)
+	})
+	msg := box.New(box.WithMessageValue(&testdata.AnyTest1{Name: "test new"}))
+	// assert.Equal(t, err, nil, err)
 	at1, err := msg.GetAny().UnmarshalNew()
 	assert.Equal(t, err, nil, err)
 	assert.Equal(t, at1.(*testdata.AnyTest1).GetName(), "test new")
 
 	amsg2, _ := anypb.New(&testdata.AnyTest2{Hope: "audi"})
-	msg, err = box.New(amsg2)
+	msg = box.New(box.WithMessageValue(amsg2))
 	assert.Equal(t, err, nil, err)
 	at2, err := msg.GetAny().UnmarshalNew()
 	assert.Equal(t, err, nil, err)
@@ -27,8 +32,9 @@ func TestNew(t *testing.T) {
 
 func TestUnmarshal(t *testing.T) {
 	b, _ := proto.Marshal(&testdata.AnyTest1{Name: "benz"})
-	var msg box.Message
-	err := box.Unmarshal[*testdata.AnyTest1](b, &msg)
+	// var msg box.Message
+	msg := box.New()
+	err := box.Unmarshal[*testdata.AnyTest1](b, msg)
 	assert.Equal(t, err, nil, err)
 
 	at1, err := msg.GetAny().UnmarshalNew()

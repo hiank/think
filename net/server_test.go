@@ -4,49 +4,47 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/box"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/net/testdata"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/hiank/think/run"
 	"gotest.tools/v3/assert"
 )
 
-type testHandler struct {
-	out chan *box.Message
-}
+// type tmpHandler struct {
+// 	out chan net.TokenMessage
+// }
 
-func (tch *testHandler) Route(id string, m *box.Message) {
-	tch.out <- m
-	// return nil
-}
+// func (tch *tmpHandler) Route(tt net.TokenMessage) {
+// 	tch.out <- tt
+// 	// return nil
+// }
 
-type testListener struct {
+type tmpListener struct {
 	// once chan uint64
-	connPP chan *net.IdentityConn
+	connPP chan net.TokenConn
 }
 
-func (tl *testListener) Accept() (iac net.IdentityConn, err error) {
-	tc, ok := <-tl.connPP
-	if ok {
-		iac = *tc
-	} else {
+func (tl *tmpListener) Accept() (iac net.TokenConn, err error) {
+	iac, ok := <-tl.connPP
+	if !ok {
 		err = io.EOF
 	}
 	return
 }
 
-func (tl *testListener) Close() error {
+func (tl *tmpListener) Close() error {
 	close(tl.connPP)
 	return nil
 }
 
 func TestNewServer(t *testing.T) {
-	// ctx, cancel := context.WithCancel(context.TODO())
-	// defer cancel()
+
 	router := &net.RouteMux{}
-	srv := net.NewServer(&testListener{connPP: make(chan *net.IdentityConn)}, router)
+	srv := net.NewServer(&tmpListener{connPP: make(chan net.TokenConn)}, router)
 	go func() {
 		srv.Close()
 	}()
@@ -54,79 +52,99 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, err, io.EOF)
 
 	err = srv.Close()
-	assert.Equal(t, err, context.Canceled, "close could called repeatedly")
-}
-
-func TestDoc(t *testing.T) {
-	doc, err := box.New(&testdata.G_Example{}) //pb.MakeM(&testdata.G_Example{})
-	assert.Assert(t, err == nil, err)
-	assert.Equal(t, string(doc.GetAny().MessageName().Name()), "G_Example", doc.GetAny().MessageName().Name())
-
-	_, err = box.New(nil) //pb.MakeM(11)
-	assert.Assert(t, err != nil, "param for makedoc should be a proto.Message")
-
-	// b := doc.Bytes()
-	var amsg anypb.Any
-	err = proto.Unmarshal(doc.GetBytes(), &amsg)
-	assert.Assert(t, err == nil, err)
+	assert.Equal(t, err, run.ErrBeenClosed, "")
 }
 
 func TestRouteMux(t *testing.T) {
 	rm := &net.RouteMux{}
-	nt := make(chan *box.Message, 1)
-	rm.Handle("S_Example", net.HandlerFunc(func(s string, m *box.Message) {
-		nt <- m
+	nt := make(chan net.TokenMessage, 1)
+	rm.Handle("S_Example", net.FuncHandler(func(tt net.TokenMessage) {
+		nt <- tt
 	}))
 
-	d, _ := box.New(&testdata.S_Example{Value: "route"})
-	rm.Route("tmp", d)
+	rm.Handle(1, net.FuncHandler(func(tt net.TokenMessage) {}))
+	//get a warning log here. unsupport handle type
 
-	d = <-nt
-	v, _ := d.GetAny().UnmarshalNew()
+	d := box.New(box.WithMessageValue(&testdata.S_Example{Value: "route"}))
+	// rm.Route("tmp", d)
+	rm.Route(net.TokenMessage{T: d})
+
+	tt := <-nt
+	v, _ := tt.T.GetAny().UnmarshalNew()
 	assert.Equal(t, v.(*testdata.S_Example).GetValue(), "route")
+
+	rm.Route(net.TokenMessage{T: box.New(box.WithMessageValue(&testdata.G_Example{Value: "gg"}))})
+	//get a warning log here
+
+	dnt := make(chan net.TokenMessage, 1)
+	rm.Handle("", net.FuncHandler(func(tt net.TokenMessage) {
+		dnt <- tt
+	}))
+
+	rm.Route(net.TokenMessage{T: box.New(box.WithMessageValue(&testdata.G_Example{Value: "gg2"}))})
+	tt = <-dnt
+	v, _ = tt.T.GetAny().UnmarshalNew()
+	assert.Equal(t, v.(*testdata.G_Example).GetValue(), "gg2", "handle by default handler")
 }
 
 func TestServer(t *testing.T) {
+	cpp, router := make(chan net.TokenConn, 10), &net.RouteMux{}
+	lis := &tmpListener{connPP: cpp}
+	srv := net.NewServer(lis, router)
+	vpp := make(chan net.TokenMessage, 20)
+	router.Handle(&testdata.G_Example{}, net.FuncHandler(func(tt net.TokenMessage) {
+		vpp <- tt
+	}))
 
-	handlerPP := make(chan *box.Message)
-	accept, router := make(chan *net.IdentityConn), &net.RouteMux{}
-	router.Handle("", &testHandler{out: handlerPP})
-	srv := net.NewServer(&testListener{connPP: accept}, router)
-	defer srv.Close()
-	go srv.ListenAndServe()
+	wait := make(chan bool)
+	go func() {
+		srv.ListenAndServe()
+		close(wait)
+	}()
 
-	t.Run("accept-recv-send", func(t *testing.T) {
-		recvPP, sendPP := make(chan *box.Message), make(chan *box.Message)
-		tc := net.Export_newTmpConn(recvPP, sendPP) //&testConn{recvPP: recvPP, sendPP: sendPP, identity: 1}
-		accept <- &net.IdentityConn{ID: "1", Conn: tc}
+	recvPP, sendPP := make(chan box.Message), make(chan box.Message)
+	cpp <- net.TokenConn{T: &net.TmpConn{RecvPP: recvPP, SendPP: sendPP}, Token: one.TokenSet().Derive("110")}
+	recvPP1, sendPP1 := make(chan box.Message), make(chan box.Message)
+	cpp <- net.TokenConn{T: &net.TmpConn{RecvPP: recvPP1, SendPP: sendPP1}, Token: one.TokenSet().Derive("111")}
 
-		msg := &testdata.S_Example{Value: "pp"}
-		any, _ := anypb.New(msg)
-		d, _ := proto.Marshal(any)
-		m := new(box.Message)
-		box.Unmarshal[*anypb.Any](d, m) //box.New(d)
-		recvPP <- m
+	t.Run("accept-recv", func(t *testing.T) {
+		recvPP <- box.New(box.WithMessageValue(&testdata.G_Example{Value: "g1"}))
+		recvPP <- box.New(box.WithMessageValue(&testdata.S_Example{Value: "s1"}))
 
-		doc := <-handlerPP
-		// assert.Equal(t, carrier.GetIdentity(), uint64(1))
-		val, _ := doc.GetAny().UnmarshalNew()
-		assert.Equal(t, val.(*testdata.S_Example).GetValue(), "pp")
-
-		err := srv.Send(&testdata.AnyTest1{Name: "test1"}, "2")
-		assert.Assert(t, err != nil, "no id 2 conn dialed")
-
-		// any, _ = anypb.New(&testdata.AnyTest1{Name: "ws"})
-		go func(t *testing.T) {
-			err = srv.Send(&testdata.AnyTest1{Name: "ws"}, "1")
-			assert.Equal(t, err, nil)
-		}(t)
-		doc = <-sendPP
-		// any = <-sendPP
-		proto.Unmarshal(doc.GetBytes(), any)
-		val, _ = any.UnmarshalNew()
-		assert.Equal(t, val.(*testdata.AnyTest1).GetName(), "ws")
+		<-time.After(time.Millisecond * 10)
+		assert.Equal(t, len(vpp), 1) //only G_Example could be response
+		tt := <-vpp
+		assert.Equal(t, tt.Token.Value(box.ContextkeyTokenUid).(string), "110")
+		v, _ := tt.T.GetAny().UnmarshalNew()
+		assert.Equal(t, v.(*testdata.G_Example).GetValue(), "g1")
 	})
-	// t.Run("NewServer")
+	t.Run("send", func(t *testing.T) {
+		srv.Send(&testdata.Test1{Name: "t1"})
+		m1, m2 := <-sendPP, <-sendPP1
+		assert.Equal(t, m1, m2)
+		v, _ := m1.GetAny().UnmarshalNew()
+		assert.Equal(t, v.(*testdata.Test1).GetName(), "t1")
+
+		err := srv.Send(&testdata.Test2{Hope: "t2"}, "110", "113")
+		assert.Equal(t, err, net.ErrNonTargetConn)
+
+		m1 = <-sendPP
+		v, _ = m1.GetAny().UnmarshalNew()
+		assert.Equal(t, v.(*testdata.Test2).GetHope(), "t2")
+
+		select {
+		case <-sendPP1:
+			assert.Assert(t, false, "do not send to the id")
+		case <-time.After(time.Millisecond * 100):
+		}
+	})
+
+	srv.Close()
+	_, err := lis.Accept()
+	assert.Equal(t, err, io.EOF, "listener closed")
+
+	err = srv.Send(&testdata.AnyTest1{Name: "at1"})
+	assert.Equal(t, err, context.Canceled, "closed")
 }
 
 func TestForcedConversion(t *testing.T) {

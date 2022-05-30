@@ -65,19 +65,19 @@ func TestListener(t *testing.T) {
 
 	ic, err := lis.Accept()
 	assert.Equal(t, err, nil, err)
-	assert.Equal(t, ic.ID, "27", ic.ID)
+	assert.Equal(t, ic.Token.Value(box.ContextkeyTokenUid), "27")
 
 	// done := make(chan bool)
-	go func(ic net.IdentityConn, t *testing.T) {
-		m, _ := box.New(&testdata.S_Example{Value: "s-e"})
-		err := ic.Send(m)
+	go func(ic net.TokenConn, t *testing.T) {
+		m := box.New(box.WithMessageValue(&testdata.S_Example{Value: "s-e"}))
+		err := ic.T.Send(m)
 		assert.Equal(t, err, nil, err)
-		m, err = ic.Recv()
+		m, err = ic.T.Recv()
 		assert.Equal(t, err, nil, err)
 		gm, _ := m.GetAny().UnmarshalNew()
 		assert.Equal(t, gm.(*testdata.G_Example).GetValue(), "g-v")
 
-		ic.Close()
+		ic.T.Close()
 		// close()
 		// close(done)
 	}(ic, t)
@@ -91,7 +91,7 @@ func TestListener(t *testing.T) {
 	sm, _ := m.GetAny().UnmarshalNew()
 	assert.Equal(t, sm.(*testdata.S_Example).GetValue(), "s-e")
 
-	m, _ = box.New(&testdata.G_Example{Value: "g-v"})
+	m = box.New(box.WithMessageValue(&testdata.G_Example{Value: "g-v"}))
 	err = wc.WriteMessage(websocket.BinaryMessage, m.GetBytes())
 	assert.Equal(t, err, nil, err)
 
@@ -120,18 +120,18 @@ func TestConn(t *testing.T) {
 	wc, err := easyDial("test1_11")
 	assert.Equal(t, err, nil, err)
 	c := ws.Export_newConn(wc)
-	m, _ := box.New(&testdata.P_Example{Value: "p-v"})
+	m := box.New(box.WithMessageValue(&testdata.P_Example{Value: "p-v"}))
 	err = c.Send(m)
 	assert.Equal(t, err, nil, err)
 
 	sc, err := lis.Accept()
 	assert.Equal(t, err, nil, err)
-	sm, _ := sc.Recv()
+	sm, _ := sc.T.Recv()
 	sv, _ := sm.GetAny().UnmarshalNew()
 	assert.Equal(t, sv.(*testdata.P_Example).GetValue(), "p-v")
 
-	m, _ = box.New(&testdata.MessageTest1{Key: "m-t"})
-	err = sc.Send(m)
+	m = box.New(box.WithMessageValue(&testdata.MessageTest1{Key: "m-t"}))
+	err = sc.T.Send(m)
 	assert.Equal(t, err, nil, err)
 
 	m, err = c.Recv()
@@ -142,7 +142,7 @@ func TestConn(t *testing.T) {
 	err = c.Close()
 	assert.Equal(t, err, nil, err)
 
-	_, err = sc.Recv()
+	_, err = sc.T.Recv()
 	assert.Assert(t, err != nil)
 
 	exit <- true

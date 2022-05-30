@@ -9,6 +9,64 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type taskWorker struct {
+	wt Task //working Task
+	wc chan Task
+	l  *list.List
+	C  <-chan time.Time
+}
+
+func newTaskWorker(ctx context.Context, timeout time.Duration) (tw *taskWorker) {
+	tw = &taskWorker{
+		wc: make(chan Task, 24),
+		l:  list.New(),
+	}
+	reset := func() {}
+	if timeout > 0 {
+		ticker := time.NewTicker(timeout)
+		tw.C, reset = ticker.C, func() { ticker.Reset(timeout) }
+	}
+	go tw.process(ctx, reset)
+	return
+}
+
+func (tw *taskWorker) push(t Task) {
+	if tw.l.Len() == 0 && tw.wt == nil {
+		select {
+		case tw.wc <- t:
+		default:
+			tw.wt = t
+		}
+	} else {
+		tw.l.PushBack(t)
+	}
+}
+
+func (tw *taskWorker) process(ctx context.Context, reset func()) {
+	for t := range tw.wc {
+		select {
+		case <-ctx.Done(): //clear wc's cache
+		default:
+			reset() //latest recv task
+			t.Process()
+		}
+	}
+}
+
+func (tw *taskWorker) work() (sc chan<- Task, t Task) {
+	if tw.wt == nil {
+		if tw.l.Len() == 0 {
+			return
+		}
+		tw.wt = tw.l.Remove(tw.l.Front()).(Task)
+	}
+	return tw.wc, tw.wt
+}
+
+func (tw *taskWorker) close() {
+	close(tw.wc)
+}
+
 type tasker struct {
 	ctx context.Context
 	tc  chan<- Task //Task channel for add a new Task
@@ -16,55 +74,32 @@ type tasker struct {
 }
 
 func NewTasker(ctx context.Context, timeout time.Duration) Tasker {
-	ctx, cancel := context.WithCancel(ctx)
-	healthy, tc := NewHealthy(), make(chan Task, 16)
+	tc := make(chan Task, 16)
 	t := &tasker{
-		ctx:    ctx,
-		tc:     tc,
-		Closer: NewHealthyCloser(healthy, cancel),
+		tc: tc,
 	}
-	go healthy.Monitoring(ctx, func() {
-		close(t.tc)
-		t.tc = nil //avoid `send on closed channel`
-	})
+	t.ctx, t.Closer = StartHealthyMonitoring(ctx)
 	go t.loop(tc, timeout)
 	return t
 }
 
 func (t *tasker) loop(tc <-chan Task, timeout time.Duration) {
-	wc := make(chan Task, 24) //work chan
-	defer close(wc)
-	go func(wc <-chan Task) {
-		for task := range wc {
-			task.Process()
-		}
-	}(wc)
+	defer t.Close()
+	worker := newTaskWorker(t.ctx, timeout)
+	defer worker.close()
 
-	var wt Task
-	var sc chan<- Task
-	ticker, l := time.NewTicker(timeout), list.New()
 	for {
+		sc, wt := worker.work()
 		select {
-		case v, ok := <-tc:
-			if !ok {
-				return //tc closed only after ctx cancelled
-			}
-			if wt == nil {
-				wt, sc = v, wc
-			} else {
-				l.PushBack(v)
-			}
+		case <-t.ctx.Done():
+			return
+		case v := <-tc:
+			worker.push(v)
 		case sc <- wt:
-			if em := l.Front(); em != nil {
-				wt = l.Remove(em).(Task)
-			} else {
-				wt, sc = nil, nil
-			}
-		case <-ticker.C:
-			t.Close()
+			worker.wt = nil
+		case <-worker.C:
 			return //Tasker will closed when non task long time
 		}
-		ticker.Reset(timeout)
 	}
 }
 
@@ -72,12 +107,15 @@ func (t *tasker) Add(tk Task) (err error) {
 	select {
 	case <-t.ctx.Done():
 		err = t.ctx.Err()
-	case t.tc <- tk:
+	default:
+		t.tc <- tk
 		//tc will only be closed after ctx cancelled
 		//so when tc closed, ctx.Done must be respond
 	}
 	return err
 }
+
+func (*tasker) internalOnly() {}
 
 type liteTask[T any] struct {
 	v     T

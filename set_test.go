@@ -8,6 +8,7 @@ import (
 
 	"github.com/hiank/think"
 	"github.com/hiank/think/kube"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
 
@@ -73,35 +74,19 @@ var testKvDialer = db.FuncDialer[string](func(c context.Context, do ...db.DialOp
 })
 
 func TestSetUnique(t *testing.T) {
-	t.Run("call Set panic without Awake", func(t *testing.T) {
-		defer func(t *testing.T) {
-			rcv := recover()
-			assert.Assert(t, rcv != nil, "must call Awake before call Set")
-		}(t)
-		think.Set()
-	})
-	// t.Run("call Destroy panic without Awake", func(t *testing.T) {
-	// 	defer func(t *testing.T) {
-	// 		rcv := recover()
-	// 		assert.Assert(t, rcv != nil, "must call Awake before call Destroy")
-	// 	}(t)
-	// 	// think.Destroy()
-	// 	think.Set().Close()
-	// })
-	// t.Run("call Awake panice without necessary options", func(t *testing.T) {
-	// 	defer func(t *testing.T) {
-	// 		rcv := recover()
-	// 		assert.Assert(t, rcv != nil, "must contians necessary options")
-	// 	}(t)
-	// 	think.Awake()
-	// })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	suc := think.Awake(think.WithTODO(ctx), think.WithDB(think.DB{Tag: 1, Dialer: testKvDialer, Opts: []db.DialOption{db.WithAddr("localhost:30211")}}))
-	assert.Assert(t, suc)
-	suc = think.Awake(think.WithTODO(ctx), think.WithDB(think.DB{Tag: 1, Dialer: testKvDialer, Opts: []db.DialOption{db.WithAddr("localhost:30211")}}))
-	assert.Assert(t, !suc, "only the first call works")
+	think.Set(think.WithTODO(ctx), think.WithDB(think.DB{Tag: 1, Dialer: testKvDialer, Opts: []db.DialOption{db.WithAddr("localhost:30211")}}))
+	// assert.Assert(t, suc)
+
+	t.Run("panic reset", func(t *testing.T) {
+		defer func(t *testing.T) {
+			r := recover()
+			assert.Equal(t, r.(error), think.ErrInvalidInitialize)
+		}(t)
+		think.Set(think.WithTODO(ctx), think.WithDB(think.DB{Tag: 1, Dialer: testKvDialer, Opts: []db.DialOption{db.WithAddr("localhost:30211")}}))
+	})
 
 	unique := think.Set()
 	assert.Assert(t, unique != nil)
@@ -109,6 +94,7 @@ func TestSetUnique(t *testing.T) {
 	assert.Equal(t, think.Set().Sys(), think.Set().Sys(), "set's part is singleston")
 	assert.Equal(t, think.Set().TODO(), think.Set().TODO(), "set's part is singleston")
 	assert.Equal(t, think.Set().Nats(), think.Set().Nats(), "set's part is singleston")
+	assert.Equal(t, think.Set().TokenSet(), one.TokenSet())
 	db1, found := think.Set().DB(1)
 	assert.Assert(t, found)
 	db12, found := think.Set().DB(1)
@@ -116,18 +102,6 @@ func TestSetUnique(t *testing.T) {
 	assert.Equal(t, db1, db12, "set's part is singleston")
 
 	think.Set().Close()
-	suc = think.Awake(think.WithTODO(ctx), think.WithDB(think.DB{Tag: 1, Dialer: testKvDialer, Opts: []db.DialOption{db.WithAddr("localhost:30211")}}))
-	assert.Assert(t, suc)
-
-	assert.Assert(t, unique != think.Set(), "last value destoryed, new value not same as last value")
-	assert.Assert(t, unique.Sys() != think.Set().Sys(), "set's part is singleston")
-	assert.Assert(t, unique.TODO() != think.Set().TODO(), "set's part is singleston")
-	db2, found := think.Set().DB(1)
-	assert.Assert(t, found)
-	assert.Assert(t, db1 != db2)
-	// assert.Assert(t, unique.DBS() != think.Set().DBS(), "set's part is singleston")
-	assert.Assert(t, unique.Nats() == think.Set().Nats(), "nats is nil")
-	assert.Assert(t, unique.Nats() == nil, "nats is nil")
 }
 
 func TestMap(t *testing.T) {

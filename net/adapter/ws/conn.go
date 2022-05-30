@@ -11,16 +11,16 @@ type conn struct {
 	wc *websocket.Conn
 }
 
-func (c *conn) Send(m *box.Message) error {
+func (c *conn) Send(m box.Message) error {
 	return c.wc.WriteMessage(websocket.BinaryMessage, m.GetBytes())
 }
 
-func (c *conn) Recv() (out *box.Message, err error) {
+func (c *conn) Recv() (out box.Message, err error) {
 	mt, buf, err := c.wc.ReadMessage()
 	if err == nil {
 		switch mt {
 		case websocket.BinaryMessage:
-			out = new(box.Message)
+			out = box.New() //new(box.Message)
 			err = box.Unmarshal[*anypb.Any](buf, out)
 		default:
 			klog.Warning("ws: unsupport message type:", mt)

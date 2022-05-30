@@ -10,32 +10,32 @@ import (
 )
 
 type conn struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	s      SendReciver
+	ctx context.Context
+	s   SendReciver
+	io.Closer
 }
 
-func (c *conn) Send(m *box.Message) (err error) {
+func (c *conn) Send(m box.Message) (err error) {
 	if err = c.ctx.Err(); err == nil {
 		err = c.s.Send(m.GetAny())
 	}
 	return
 }
 
-func (c *conn) Recv() (out *box.Message, err error) {
+func (c *conn) Recv() (out box.Message, err error) {
 	if err = c.ctx.Err(); err == nil {
 		var amsg *anypb.Any
 		if amsg, err = c.s.Recv(); err == nil {
-			out, err = box.New(amsg)
+			out = box.New(box.WithMessageValue(amsg))
 		}
 	}
 	return
 }
 
-func (c *conn) Close() error {
-	c.cancel()
-	return nil
-}
+// func (c *conn) Close() error {
+// 	c.cancel()
+// 	return nil
+// }
 
 type restClient struct {
 	pipe.RestClient

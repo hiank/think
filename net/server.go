@@ -2,12 +2,12 @@ package net
 
 import (
 	"context"
-	"sync"
+	"io"
 
 	"github.com/hiank/think/net/box"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/run"
 	"google.golang.org/protobuf/proto"
-	"k8s.io/klog/v2"
 )
 
 const (
@@ -16,29 +16,30 @@ const (
 
 type server struct {
 	ctx      context.Context
-	cancel   context.CancelFunc
 	listener Listener
-	cp       *connpool
+	cp       *connset
+	io.Closer
 }
 
 func NewServer(listener Listener, h Handler) Server {
-	ctx, cancel := context.WithCancel(run.TODO())
-	return &server{
+	srv := &server{
 		listener: listener,
-		ctx:      ctx,
-		cancel:   cancel,
-		cp:       newConnpool(ctx, h),
+		cp:       newConnset(h),
 	}
+	srv.ctx, srv.Closer = run.StartHealthyMonitoring(one.TODO(), run.CloserToDoneHook(listener), srv.cp.close)
+	return srv
 }
 
 //ListenAndServe block to accept new conn until the listener closed or server closed
-func (srv *server) ListenAndServe() (err error) {
+func (srv *server) ListenAndServe() error {
 	defer srv.Close()
 	for {
-		iac, err := srv.listener.Accept()
+		tc, err := srv.listener.Accept()
 		if err == nil {
 			if err = srv.ctx.Err(); err == nil {
-				srv.cp.add(iac.ID, iac.Conn)
+				srv.cp.loadOrStore(srv.ctx, tc.Token.Value(box.ContextkeyTokenUid).(string), func(context.Context) (TokenConn, error) {
+					return tc, nil
+				})
 				continue
 			}
 		}
@@ -47,8 +48,11 @@ func (srv *server) ListenAndServe() (err error) {
 }
 
 func (srv *server) Send(pm proto.Message, tis ...string) (err error) {
-	m, err := box.New(pm)
-	if err == nil {
+	select {
+	case <-srv.ctx.Done():
+		err = srv.ctx.Err()
+	default:
+		m := box.New(box.WithMessageValue(pm))
 		switch len(tis) {
 		case 0:
 			err = srv.cp.broadcast(m)
@@ -57,46 +61,4 @@ func (srv *server) Send(pm proto.Message, tis ...string) (err error) {
 		}
 	}
 	return
-}
-
-//Close close the server
-//will close all conns then clear the conns's map
-//the method could be called multiple
-func (srv *server) Close() (err error) {
-	if err = srv.ctx.Err(); err == nil {
-		srv.cancel() //will clean connpool by this call
-		err = srv.listener.Close()
-	}
-	return
-}
-
-type RouteMux struct {
-	m sync.Map
-}
-
-//Handle register Handler for k
-//k must be string/proto.Message value
-func (rm *RouteMux) Handle(k any, h Handler) {
-	var sk string
-	switch v := k.(type) {
-	case string:
-		sk = v
-	case proto.Message:
-		sk = string(v.ProtoReflect().Descriptor().FullName())
-	default:
-		klog.Warning("net: unsupport k value type")
-	}
-	rm.m.Store(sk, h)
-}
-
-func (rm *RouteMux) Route(id string, m *box.Message) {
-	k := string(m.GetAny().MessageName().Name())
-	mv, loaded := rm.m.Load(k)
-	if !loaded {
-		if mv, loaded = rm.m.Load(DefaultHandler); !loaded {
-			klog.Warning("cannot find handler for handle message recv by conn: ", k)
-			return
-		}
-	}
-	mv.(Handler).Route(id, m)
 }

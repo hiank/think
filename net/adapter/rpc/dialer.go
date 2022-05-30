@@ -60,11 +60,13 @@ func (kd *keepaliveDialer) Dial(ctx context.Context, addr string) (c net.Conn, e
 		var md metadata.MD
 		if md, err = lc.Header(); err == nil {
 			if ss := md.Get(linkMetadataSuccess); len(ss) > 0 && ss[0] == "true" {
-				ctx, cancel := context.WithCancel(ctx)
-				go run.NewHealthy().Monitoring(ctx, func() {
-					cc.Close()
-				})
-				return &conn{s: lc, ctx: ctx, cancel: cancel}, nil
+				ctx, closer := run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(cc))
+				c = &conn{
+					ctx:    ctx,
+					s:      lc,
+					Closer: closer,
+				}
+				return
 			}
 			err = ErrLinkAuthFailed
 		}
@@ -77,12 +79,9 @@ func RestDial(ctx context.Context, addr string) (cli RestClient, err error) {
 	defer dialCancel()
 	cc, err := grpc.DialContext(dialCtx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 	if err == nil {
-		ctx, cancel := context.WithCancel(ctx)
-		healthy := run.NewHealthy()
-		go healthy.Monitoring(ctx, func() {
-			cc.Close()
-		})
-		cli = &restClient{RestClient: pipe.NewRestClient(cc), Closer: run.NewHealthyCloser(healthy, cancel)}
+		rc := &restClient{RestClient: pipe.NewRestClient(cc)}
+		_, rc.Closer = run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(cc))
+		cli = rc
 	}
 	return
 }

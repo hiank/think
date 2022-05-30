@@ -7,6 +7,7 @@ import (
 
 	"github.com/hiank/think/doc/sys"
 	"github.com/hiank/think/kube"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/run"
 	"github.com/hiank/think/store"
 	"github.com/nats-io/nats.go"
@@ -14,7 +15,9 @@ import (
 )
 
 //ErrNoAwake `Awake` has not been executed
-const ErrNoAwake = run.Err("think: should do `Awake` before")
+const (
+	ErrInvalidInitialize = run.Err("think: invalid initialize. can only be initialized ont the first call")
+)
 
 func defaultOptions() options {
 	return options{
@@ -25,16 +28,18 @@ func defaultOptions() options {
 }
 
 type uniqueSet struct {
-	// cancel   context.CancelFunc
-	todo     context.Context
 	natsconn *nats.Conn
 	mdb      map[DBTag]store.EasyDictionary
 	fat      *sys.Fat
 	io.Closer
 }
 
-func (us *uniqueSet) TODO() context.Context {
-	return us.todo
+func (*uniqueSet) TODO() context.Context {
+	return one.TODO()
+}
+
+func (*uniqueSet) TokenSet() one.Tokenset {
+	return one.TokenSet()
 }
 
 func (us *uniqueSet) Sys() *sys.Fat {
@@ -53,39 +58,31 @@ func (us *uniqueSet) Nats() *nats.Conn {
 
 var (
 	unique *uniqueSet
-	once   *sync.Once = new(sync.Once)
+	once   sync.Once
 )
 
-//Awake create unique object with given options
-func Awake(opts ...Option) (done bool) {
+//Set utils set
+//NOTE: it would panic without call 'Init' method to generate an unique object
+func Set(opts ...Option) utilset {
+	var done bool
 	once.Do(func() {
 		dopts := defaultOptions()
 		for _, opt := range opts {
 			opt.Apply(&dopts)
 		}
-		healthy := run.NewHealthy()
-		todo, cancel := context.WithCancel(dopts.todo)
+		todo, closer := run.StartHealthyMonitoring(dopts.todo, destroy)
+		one.TODO(todo)
 		unique = &uniqueSet{
 			mdb:      dialDB(todo, dopts.mdb),
-			todo:     todo,
 			fat:      sys.NewFat(),
 			natsconn: dialNats(dopts.natsUrl),
-			Closer:   run.NewHealthyCloser(healthy, cancel),
+			Closer:   closer,
 		}
-		run.TODO(todo)
-		go healthy.Monitoring(todo, destroy)
 		done = true
 	})
-	return
-}
-
-//Set utils set
-//NOTE: it would panic without call 'Init' method to generate an unique object
-func Set() utilset {
-	once.Do(func() {
-		once = new(sync.Once)
-		panic(ErrNoAwake)
-	})
+	if !done && len(opts) > 0 {
+		panic(ErrInvalidInitialize)
+	}
 	return unique
 }
 
@@ -136,5 +133,5 @@ func destroy() {
 	for _, dict := range unique.mdb {
 		dict.Close()
 	}
-	unique, once = nil, new(sync.Once)
+	unique = nil
 }

@@ -3,6 +3,7 @@ package run_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,6 +49,62 @@ func TestTasker(t *testing.T) {
 		assert.Assert(t, err != nil, "context canceled")
 	})
 
+	t.Run("ctx canceled", func(t *testing.T) {
+		for i := 0; i < 10000; i++ {
+			go func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				tasker := run.NewTasker(ctx, time.Millisecond*100)
+				tasker.Add(run.NewLiteTask(func(t int) error {
+					<-time.After(time.Millisecond)
+					return nil
+				}, 1))
+			}(t)
+		}
+	})
+
+	t.Run("stop immediately", func(t *testing.T) {
+		tasker := run.NewTasker(ctx, time.Second)
+		pp, wait := make(chan int, 10), make(chan bool)
+		for i := 0; i < 10; i++ {
+			err := tasker.Add(run.NewLiteTask(func(t int) error {
+				if t == 0 {
+					close(wait)
+				}
+				<-time.After(time.Millisecond * 10)
+				pp <- t
+				return nil
+			}, i))
+			assert.Equal(t, err, nil)
+		}
+		<-wait //wait for process goroutine started
+		tasker.Close()
+		assert.Equal(t, <-pp, 0)
+
+		select {
+		case <-pp:
+			assert.Assert(t, false, "stoped")
+		case <-time.After(time.Millisecond * 100):
+			assert.Assert(t, true, "cannot process any task except first one")
+		}
+	})
+	t.Run("loop add", func(t *testing.T) {
+		tasker := run.NewTasker(ctx, time.Second)
+		max := 100
+		wait := new(sync.WaitGroup)
+		wait.Add(max)
+		for i := 0; i < max; i++ {
+			go func(t *testing.T) {
+				tasker.Add(run.NewLiteTask(func(t int) error {
+					<-time.After(time.Millisecond)
+					wait.Done()
+					return nil
+				}, 1))
+			}(t)
+		}
+		wait.Wait()
+	})
+	// return
 	tasker := run.NewTasker(ctx, time.Second)
 	pperr := make(chan error)
 	err := errors.New("equal failed")
@@ -68,6 +125,26 @@ func TestTasker(t *testing.T) {
 		return nil
 	}, 1, nil))
 	//check run
+}
+
+func TestCloseChanWithCache(t *testing.T) {
+	c, exit := make(chan int, 24), make(chan bool)
+	go func(t *testing.T) {
+		cnt := 0
+		for range c {
+			<-time.After(time.Millisecond * 10)
+			cnt++
+			// t.Log("do", cnt)
+		}
+		assert.Equal(t, cnt, 10, "chan will work after closed until cache cleaned")
+		close(exit)
+	}(t)
+	for i := 0; i < 10; i++ {
+		c <- i
+	}
+	close(c)
+	// t.Log("after close")
+	<-exit
 }
 
 func TestCustom(t *testing.T) {
@@ -100,4 +177,21 @@ L:
 		assert.Equal(t, v, 1, "when channel closed, range break without set value")
 	})
 
+	// var empty chan<- bool
+	// empty <- true
 }
+
+// func TestMilliAfter(t *testing.T) {
+// 	ticker := time.NewTicker(time.Millisecond)
+// 	tt := time.Now().UnixMilli()
+// 	// t.Log(time.Now().UnixMilli() - tt)
+// 	for i := 0; i < 100; i++ {
+// 		ticker.Reset(time.Millisecond)
+// 		<-ticker.C
+// 		ctt := time.Now().UnixMilli()
+// 		// t.Log(ctt - tt)
+// 		assert.Assert(t, ctt-tt > 1, "ticker响应会有10ms的额外开销")
+// 		tt = ctt
+// 	}
+
+// }

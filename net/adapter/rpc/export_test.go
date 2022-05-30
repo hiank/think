@@ -20,17 +20,15 @@ var (
 		for _, opt := range opts {
 			opt.Apply(&lis)
 		}
-		ctx, cancel := context.WithCancel(ctx)
+		// ctx, cancel := context.WithCancel(ctx)
 		slis, err := new(snet.ListenConfig).Listen(ctx, "tcp", lis.addr)
 		if err != nil {
 			panic(err) //failed listen in given address
 		}
-		healthy := run.NewHealthy()
-		lis.Closer = run.NewHealthyCloser(healthy, cancel)
-		go healthy.Monitoring(ctx, func() {
+		_, lis.Closer = run.StartHealthyMonitoring(ctx, func() {
 			close(lis.ChanAccepter)
 			slis.Close()
-		}) //monitor ctx
+		})
 		srv := grpc.NewServer()
 		go func() {
 			defer lis.Close()

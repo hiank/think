@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/oauth"
 	"github.com/hiank/think/run"
 
@@ -39,7 +40,7 @@ func (lis *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		klog.Warning("ws: Upgrade error: ", err)
 		return
 	}
-	lis.ChanAccepter <- net.IdentityConn{ID: strconv.FormatUint(uid, 10), Conn: &conn{wc: wc}}
+	lis.ChanAccepter <- net.TokenConn{Token: one.TokenSet().Derive(strconv.FormatUint(uid, 10)), T: &conn{wc: wc}}
 }
 
 func (lis *listener) contextHealthy(ctx context.Context, lisCloser io.Closer) {

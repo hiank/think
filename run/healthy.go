@@ -5,9 +5,13 @@ import (
 	"io"
 	"sync"
 	"time"
+
+	"k8s.io/klog/v2"
 )
 
-var HealthyTimeoutKey = HealthyContextTimeout{}
+// const HealthyTimeoutKey = HealthyContextTimeout{}
+
+var ContextkeyTimeout Contextkey = "contextkey-timeout"
 
 type HealthyContextTimeout struct {
 	T    time.Duration
@@ -46,11 +50,15 @@ func (h *Healthy) loopWait(ctx context.Context, timeout time.Duration, rest <-ch
 
 //Monitoring do not call repeatedly (only the first call is valid)
 //if need to detect timeout, please set HealthyContextTimeout value for monitoring
-func (h *Healthy) Monitoring(ctx context.Context, done func()) {
+func (h *Healthy) Monitoring(ctx context.Context, doneHooks ...func()) {
 	h.once.Do(func() {
-		defer h.cancel() //final execution. make sure all cleanup is done
-		defer done()
-		v := ctx.Value(HealthyTimeoutKey)
+		defer func() {
+			for _, doneHook := range doneHooks {
+				doneHook()
+			}
+			h.cancel() //final execution. make sure all cleanup is done
+		}()
+		v := ctx.Value(ContextkeyTimeout)
 		if v != nil {
 			switch ht := v.(type) {
 			case HealthyContextTimeout:
@@ -78,4 +86,17 @@ func NewHealthyCloser(healthy *Healthy, cancel context.CancelFunc) io.Closer {
 		<-healthy.DoneContext().Done()
 		return nil
 	})
+}
+
+func StartHealthyMonitoring(ctx context.Context, doneHooks ...func()) (context.Context, io.Closer) {
+	ctx, cancel := context.WithCancel(ctx)
+	healthy := NewHealthy()
+	go healthy.Monitoring(ctx, doneHooks...)
+	return ctx, NewHealthyCloser(healthy, cancel)
+}
+
+func CloserToDoneHook(closer io.Closer) func() {
+	return func() {
+		klog.Warning(closer.Close())
+	}
 }

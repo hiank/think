@@ -9,11 +9,11 @@ import (
 )
 
 type Sender interface {
-	Send(*box.Message) error
+	Send(box.Message) error
 }
 
 type Receiver interface {
-	Recv() (*box.Message, error)
+	Recv() (box.Message, error)
 }
 
 type Conn interface {
@@ -22,30 +22,19 @@ type Conn interface {
 	io.Closer
 }
 
-// type Rest interface {
-// 	Get(context.Context, *anypb.Any) (*anypb.Any, error)
-// 	Post(context.Context, *anypb.Any) (*emptypb.Empty, error)
-// 	io.Closer
-// }
+//TokenConn struct contianed Token and Conn
+type TokenConn box.TT[Conn]
 
-//IdentityConn conn with identity
-type IdentityConn struct {
-	ID string
-	Conn
-}
-
-type IdentityMessage struct {
-	ID string
-	M  *box.Message
-}
+//TokenMessage struct contianed Token and *Message
+type TokenMessage box.TT[box.Message]
 
 //Knower unpack box.Message to want data
 type Knower interface {
 	//Identiy uid to identity
-	Identity(uid string) (string, error)
+	// Identity(uid string) (string, error)
 
 	//ServeAddr get server addr from box.message
-	ServeAddr(*box.Message) (string, error)
+	ServeAddr(box.Message) (string, error)
 }
 
 //Dialer
@@ -54,8 +43,14 @@ type Dialer interface {
 }
 
 type Listener interface {
-	Accept() (IdentityConn, error)
+	Accept() (TokenConn, error)
 	Close() error
+}
+
+type Clientset interface {
+	AutoSend(tm TokenMessage) error
+	RouteMux() *RouteMux
+	io.Closer
 }
 
 type Server interface {
@@ -70,12 +65,13 @@ type Server interface {
 
 //Handler handle message
 type Handler interface {
-	Route(string, *box.Message)
+	// Route(string, *box.Message)
+	Route(TokenMessage)
 }
 
 //HandlerFunc easy convert func to Handler
-type HandlerFunc func(id string, m *box.Message)
+type FuncHandler func(tt TokenMessage)
 
-func (hf HandlerFunc) Route(id string, m *box.Message) {
-	hf(id, m)
+func (fh FuncHandler) Route(tt TokenMessage) {
+	fh(tt)
 }

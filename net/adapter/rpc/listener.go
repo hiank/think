@@ -10,6 +10,7 @@ import (
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter"
 	"github.com/hiank/think/net/adapter/rpc/pipe"
+	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/run"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -38,7 +39,15 @@ func (lis *listener) Link(ls pipe.Keepalive_LinkServer) (err error) {
 	if err == nil {
 		ctx, cancel := context.WithCancel(ls.Context())
 		defer cancel()
-		lis.ChanAccepter <- net.IdentityConn{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
+		c := &conn{
+			ctx: ctx,
+			s:   ls,
+			Closer: run.NewOnceCloser(func() error {
+				cancel()
+				return nil
+			}),
+		}
+		lis.ChanAccepter <- net.TokenConn{Token: one.TokenSet().Derive(strconv.FormatUint(identity, 10)), T: c}
 		<-ctx.Done()
 		err = ErrLinkClosed
 	}
@@ -75,10 +84,9 @@ type ListenOption run.Option[*listener]
 
 func defaultListener() listener {
 	return listener{
-		keepalive: pipe.UnimplementedKeepaliveServer{},
-		rest:      pipe.UnimplementedRestServer{},
-		addr:      ":30202",
-		// healthy:      run.NewHealthy(),
+		keepalive:    pipe.UnimplementedKeepaliveServer{},
+		rest:         pipe.UnimplementedRestServer{},
+		addr:         ":30202",
 		ChanAccepter: make(adapter.ChanAccepter),
 	}
 }
@@ -106,17 +114,14 @@ func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
 	for _, opt := range opts {
 		opt.Apply(&lis)
 	}
-	ctx, cancel := context.WithCancel(ctx)
 	slis, err := new(snet.ListenConfig).Listen(ctx, "tcp", lis.addr)
 	if err != nil {
 		panic(err) //failed listen in given address
 	}
-	healthy := run.NewHealthy()
-	lis.Closer = run.NewHealthyCloser(healthy, cancel)
-	go healthy.Monitoring(ctx, func() {
+	_, lis.Closer = run.StartHealthyMonitoring(ctx, func() {
 		close(lis.ChanAccepter)
 		slis.Close()
-	}) //monitor ctx
+	})
 	go lis.servePipe(slis)
 	return &lis
 }

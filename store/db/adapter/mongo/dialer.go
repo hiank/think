@@ -23,17 +23,16 @@ func Dial(ctx context.Context, opts ...db.DialOption) (d store.Dictionary[store.
 	}
 	cli, err := mongo.Connect(ctx, mopt)
 	if err == nil {
-		mdb, healthy := cli.Database(dopts.DB), run.NewHealthy()
-		ctx, cancel := context.WithCancel(ctx)
+		mdb := cli.Database(dopts.DB)
+		ctx, closer := run.StartHealthyMonitoring(ctx, func() {
+			klog.Warning(mdb.Client().Disconnect(ctx))
+		})
 		d = &liteDB{
 			ctx:    ctx,
 			db:     mdb,
 			coder:  dopts.Coder,
-			Closer: run.NewHealthyCloser(healthy, cancel),
+			Closer: closer,
 		}
-		go healthy.Monitoring(ctx, func() {
-			klog.Warning(mdb.Client().Disconnect(ctx))
-		})
 	}
 	return
 }
