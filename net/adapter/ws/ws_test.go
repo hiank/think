@@ -11,12 +11,16 @@ import (
 	"testing"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/hiank/think/auth"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter/ws"
-	"github.com/hiank/think/net/box"
-	"github.com/hiank/think/net/testdata"
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/hiank/think/pbtest"
 	"gotest.tools/v3/assert"
+)
+
+var (
+	Tokenset = auth.NewTokenset(context.Background())
 )
 
 type tmpAuther string
@@ -43,7 +47,7 @@ func TestListener(t *testing.T) {
 	exit := make(chan bool)
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
-	lis := ws.NewListener(ctx, ws.ListenOption{Addr: ":10240", Auther: tmpAuther("test")})
+	lis := ws.NewListener(ctx, ws.ListenOption{Addr: ":10240", Auther: tmpAuther("test"), Tokenset: Tokenset})
 	go func(t *testing.T) {
 		<-exit
 		lis.Close()
@@ -65,19 +69,19 @@ func TestListener(t *testing.T) {
 
 	ic, err := lis.Accept()
 	assert.Equal(t, err, nil, err)
-	assert.Equal(t, ic.Token.Value(box.ContextkeyTokenUid), "27")
+	assert.Equal(t, ic.Token().ToString(), "27")
 
 	// done := make(chan bool)
-	go func(ic net.TokenConn, t *testing.T) {
-		m := box.New(box.WithMessageValue(&testdata.S_Example{Value: "s-e"}))
-		err := ic.T.Send(m)
+	go func(ic net.Conn, t *testing.T) {
+		// m := box.New(box.WithMessageValue(&pbtest.S_Example{Value: "s-e"}))
+		err := ic.Send(net.NewMessage(net.WithMessageValue(&pbtest.S_Example{Value: "s-e"})))
 		assert.Equal(t, err, nil, err)
-		m, err = ic.T.Recv()
+		m, err := ic.Recv()
 		assert.Equal(t, err, nil, err)
-		gm, _ := m.GetAny().UnmarshalNew()
-		assert.Equal(t, gm.(*testdata.G_Example).GetValue(), "g-v")
+		gm, _ := m.Any().UnmarshalNew()
+		assert.Equal(t, gm.(*pbtest.G_Example).GetValue(), "g-v")
 
-		ic.T.Close()
+		ic.Close()
 		// close()
 		// close(done)
 	}(ic, t)
@@ -86,13 +90,15 @@ func TestListener(t *testing.T) {
 	assert.Equal(t, err, nil, err)
 	assert.Equal(t, mt, websocket.BinaryMessage)
 	// m := new(box.Message)
-	m, err := box.UnmarshalNew[*anypb.Any](buff)
+	// m, err := box.UnmarshalNew[*anypb.Any](buff)
+	m := net.NewMessage(net.WithMessageBytes(buff))
 	assert.Equal(t, err, nil, err)
-	sm, _ := m.GetAny().UnmarshalNew()
-	assert.Equal(t, sm.(*testdata.S_Example).GetValue(), "s-e")
+	sm, _ := m.Any().UnmarshalNew()
+	assert.Equal(t, sm.(*pbtest.S_Example).GetValue(), "s-e")
 
-	m = box.New(box.WithMessageValue(&testdata.G_Example{Value: "g-v"}))
-	err = wc.WriteMessage(websocket.BinaryMessage, m.GetBytes())
+	m = net.NewMessage(net.WithMessageValue(&pbtest.G_Example{Value: "g-v"}))
+	// m = box.New(box.WithMessageValue(&pbtest.G_Example{Value: "g-v"}))
+	err = wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
 	assert.Equal(t, err, nil, err)
 
 	// <-done
@@ -110,7 +116,7 @@ func TestConn(t *testing.T) {
 	exit := make(chan bool)
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
-	lis := ws.NewListener(ctx, ws.ListenOption{Auther: tmpAuther("test1"), Addr: ":10240"})
+	lis := ws.NewListener(ctx, ws.ListenOption{Auther: tmpAuther("test1"), Addr: ":10240", Tokenset: Tokenset})
 	go func() {
 		<-exit
 		lis.Close()
@@ -120,29 +126,29 @@ func TestConn(t *testing.T) {
 	wc, err := easyDial("test1_11")
 	assert.Equal(t, err, nil, err)
 	c := ws.Export_newConn(wc)
-	m := box.New(box.WithMessageValue(&testdata.P_Example{Value: "p-v"}))
-	err = c.Send(m)
+	// m := box.New(box.WithMessageValue(&pbtest.P_Example{Value: "p-v"}))
+	err = c.Send(net.NewMessage(net.WithMessageValue(&pbtest.P_Example{Value: "p-v"})))
 	assert.Equal(t, err, nil, err)
 
 	sc, err := lis.Accept()
 	assert.Equal(t, err, nil, err)
-	sm, _ := sc.T.Recv()
-	sv, _ := sm.GetAny().UnmarshalNew()
-	assert.Equal(t, sv.(*testdata.P_Example).GetValue(), "p-v")
+	sm, _ := sc.Recv()
+	sv, _ := sm.Any().UnmarshalNew()
+	assert.Equal(t, sv.(*pbtest.P_Example).GetValue(), "p-v")
 
-	m = box.New(box.WithMessageValue(&testdata.MessageTest1{Key: "m-t"}))
-	err = sc.T.Send(m)
+	// m = box.New(box.WithMessageValue(&pbtest.MessageTest1{Key: "m-t"}))
+	err = sc.Send(net.NewMessage(net.WithMessageValue(&pbtest.MessageTest1{Key: "m-t"})))
 	assert.Equal(t, err, nil, err)
 
-	m, err = c.Recv()
+	m, err := c.Recv()
 	assert.Equal(t, err, nil, err)
-	v1, _ := m.GetAny().UnmarshalNew()
-	assert.Equal(t, v1.(*testdata.MessageTest1).GetKey(), "m-t")
+	v1, _ := m.Any().UnmarshalNew()
+	assert.Equal(t, v1.(*pbtest.MessageTest1).GetKey(), "m-t")
 
 	err = c.Close()
 	assert.Equal(t, err, nil, err)
 
-	_, err = sc.T.Recv()
+	_, err = sc.Recv()
 	assert.Assert(t, err != nil)
 
 	exit <- true

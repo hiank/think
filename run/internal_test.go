@@ -21,7 +21,7 @@ func TestTaskWorker(t *testing.T) {
 	assert.Equal(t, t1, nil)
 
 	t2 := NewLiteTask(func(int) error {
-		<-time.After(time.Millisecond * 10)
+		<-time.After(time.Millisecond * 100)
 		return nil
 	}, 1)
 	tl.push(t2)
@@ -29,7 +29,7 @@ func TestTaskWorker(t *testing.T) {
 
 	for i := 0; i < cap(tl.wc); i++ {
 		tl.push(NewLiteTask(func(t int) error {
-			<-time.After(time.Millisecond * 10)
+			<-time.After(time.Millisecond * 100)
 			return nil
 		}, 2))
 	}
@@ -40,7 +40,7 @@ func TestTaskWorker(t *testing.T) {
 		return nil
 	}, 3)
 	tl.push(t3)
-	assert.Equal(t, tl.l.Len(), 0, "注意，这个测试时间性，task返回过快的化可能导致测试失败. 但是很罕见")
+	assert.Equal(t, tl.l.Len(), 0, "注意，这个测试时间性，task返回过快的话可能导致测试失败. 但是很罕见")
 	assert.Equal(t, tl.wt, t3, "wait for send to work chan")
 
 	t4 := NewLiteTask(func(int) error { return nil }, 4)

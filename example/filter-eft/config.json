@@ -1,0 +1,14 @@
+{
+    "folders.eft": [
+        "D:/hiank/svn/tmp/res/image/"
+    ],
+    "folders.js": [
+        "D:/hiank/svn/tmp/src"
+    ],
+    "folders.csv": [
+        "D:/hiank/svn/tmp/res/config"
+    ],
+    "ignores.js": [
+        "D:/hiank/svn/tmp/src/resource.js"
+    ]
+}

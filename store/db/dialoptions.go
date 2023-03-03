@@ -8,10 +8,11 @@ import (
 )
 
 func DialOptions(opts ...DialOption) dialOptions {
+	var pb doc.Proto
 	dopts := dialOptions{
 		DB:          "0",
 		DialTimeout: time.Second * 10,
-		Coder:       doc.NewCoder[doc.PBCoder](), //default is protobuf coder
+		Coder:       &pb, //default is protobuf coder
 	}
 	for _, opt := range opts {
 		opt.Apply(&dopts)

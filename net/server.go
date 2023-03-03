@@ -4,40 +4,38 @@ import (
 	"context"
 	"io"
 
-	"github.com/hiank/think/net/box"
-	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/run"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	DefaultHandler string = ""
+	DefaultHandler string = "__default_handler_routemux__"
 )
 
-type server struct {
+type Server struct {
 	ctx      context.Context
 	listener Listener
 	cp       *connset
 	io.Closer
 }
 
-func NewServer(listener Listener, h Handler) Server {
-	srv := &server{
-		listener: listener,
+func NewServer(ctx context.Context, lis Listener, h Handler) *Server {
+	srv := &Server{
+		listener: lis,
 		cp:       newConnset(h),
 	}
-	srv.ctx, srv.Closer = run.StartHealthyMonitoring(one.TODO(), run.CloserToDoneHook(listener), srv.cp.close)
+	srv.ctx, srv.Closer = run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(lis), srv.cp.close)
 	return srv
 }
 
-//ListenAndServe block to accept new conn until the listener closed or server closed
-func (srv *server) ListenAndServe() error {
+// ListenAndServe block to accept new conn until the listener closed or server closed
+func (srv *Server) ListenAndServe() error {
 	defer srv.Close()
 	for {
 		tc, err := srv.listener.Accept()
 		if err == nil {
 			if err = srv.ctx.Err(); err == nil {
-				srv.cp.loadOrStore(srv.ctx, tc.Token.Value(box.ContextkeyTokenUid).(string), func(context.Context) (TokenConn, error) {
+				srv.cp.loadOrStore(srv.ctx, tc.Token().ToString(), func(context.Context) (Conn, error) {
 					return tc, nil
 				})
 				continue
@@ -47,12 +45,9 @@ func (srv *server) ListenAndServe() error {
 	}
 }
 
-func (srv *server) Send(pm proto.Message, tis ...string) (err error) {
-	select {
-	case <-srv.ctx.Done():
-		err = srv.ctx.Err()
-	default:
-		m := box.New(box.WithMessageValue(pm))
+func (srv *Server) Send(pm proto.Message, tis ...string) (err error) {
+	if err = srv.ctx.Err(); err == nil {
+		m := NewMessage(WithMessageValue(pm))
 		switch len(tis) {
 		case 0:
 			err = srv.cp.broadcast(m)

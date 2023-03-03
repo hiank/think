@@ -3,8 +3,9 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"time"
+	"io"
 
+	"github.com/hiank/think/auth"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter/rpc/pipe"
 	"github.com/hiank/think/run"
@@ -18,68 +19,70 @@ const (
 	ErrLinkAuthFailed = run.Err("rpc: link auth failed")
 )
 
-type DialOption run.Option[*keepaliveDialer]
+// type DialOption run.Option[*keepaliveDialer]
 
-func WithIdentity(id string) DialOption {
-	return run.FuncOption[*keepaliveDialer](func(kd *keepaliveDialer) {
-		kd.identity = id
-	})
-}
-
-func WithTimeout(timeout time.Duration) DialOption {
-	return run.FuncOption[*keepaliveDialer](func(kd *keepaliveDialer) {
-		kd.timeout = timeout
-	})
-}
+// func WithTimeout(timeout time.Duration) DialOption {
+// 	return run.FuncOption[*keepaliveDialer](func(kd *keepaliveDialer) {
+// 		kd.timeout = timeout
+// 	})
+// }
 
 type keepaliveDialer struct {
-	identity string
-	timeout  time.Duration
+	tk auth.Token
+	// timeout time.Duration
 }
 
-func NewKeepaliveDialer(opts ...DialOption) net.Dialer {
-	kd := &keepaliveDialer{
-		timeout: time.Second * 10,
-	}
-	for _, opt := range opts {
-		opt.Apply(kd)
-	}
-	return kd
+func NewKeepaliveDialer(tk auth.Token) net.Dialer {
+	return &keepaliveDialer{tk}
 }
 
-//keep-alive connect dial
+// keep-alive connect dial
+// @param ctx: only for dial to remote server. after connected, ignore it's 'Done()'
 func (kd *keepaliveDialer) Dial(ctx context.Context, addr string) (c net.Conn, err error) {
-	dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*10)
-	defer dialCancel()
-	cc, err := grpc.DialContext(dialCtx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+	// dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*10)
+	// defer dialCancel()
+	cc, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 	if err != nil {
 		return
 	}
-	lc, err := pipe.NewKeepaliveClient(cc).Link(metadata.NewOutgoingContext(ctx, metadata.Pairs(linkMetadataIdentity, kd.identity)))
-	if err == nil {
-		var md metadata.MD
-		if md, err = lc.Header(); err == nil {
-			if ss := md.Get(linkMetadataSuccess); len(ss) > 0 && ss[0] == "true" {
-				ctx, closer := run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(cc))
-				c = &conn{
-					ctx:    ctx,
-					s:      lc,
-					Closer: closer,
-				}
-				return
-			}
-			err = ErrLinkAuthFailed
-		}
+	lc, err := pipe.NewKeepaliveClient(cc).Link(metadata.NewOutgoingContext(ctx, metadata.Pairs(linkMetadataIdentity, kd.tk.ToString())))
+	if err != nil {
+		return
 	}
+	md, err := lc.Header()
+	if err != nil {
+		return
+	}
+	if ss := md.Get(linkMetadataSuccess); len(ss) > 0 && ss[0] == "true" {
+		_, closer := run.StartHealthyMonitoring(kd.tk, run.CloserToDoneHook(cc))
+		c = &conn{
+			tk:     kd.tk,
+			sr:     lc,
+			Closer: closer,
+		}
+		return
+	}
+	err = ErrLinkAuthFailed
 	return
 }
 
+type RestClient interface {
+	pipe.RestClient
+	io.Closer
+}
+
+type restClient struct {
+	pipe.RestClient
+	io.Closer
+}
+
+// RestDial for new RestClient
 func RestDial(ctx context.Context, addr string) (cli RestClient, err error) {
-	dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*10)
-	defer dialCancel()
-	cc, err := grpc.DialContext(dialCtx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
+	// dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*10)
+	// defer dialCancel()
+	cc, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, roundrobin.Name))) //NOTE: block 为阻塞直到ready，insecure 为不需要验证的
 	if err == nil {
-		rc := &restClient{RestClient: pipe.NewRestClient(cc)}
+		rc := restClient{RestClient: pipe.NewRestClient(cc)}
 		_, rc.Closer = run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(cc))
 		cli = rc
 	}

@@ -6,6 +6,7 @@ import (
 
 type Contextkey string
 
+//Tasker sequential task executor
 type Tasker interface {
 	Add(Task) error
 	io.Closer
@@ -14,6 +15,10 @@ type Tasker interface {
 
 type Task interface {
 	Process() error
+}
+
+type Hooker[T any] interface {
+	Hook(v T)
 }
 
 // type Token interface {

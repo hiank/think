@@ -9,11 +9,16 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	ErrUnrecoverable = Err("unrecoverable error")
+)
+
 type taskWorker struct {
 	wt Task //working Task
 	wc chan Task
 	l  *list.List
 	C  <-chan time.Time
+	D  <-chan bool //unrecoverable error chan
 }
 
 func newTaskWorker(ctx context.Context, timeout time.Duration) (tw *taskWorker) {
@@ -21,12 +26,12 @@ func newTaskWorker(ctx context.Context, timeout time.Duration) (tw *taskWorker) 
 		wc: make(chan Task, 24),
 		l:  list.New(),
 	}
-	reset := func() {}
+	reset, dis := func() {}, make(chan bool)
 	if timeout > 0 {
 		ticker := time.NewTicker(timeout)
 		tw.C, reset = ticker.C, func() { ticker.Reset(timeout) }
 	}
-	go tw.process(ctx, reset)
+	go tw.process(ctx, reset, dis)
 	return
 }
 
@@ -42,13 +47,16 @@ func (tw *taskWorker) push(t Task) {
 	}
 }
 
-func (tw *taskWorker) process(ctx context.Context, reset func()) {
+func (tw *taskWorker) process(ctx context.Context, reset func(), dis chan<- bool) {
 	for t := range tw.wc {
 		select {
 		case <-ctx.Done(): //clear wc's cache
 		default:
 			reset() //latest recv task
-			t.Process()
+			if t.Process() == ErrUnrecoverable {
+				close(dis)   //close chan after receive an unrecoverable error
+				<-ctx.Done() //must trigger the shutdown of the user
+			}
 		}
 	}
 }
@@ -97,6 +105,8 @@ func (t *tasker) loop(tc <-chan Task, timeout time.Duration) {
 			worker.push(v)
 		case sc <- wt:
 			worker.wt = nil
+		case <-worker.D:
+			return //worker encoutered an unrecoverable error
 		case <-worker.C:
 			return //Tasker will closed when non task long time
 		}
@@ -118,30 +128,44 @@ func (t *tasker) Add(tk Task) (err error) {
 func (*tasker) internalOnly() {}
 
 type liteTask[T any] struct {
-	v     T
-	h     func(T) error
-	pperr chan<- error
+	v      T
+	h      func(T) error
+	hooker Hooker[error]
+}
+
+//Hook for Hooker[error]
+func (*liteTask[T]) Hook(err error) {
+	//do nothing for error recved
+	klog.Warning("failed to process task:", err)
 }
 
 //Process
 func (tt *liteTask[T]) Process() (err error) {
-	if err = tt.h(tt.v); err != nil && tt.pperr != nil {
-		select {
-		case tt.pperr <- err:
-		case <-time.NewTicker(time.Second).C:
-			klog.Warning("cannot send error for invalid 'handle' in long try")
-		}
+	if err = tt.h(tt.v); err != nil {
+		tt.hooker.Hook(err)
 	}
 	return
 }
 
-func NewLiteTask[T any](h func(T) error, v T, pperr ...chan<- error) Task {
+type taskOptions struct {
+	hooker Hooker[error]
+}
+
+func WithTaskErrorHooker(hooker Hooker[error]) Option[*taskOptions] {
+	return FuncOption[*taskOptions](func(opts *taskOptions) {
+		opts.hooker = hooker
+	})
+}
+
+func NewLiteTask[T any](h func(T) error, v T, opts ...Option[*taskOptions]) Task {
 	lt := &liteTask[T]{
 		h: h,
 		v: v,
 	}
-	if len(pperr) > 0 {
-		lt.pperr = pperr[0]
+	dopts := &taskOptions{hooker: lt}
+	for _, opt := range opts {
+		opt.Apply(dopts)
 	}
+	lt.hooker = dopts.hooker
 	return lt
 }

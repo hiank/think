@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/hiank/think/doc"
-	"github.com/hiank/think/doc/testdata"
+	"github.com/hiank/think/pbtest"
 	"github.com/hiank/think/store/db"
 	rdbc "github.com/hiank/think/store/db/adapter/redis"
 	"gotest.tools/v3/assert"
@@ -107,14 +107,14 @@ func TestRedisCli(t *testing.T) {
 		err := cli.Set("hs", "key1")
 		assert.Assert(t, err != nil, "value must be proto.Message")
 
-		var val1 testdata.Test1
+		var val1 pbtest.Test1
 		val1.Name = "val1"
 		// err = cli.Set("hs", &val1)
 		// assert.Assert(t, err != nil, "must use PB JSON GOB struct value")
 		err = cli.Set("hs", &val1) //db.PB{V: &val1})
 		assert.Assert(t, err == nil, err)
 
-		var outVal1 testdata.Test1
+		var outVal1 pbtest.Test1
 		found, err := cli.Scan("key1", &outVal1) //db.PB{V: &outVal1})
 		assert.Assert(t, !found)
 		assert.Equal(t, err, rdbc.ErrNotFound)
@@ -124,14 +124,14 @@ func TestRedisCli(t *testing.T) {
 		assert.Assert(t, err == nil, err)
 		assert.Equal(t, outVal1.GetName(), "val1")
 
-		err = cli.Set("hs", &testdata.Test2{Age: 18})
+		err = cli.Set("hs", &pbtest.Test2{Hope: "18"})
 		assert.Assert(t, err == nil, err)
 
-		var outVal2 testdata.Test2
+		var outVal2 pbtest.Test2
 		found, err = cli.Scan("hs", &outVal2)
 		assert.Assert(t, found)
 		assert.Assert(t, err == nil, err)
-		assert.Equal(t, outVal2.Age, int32(18))
+		assert.Equal(t, outVal2.GetHope(), "18")
 
 		err = cli.Del("key1")
 		// assert.Assert(t, err == nil, err)
@@ -139,10 +139,10 @@ func TestRedisCli(t *testing.T) {
 		found, _ = cli.Scan("hs", &outVal2)
 		assert.Assert(t, found)
 
-		var outVal3 testdata.Test2
+		var outVal3 pbtest.Test2
 		err = cli.Del("hs", &outVal3)
 		assert.Assert(t, err == nil, err)
-		assert.Equal(t, outVal3.GetAge(), int32(18))
+		assert.Equal(t, outVal3.GetHope(), "18")
 		found, _ = cli.Scan("hs", &outVal2)
 		assert.Assert(t, !found)
 
@@ -156,12 +156,13 @@ func TestRedisCli(t *testing.T) {
 		// 	Password: "",
 		// 	Addr:     "localhost:30211",
 		// })
-		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"), db.WithCoder(doc.NewCoder[doc.JsonCoder]()))
+		jsonCoder, _ := doc.NewBytesCoder([]byte{}, doc.FormatJson)
+		cli, _ := rdbc.Dial(ctx, db.WithAddr("localhost:30211"), db.WithDB("0"), db.WithCoder(jsonCoder))
 		defer cli.Close()
 		// err := cli.Set("hs", "key1")
 		// assert.Assert(t, err == nil, err)
 
-		// var val1 testDBStruct//testdata.Test1
+		// var val1 testDBStruct//pbtest.Test1
 		// val1.Name = "val1"
 		val1 := &testDBStruct{
 			Name: "hiank",

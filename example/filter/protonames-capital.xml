@@ -1,0 +1,44 @@
+<!-- AssignWorkerResult -->
+<!-- AssignXuezheResult -->
+<!-- CHILD_SELECT_CELL -->
+<!-- CLOSE_WM_CAPITALSKIN -->
+<!-- CLOSE_WM_TASKSYSTEM -->
+<!-- CapitalGetSLotRank -->
+<!-- CapitalGetSlotCountAwardStatus -->
+<!-- CapitalGetSlotStatus -->
+CapitalInfo
+<!-- CapitalLevelGiftInfo -->
+<!-- CapitalRunSlotResult -->
+<!-- CapitalShopGoodInfo -->
+<!-- CapitalShopInfo -->
+<!-- CapitalSlotCountAward -->
+<!-- EquipCapitalSkinResult -->
+<!-- GetGDPRank -->
+*GetGodOfWarRecordStatus
+<!-- GetStatueInfo -->
+<!-- HoutuGetSLotRank -->
+<!-- HoutuGetSlotCountAwardStatus -->
+<!-- HoutuGetSlotStatus -->
+<!-- HoutuRunSlotResult -->
+<!-- HoutuSlotCountAward -->
+<!-- LadderCapitalGiftMsg -->
+<!-- LastGDPRank -->
+LongFeiCountAward
+<!-- LvUpCultureBuildingResult -->
+<!-- LvUpCultureScienceResult -->
+<!-- LvUpDuChengResult -->
+<!-- LvUpProductBuildingResult -->
+<!-- LvUpWenMingResult -->
+<!-- MingJunMobaiResult -->
+<!-- PaymentOk -->
+<!-- PickResouceResult -->
+<!-- REFRESH_DUCHENG_LIMITGIFTS -->
+<!-- REFRESH_DUCHENG_STEPGIFT -->
+<!-- ReceiveCapitalBigReward -->
+<!-- ReceiveCapitalChapterReward -->
+<!-- ReceiveCapitalTaskReward -->
+<!-- SendChildToProductBuildingResult -->
+<!-- TopUpGoodList -->
+<!-- ZlstActiveResult -->
+<!-- show_LimitGiftsLayer_LevelUp -->
+updateLhjMainView

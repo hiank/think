@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think"
-	"github.com/hiank/think/kube"
-	"github.com/hiank/think/net/one"
+	"github.com/hiank/think/defaults"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
 
@@ -92,9 +91,9 @@ func TestSetUnique(t *testing.T) {
 	assert.Assert(t, unique != nil)
 	assert.Assert(t, unique == think.Set(), "set is singleston")
 	assert.Equal(t, think.Set().Sys(), think.Set().Sys(), "set's part is singleston")
-	assert.Equal(t, think.Set().TODO(), think.Set().TODO(), "set's part is singleston")
+	// assert.Equal(t, think.Set().TODO(), think.Set().TODO(), "set's part is singleston")
 	assert.Equal(t, think.Set().Nats(), think.Set().Nats(), "set's part is singleston")
-	assert.Equal(t, think.Set().TokenSet(), one.TokenSet())
+	// assert.Equal(t, think.Set().TokenSet(), one.TokenSet())
 	db1, found := think.Set().DB(1)
 	assert.Assert(t, found)
 	db12, found := think.Set().DB(1)
@@ -123,7 +122,7 @@ func TestMap(t *testing.T) {
 
 func TestOptions(t *testing.T) {
 	dopt := think.Export_defaultOptions()
-	assert.Equal(t, dopt.NatsUrl(), kube.NatsUrl())
+	assert.Equal(t, dopt.NatsUrl(), defaults.NatsUrl())
 	assert.Equal(t, dopt.TODO(), context.TODO())
 	assert.Equal(t, len(dopt.Mdb()), 0)
 

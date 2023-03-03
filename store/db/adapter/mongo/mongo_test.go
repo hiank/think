@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/hiank/think/doc"
-	"github.com/hiank/think/doc/testdata"
+	"github.com/hiank/think/pbtest"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
 	mgo "github.com/hiank/think/store/db/adapter/mongo"
@@ -117,7 +117,7 @@ func TestDictionaryPB(t *testing.T) {
 	d, _ := mgo.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"))
 
 	var jk store.Jsonkey //= mgo.DefaultJsonkey()
-	var outVal1 testdata.Test1
+	var outVal1 pbtest.Test1
 	found, err := d.Scan(jk, &outVal1)
 	assert.Assert(t, !found)
 	assert.Equal(t, err, mgo.ErrNonCollectionOrDocument)
@@ -128,14 +128,14 @@ func TestDictionaryPB(t *testing.T) {
 	err = d.Set(jk, "not proto.Message")
 	assert.Assert(t, err != nil, "value to set must be a proto.Message")
 
-	err = d.Set(jk, &testdata.Test1{Name: "hiank"})
+	err = d.Set(jk, &pbtest.Test1{Name: "hiank"})
 	assert.Assert(t, err == nil, err)
 
-	var outVal2 testdata.Test2
+	var outVal2 pbtest.Test2
 	found, err = d.Scan(jk, &outVal2)
 	assert.Assert(t, found, err)
 	assert.Assert(t, err == nil, "protobuf 反序列化时，不同类型也可能会尝试执行，返回的结果不可信")
-	assert.Equal(t, outVal2.GetAge(), int32(0))
+	assert.Equal(t, outVal2.GetHope(), "")
 
 	found, err = d.Scan(jk, &outVal1)
 	assert.Assert(t, found)
@@ -170,7 +170,8 @@ func funcTestDictionaryJson(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	d, _ := mgo.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"), db.WithCoder(doc.NewCoder[doc.JsonCoder]()))
+	jsonCoder, _ := doc.NewBytesCoder([]byte{}, doc.FormatJson)
+	d, _ := mgo.Dial(ctx, db.WithDB("test"), db.WithAddr("mongodb://localhost:30222"), db.WithCoder(jsonCoder))
 
 	var jk store.Jsonkey
 	(&jk).Encode(store.JsonkeyPair{K: mgo.JsonkeyCollection, V: "51"}, store.JsonkeyPair{K: mgo.JsonkeyDocument, V: "json"})

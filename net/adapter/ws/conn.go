@@ -2,27 +2,42 @@ package ws
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/net/box"
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/net"
+	"github.com/hiank/think/run"
 	"k8s.io/klog/v2"
 )
 
+const (
+	ErrNotBinaryMessage = run.Err("ws: message recved should be BinaryMessage")
+)
+
 type conn struct {
+	tk auth.Token
 	wc *websocket.Conn
 }
 
-func (c *conn) Send(m box.Message) error {
-	return c.wc.WriteMessage(websocket.BinaryMessage, m.GetBytes())
+func (c *conn) Token() auth.Token {
+	return c.tk
 }
 
-func (c *conn) Recv() (out box.Message, err error) {
+func (c *conn) Send(m *net.Message) error {
+	return c.wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
+}
+
+func (c *conn) Recv() (out *net.Message, err error) {
 	mt, buf, err := c.wc.ReadMessage()
 	if err == nil {
 		switch mt {
 		case websocket.BinaryMessage:
-			out = box.New() //new(box.Message)
-			err = box.Unmarshal[*anypb.Any](buf, out)
+			defer func() {
+				if r := recover(); r != nil {
+					err = r.(error)
+				}
+			}()
+			out = net.NewMessage(net.WithMessageBytes(buf))
 		default:
+			err = ErrNotBinaryMessage
 			klog.Warning("ws: unsupport message type:", mt)
 		}
 	}

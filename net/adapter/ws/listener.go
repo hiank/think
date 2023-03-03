@@ -7,10 +7,11 @@ import (
 	"strconv"
 
 	"github.com/gorilla/websocket"
+	"github.com/hiank/think/auth"
 	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter"
-	"github.com/hiank/think/net/one"
-	"github.com/hiank/think/oauth"
+
+	"github.com/hiank/think/auth/oauth"
 	"github.com/hiank/think/run"
 
 	"k8s.io/klog/v2"
@@ -19,6 +20,7 @@ import (
 type listener struct {
 	upgrader *websocket.Upgrader
 	auther   oauth.Auther
+	tokenset auth.Tokenset
 	io.Closer
 	adapter.ChanAccepter
 }
@@ -40,7 +42,7 @@ func (lis *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		klog.Warning("ws: Upgrade error: ", err)
 		return
 	}
-	lis.ChanAccepter <- net.TokenConn{Token: one.TokenSet().Derive(strconv.FormatUint(uid, 10)), T: &conn{wc: wc}}
+	lis.ChanAccepter <- &conn{wc: wc, tk: lis.tokenset.Derive(strconv.FormatUint(uid, 10))} //net.TokenConn{Token: one.TokenSet().Derive(strconv.FormatUint(uid, 10)), T: &conn{wc: wc}}
 }
 
 func (lis *listener) contextHealthy(ctx context.Context, lisCloser io.Closer) {
@@ -56,6 +58,7 @@ func NewListener(ctx context.Context, opt ListenOption) net.Listener {
 		ChanAccepter: make(adapter.ChanAccepter),
 		upgrader:     &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024},
 		auther:       opt.Auther,
+		tokenset:     opt.Tokenset,
 		Closer: run.NewOnceCloser(func() error {
 			cancel()
 			return nil

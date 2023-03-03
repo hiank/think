@@ -4,24 +4,22 @@ import (
 	"context"
 	"io"
 
+	"github.com/hiank/think/auth"
 	"github.com/hiank/think/doc/sys"
-	"github.com/hiank/think/net/one"
 	"github.com/hiank/think/store"
 	"github.com/hiank/think/store/db"
-
-	// "github.com/hiank/think/doc/file"
 	"github.com/nats-io/nats.go"
 )
 
-//utilset provide unique utils
-//only provide 'Set' method to get
+// utilset provide unique utils
+// only provide 'Set' method to get
 type utilset interface {
 	//TODO base context
 	//one.TODO()
 	TODO() context.Context
 
-	//TokenSet one.TokenSet()
-	TokenSet() one.Tokenset
+	//Tokenset one.TokenSet()
+	Tokenset() auth.Tokenset
 
 	//DB get cached database
 	DB(tag DBTag) (ed store.EasyDictionary, found bool)

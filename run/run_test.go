@@ -11,6 +11,12 @@ import (
 	"gotest.tools/v3/assert"
 )
 
+type tmpErrorHooker chan error
+
+func (teh tmpErrorHooker) Hook(err error) {
+	teh <- err
+}
+
 func TestHealthy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -34,7 +40,7 @@ func TestTasker(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		tasker := run.NewTasker(ctx, time.Millisecond*10)
 		<-time.After(time.Millisecond * 100)
-		err := tasker.Add(run.NewLiteTask(func(t int) error { return nil }, 1, nil))
+		err := tasker.Add(run.NewLiteTask(func(t int) error { return nil }, 1))
 		assert.Assert(t, err != nil, "closed because timeout")
 	})
 
@@ -104,18 +110,39 @@ func TestTasker(t *testing.T) {
 		}
 		wait.Wait()
 	})
+	t.Run("unrecoverable", func(t *testing.T) {
+		tasker, c := run.NewTasker(ctx, time.Second), make(chan int, 10)
+		tasker.Add(run.NewLiteTask(func(t int) error {
+			c <- t
+			return nil
+		}, 1))
+		tasker.Add(run.NewLiteTask(func(t int) error {
+			c <- t
+			return run.ErrUnrecoverable
+		}, 2))
+		tasker.Add(run.NewLiteTask(func(t int) error {
+			c <- t
+			return nil
+		}, 3))
+		<-time.After(time.Millisecond * 100)
+		assert.Equal(t, len(c), 2)
+		assert.Equal(t, <-c, 1)
+		assert.Equal(t, <-c, 2)
+		assert.Equal(t, len(c), 0)
+	})
 	// return
 	tasker := run.NewTasker(ctx, time.Second)
-	pperr := make(chan error)
+	// pperr := make(chan error)
+	hooker := make(tmpErrorHooker)
 	err := errors.New("equal failed")
 	tasker.Add(run.NewLiteTask(func(t int) error {
 		if t != 10 {
 			return err
 		}
 		return nil
-	}, 11, pperr))
+	}, 11, run.WithTaskErrorHooker(hooker)))
 
-	err1 := <-pperr
+	err1 := <-hooker
 	assert.Equal(t, err1, err)
 
 	tasker.Add(run.NewLiteTask(func(t int) error {
@@ -123,7 +150,7 @@ func TestTasker(t *testing.T) {
 			return err
 		}
 		return nil
-	}, 1, nil))
+	}, 1))
 	//check run
 }
 
@@ -179,6 +206,24 @@ L:
 
 	// var empty chan<- bool
 	// empty <- true
+}
+
+func TestBitValue(t *testing.T) {
+	var v8 int8 = -1
+	for i := 0; i < 8; i++ {
+		var tv int8 = 1
+		tv <<= i
+		assert.Equal(t, tv&v8, tv)
+	}
+	///
+	var v1 int8 = 1
+	v2 := (v1 << 6) - 1
+	v2 |= (v1 << 6) | (v1 << 7)
+	assert.Equal(t, v2, int8(-1))
+
+	var v3 uint8
+	v3 -= 1
+	assert.Equal(t, v3, uint8(255))
 }
 
 // func TestMilliAfter(t *testing.T) {

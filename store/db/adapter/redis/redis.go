@@ -24,15 +24,15 @@ type liteDB struct {
 func (ld *liteDB) Scan(k string, v any) (found bool, err error) {
 	str, err := ld.rcli.Get(ld.ctx, k).Result()
 	if err == nil {
-		err, found = ld.coder.Decode([]byte(str), v), true
+		ld.coder.Encode([]byte(str))
+		err, found = ld.coder.Decode(v), true
 	}
 	return found, ld.updateErr(err)
 }
 
-func (ld *liteDB) Set(k string, v any) error {
-	bytes, err := ld.coder.Encode(v)
-	if err == nil {
-		err = ld.rcli.Set(ld.ctx, k, string(bytes), 0).Err()
+func (ld *liteDB) Set(k string, v any) (err error) {
+	if err = ld.coder.Encode(v); err == nil {
+		err = ld.rcli.Set(ld.ctx, k, string(ld.coder.Bytes()), 0).Err()
 	}
 	return ld.updateErr(err)
 }
@@ -40,9 +40,11 @@ func (ld *liteDB) Set(k string, v any) error {
 func (ld *liteDB) Del(k string, outs ...any) (err error) {
 	str, err := ld.rcli.GetDel(ld.ctx, k).Result()
 	if err == nil {
-		for _, out := range outs {
-			if terr := ld.coder.Decode([]byte(str), out); terr != nil {
-				klog.Warning(terr)
+		if err = ld.coder.Encode([]byte(str)); err == nil {
+			for _, out := range outs {
+				if terr := ld.coder.Decode(out); terr != nil {
+					klog.Warning(terr)
+				}
 			}
 		}
 	}

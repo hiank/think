@@ -1,76 +1,94 @@
 package sys
 
 import (
+	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"path/filepath"
 	"sync"
 
+	"github.com/hiank/think/doc"
+	"golang.org/x/exp/slices"
 	"k8s.io/klog/v2"
 )
 
-//Fat fat parser. unmarshal []byte to passed value
+type coderHub struct {
+	loaded []string //[]path
+	coders []doc.Coder
+}
+
+func (ch *coderHub) loadFile(path string) {
+	if !slices.Contains(ch.loaded, path) {
+		//
+		coder, err := doc.ReadFile(path)
+		if err != nil {
+			klog.Warning("settings:", err)
+			return
+		}
+		ch.loaded = append(ch.loaded, path)
+		ch.coders = append(ch.coders, coder)
+	}
+}
+
+// Fat fat parser. unmarshal []byte to passed value
 type Fat struct {
-	mux    sync.Mutex
-	loaded map[string]bool
-	pool   []*Bytes
+	mux sync.RWMutex
+	hub *coderHub
 }
 
 func NewFat() *Fat {
 	return &Fat{
-		loaded: make(map[string]bool),
-		pool:   make([]*Bytes, 0, 8),
+		hub: &coderHub{
+			loaded: make([]string, 0),
+			coders: make([]doc.Coder, 0),
+		},
 	}
 }
 
-//LoadFile
-func (fat *Fat) LoadFiles(paths ...string) {
+// Load load files to coder
+// folder or file
+func (fat *Fat) Load(paths ...string) {
 	fat.mux.Lock()
 	defer fat.mux.Unlock()
 	for _, path := range paths {
 		filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
 			if err == nil && !d.IsDir() {
-				path, _ = filepath.Abs(path)
-				fat.loadFile(path)
+				fat.hub.loadFile(path)
 			}
-			return err
+			return nil
 		})
 	}
 }
 
-func (fat *Fat) loadFile(path string) {
-	if _, ok := fat.loaded[path]; ok {
-		return ///stored
+func (fat *Fat) LoadBytes(data []byte, f doc.Format) error {
+	///
+	var coder doc.Coder
+	switch f {
+	case doc.FormatJson:
+		var jd doc.Json = data
+		coder = &jd
+	case doc.FormatYaml:
+		var yd doc.Yaml = data
+		coder = &yd
+	default:
+		return doc.ErrUnsupportFormat
 	}
-	fat.loaded[path] = true
-	err := fat.loadBytes(formatFromPath(path), func() ([]byte, error) { return ioutil.ReadFile(path) })
-	if err != nil {
-		klog.Warning(err)
-	}
-}
-
-func (fat *Fat) loadBytes(f Format, get func() ([]byte, error)) error {
-	b, err := formatoBytes(f, get)
-	if err == nil {
-		fat.pool = append(fat.pool, b)
-	}
-	return err
-}
-
-func (fat *Fat) LoadBytes(data []byte, f Format) error {
 	fat.mux.Lock()
 	defer fat.mux.Unlock()
-	return fat.loadBytes(f, func() ([]byte, error) { return data, nil })
+	////
+	fat.hub.coders = append(fat.hub.coders, coder)
+	return nil
 }
 
-//UnmarshalTo unmarshal cached *Bytes to vals
-//it will stop work when first unmarshal fialed and return the unmarshal error
+// UnmarshalTo unmarshal cached *Bytes to vals
+// it will stop work when first unmarshal fialed and return the unmarshal error
 func (fat *Fat) UnmarshalTo(vals ...any) (err error) {
-L:
-	for _, b := range fat.pool {
+	fat.mux.RLock()
+	defer fat.mux.RUnlock()
+	for _, coder := range fat.hub.coders {
 		for _, val := range vals {
-			if err = b.UnmarshalTo(val); err != nil {
-				break L
+			if derr := coder.Decode(val); derr != nil {
+				klog.Warning(derr)
+				err = fmt.Errorf("%v: %v", err, derr)
 			}
 		}
 	}

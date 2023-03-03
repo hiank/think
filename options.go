@@ -15,24 +15,24 @@ type options struct {
 
 type Option run.Option[*options]
 
-//WithNatsUrl nats url
-//NOTE: if url is "", natsconn will be nil
+// WithNatsUrl nats url
+// NOTE: if url is "", natsconn will be nil
 func WithNatsUrl(url string) Option {
 	return run.FuncOption[*options](func(opts *options) {
 		opts.natsUrl = url
 	})
 }
 
-//WithTODO base Context
-//the todo will cancel when Destroy
+// WithTODO base Context
+// the todo will cancel when Destroy
 func WithTODO(ctx context.Context) Option {
 	return run.FuncOption[*options](func(opts *options) {
 		opts.todo = ctx
 	})
 }
 
-//WithDB DB use for dial to database and cache in set
-//cfg.Tag use for cache in set
+// WithDB DB use for dial to database and cache in set
+// cfg.Tag use for cache in set
 func WithDB(cfg DB) Option {
 	return run.FuncOption[*options](func(opts *options) {
 		if _, ok := opts.mdb[cfg.Tag]; ok {

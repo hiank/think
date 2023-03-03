@@ -51,14 +51,13 @@ func (ld *liteDB) Scan(k store.Jsonkey, out any) (found bool, err error) {
 }
 
 func (ld *liteDB) Set(k store.Jsonkey, v any) (err error) {
-	bytes, err := ld.coder.Encode(v)
-	if err != nil {
+	if err = ld.coder.Encode(v); err != nil {
 		return
 	}
 	ck, dk, found, err := ld.checkey(k)
 	if found {
 		coll := ld.db.Collection(ck)
-		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: dk}, {Key: docVal, Value: string(bytes)}})
+		_, err = coll.InsertOne(ld.ctx, bson.D{{Key: docKey, Value: dk}, {Key: docVal, Value: string(ld.coder.Bytes())}})
 	}
 	return ld.updateErr(err)
 }
@@ -83,7 +82,8 @@ func (ld *liteDB) decode(rlt *mongo.SingleResult, out any) (err error) {
 	var m bson.M
 	if err = rlt.Decode(&m); err == nil {
 		if strVal, ok := m[docVal].(string); ok {
-			err = ld.coder.Decode([]byte(strVal), out)
+			ld.coder.Encode([]byte(strVal))
+			err = ld.coder.Decode(out)
 		} else {
 			err = ErrNotString //fmt.Errorf("cached value not a string: %v", m["_val"])
 		}

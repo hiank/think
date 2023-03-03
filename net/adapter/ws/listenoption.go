@@ -1,7 +1,8 @@
 package ws
 
 import (
-	"github.com/hiank/think/oauth"
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/auth/oauth"
 	"github.com/hiank/think/run"
 )
 
@@ -10,8 +11,9 @@ var (
 )
 
 type ListenOption struct {
-	Addr   string
-	Auther oauth.Auther
+	Addr     string
+	Auther   oauth.Auther
+	Tokenset auth.Tokenset
 }
 
 type unimplementedAuther struct{}

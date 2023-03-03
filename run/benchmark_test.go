@@ -3,7 +3,6 @@ package run_test
 import (
 	"container/list"
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -80,7 +79,7 @@ func (t *tasker) tick(timeout time.Duration) (<-chan time.Time, func(time.Durati
 func (t *tasker) looprocess(timeout time.Duration) {
 	defer t.Close()
 	tick, reset := t.tick(timeout)
-	tt := time.Now().UnixMilli()
+	// tt := time.Now().UnixMilli()
 	for {
 		tk := t.tl.shift()
 		select {
@@ -91,9 +90,8 @@ func (t *tasker) looprocess(timeout time.Duration) {
 		default:
 			reset(timeout)
 			tk.Process()
-			ctt := time.Now().UnixMilli()
-			fmt.Println("looprocess", ctt-tt)
-			tt = ctt
+			// ctt := time.Now().UnixMilli()
+			// tt = ctt
 		}
 	}
 }
@@ -123,7 +121,7 @@ func BenchmarkTasker(b *testing.B) {
 			// fmt.Println(t)
 			wait.Done()
 			return nil
-		}, i+1, nil))
+		}, i+1))
 		if err != nil {
 			b.Error(err)
 		}
@@ -143,17 +141,17 @@ func BenchmarkTasker2(b *testing.B) {
 		err := tasker.Add(run.NewLiteTask(func(t int) error {
 			ctx, cancel := context.WithTimeout(ctx, time.Millisecond)
 			defer cancel()
-			tt := time.Now().UnixMilli()
+			// tt := time.Now().UnixMilli()
 			// <-time.After(time.Millisecond)
 			// fmt.Println(t)
 			// ticker.Reset(time.Millisecond)
 			// <-time.Tick(time.Millisecond)
 			// <-ticker.C
 			<-ctx.Done()
-			fmt.Println("task", time.Now().UnixMilli()-tt)
+			// fmt.Println("task", time.Now().UnixMilli()-tt)
 			wait.Done()
 			return nil
-		}, i+1, nil))
+		}, i+1))
 		if err != nil {
 			b.Error(err)
 		}

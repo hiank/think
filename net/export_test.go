@@ -3,7 +3,7 @@ package net
 import "sync"
 
 var (
-	Export_clientsetm = func(cs Clientset) sync.Map {
-		return cs.(*clientset).m
+	Export_clientm = func(cli *Client) sync.Map {
+		return cli.m
 	}
 )
