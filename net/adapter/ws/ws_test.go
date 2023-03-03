@@ -1,129 +1,170 @@
 package ws_test
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/net"
 	"github.com/hiank/think/net/adapter/ws"
-	"github.com/hiank/think/net/pb"
-	"github.com/hiank/think/net/testdata"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	"github.com/hiank/think/pbtest"
 	"gotest.tools/v3/assert"
 )
 
-func TestSendChan(t *testing.T) {
-	t.Run("closed chan", func(t *testing.T) {
-		ch := make(chan bool)
-		close(ch)
+var (
+	Tokenset = auth.NewTokenset(context.Background())
+)
 
-		defer func(t *testing.T) {
-			r := recover()
-			assert.Assert(t, r != nil)
-			assert.Equal(t, r.(error).Error(), "send on closed channel")
-		}(t)
-		ch <- true
-	})
+type tmpAuther string
 
-	t.Run("nil chan", func(t *testing.T) {
-		var ch chan bool
-		select {
-		case ch <- true:
-			assert.Assert(t, false)
-		default:
-			assert.Assert(t, true)
-		}
-	})
+func (ta tmpAuther) Auth(token string) (uid uint64, err error) {
+	arr := strings.Split(token, "_")
+	if len(arr) != 2 {
+		return 0, fmt.Errorf("invalid token: must format as 'key_number'")
+	}
+	if arr[0] != string(ta) {
+		return 0, fmt.Errorf("invalid token: equal failed")
+	}
+	return strconv.ParseUint(arr[1], 10, 64)
 }
 
-type testStorage struct {
-}
-
-func (ts *testStorage) Auth(token string) (uid uint64, err error) {
-	uid, err = strconv.ParseUint(token, 10, 64)
+func easyDial(token string) (wc *websocket.Conn, err error) {
+	// websocket.NewClient()
+	url := &url.URL{Scheme: "ws", Host: "localhost:10240", Path: "/ws"}
+	wc, _, err = websocket.DefaultDialer.Dial(url.String(), http.Header{"token": []string{token}})
 	return
 }
 
 func TestListener(t *testing.T) {
-	t.Run("new-close", func(t *testing.T) {
-		ts := &testStorage{}
-		uid, _ := ts.Auth("11")
-		assert.Equal(t, uid, uint64(11))
-		l := ws.NewListener(ts, ":10240")
-		l.Close()
+	exit := make(chan bool)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	lis := ws.NewListener(ctx, ws.ListenOption{Addr: ":10240", Auther: tmpAuther("test"), Tokenset: Tokenset})
+	go func(t *testing.T) {
+		<-exit
+		lis.Close()
+		_, err := lis.Accept()
+		assert.Equal(t, err, io.EOF, err)
+		close(exit)
+	}(t)
 
-		<-time.After(time.Millisecond) //NOTE: wait for server listener stopped
+	url := &url.URL{Scheme: "ws", Host: "localhost:10240", Path: "/ws"}
+	_, _, err := websocket.DefaultDialer.Dial(url.String(), http.Header{})
+	assert.Assert(t, err != nil, "non token info in header")
+	//
+	// websocket.DefaultDialer.Dial("localhost:30211")
+	_, err = easyDial("27")
+	assert.Assert(t, err != nil, "invalid token")
 
-		l.Close()
-	})
+	wc, err := easyDial("test_27")
+	assert.Equal(t, err, nil, err)
 
-	// <-time.After(time.Millisecond)
+	ic, err := lis.Accept()
+	assert.Equal(t, err, nil, err)
+	assert.Equal(t, ic.Token().ToString(), "27")
 
-	// assert.
+	// done := make(chan bool)
+	go func(ic net.Conn, t *testing.T) {
+		// m := box.New(box.WithMessageValue(&pbtest.S_Example{Value: "s-e"}))
+		err := ic.Send(net.NewMessage(net.WithMessageValue(&pbtest.S_Example{Value: "s-e"})))
+		assert.Equal(t, err, nil, err)
+		m, err := ic.Recv()
+		assert.Equal(t, err, nil, err)
+		gm, _ := m.Any().UnmarshalNew()
+		assert.Equal(t, gm.(*pbtest.G_Example).GetValue(), "g-v")
+
+		ic.Close()
+		// close()
+		// close(done)
+	}(ic, t)
+
+	mt, buff, err := wc.ReadMessage()
+	assert.Equal(t, err, nil, err)
+	assert.Equal(t, mt, websocket.BinaryMessage)
+	// m := new(box.Message)
+	// m, err := box.UnmarshalNew[*anypb.Any](buff)
+	m := net.NewMessage(net.WithMessageBytes(buff))
+	assert.Equal(t, err, nil, err)
+	sm, _ := m.Any().UnmarshalNew()
+	assert.Equal(t, sm.(*pbtest.S_Example).GetValue(), "s-e")
+
+	m = net.NewMessage(net.WithMessageValue(&pbtest.G_Example{Value: "g-v"}))
+	// m = box.New(box.WithMessageValue(&pbtest.G_Example{Value: "g-v"}))
+	err = wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
+	assert.Equal(t, err, nil, err)
+
+	// <-done
+	mt, _, err = wc.ReadMessage()
+	assert.Assert(t, err != nil)
+	assert.Equal(t, mt, -1)
+
+	// lis.Close()
+	// close(exit)
+	exit <- true
+	<-exit
 }
 
 func TestConn(t *testing.T) {
+	exit := make(chan bool)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	lis := ws.NewListener(ctx, ws.ListenOption{Auther: tmpAuther("test1"), Addr: ":10240", Tokenset: Tokenset})
+	go func() {
+		<-exit
+		lis.Close()
+		close(exit)
+	}()
 
-	l := ws.NewListener(&testStorage{}, ":10240")
-	defer l.Close()
+	wc, err := easyDial("test1_11")
+	assert.Equal(t, err, nil, err)
+	c := ws.Export_newConn(wc)
+	// m := box.New(box.WithMessageValue(&pbtest.P_Example{Value: "p-v"}))
+	err = c.Send(net.NewMessage(net.WithMessageValue(&pbtest.P_Example{Value: "p-v"})))
+	assert.Equal(t, err, nil, err)
 
-	// websocket.NewClient()
-	url := &url.URL{Scheme: "ws", Host: "localhost:10240", Path: "/ws"}
-	_, _, err := websocket.DefaultDialer.Dial(url.String(), nil)
-	// t.Log(err)
+	sc, err := lis.Accept()
+	assert.Equal(t, err, nil, err)
+	sm, _ := sc.Recv()
+	sv, _ := sm.Any().UnmarshalNew()
+	assert.Equal(t, sv.(*pbtest.P_Example).GetValue(), "p-v")
+
+	// m = box.New(box.WithMessageValue(&pbtest.MessageTest1{Key: "m-t"}))
+	err = sc.Send(net.NewMessage(net.WithMessageValue(&pbtest.MessageTest1{Key: "m-t"})))
+	assert.Equal(t, err, nil, err)
+
+	m, err := c.Recv()
+	assert.Equal(t, err, nil, err)
+	v1, _ := m.Any().UnmarshalNew()
+	assert.Equal(t, v1.(*pbtest.MessageTest1).GetKey(), "m-t")
+
+	err = c.Close()
+	assert.Equal(t, err, nil, err)
+
+	_, err = sc.Recv()
 	assert.Assert(t, err != nil)
-	// assert.Assert(t, resp == nil)
-	// t.Log(resp.StatusCode, )
-	// assert.Equal(t, resp.StatusCode, http.StatusNonAuthoritativeInfo)
 
-	_, resp, _ := websocket.DefaultDialer.Dial(url.String(), http.Header{"token": []string{"not number"}})
-	// assert.Equal(t, err, nil)
-	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, resp)
+	exit <- true
+	<-exit
+}
 
-	cliConn, _, err := websocket.DefaultDialer.Dial(url.String(), http.Header{"token": []string{"11"}})
-	assert.Assert(t, err == nil)
+func TestWithDefaultListenOption(t *testing.T) {
+	opt := ws.Export_withDefaultListenOption(ws.ListenOption{Addr: "11"})
+	uid, err := opt.Auther.Auth("")
+	assert.Equal(t, uid, uint64(0))
+	assert.Equal(t, err, ws.ErrUnimplementedAuther)
+	assert.Equal(t, opt.Addr, "11")
 
-	srvConn, err := l.Accept()
-	assert.Assert(t, err == nil)
-
-	wait := make(chan bool)
-	// srvConn.Read()
-	go func(t *testing.T) {
-		d, _ := srvConn.Recv()
-		amsg := new(anypb.Any)
-		proto.Unmarshal(d.Bytes(), amsg)
-		msg, _ := amsg.UnmarshalNew()
-		assert.Equal(t, msg.(*testdata.AnyTest1).GetName(), "ll")
-		// close(wait)
-		wait <- true
-	}(t)
-
-	any, _ := anypb.New(&testdata.AnyTest1{Name: "ll"})
-	b, _ := proto.Marshal(any)
-	err = cliConn.WriteMessage(websocket.BinaryMessage, b)
-	assert.Assert(t, err == nil)
-
-	<-wait
-
-	any, _ = anypb.New(&testdata.AnyTest2{Hope: "hh"})
-	b, _ = proto.Marshal(any)
-	doc, _ := pb.MakeM(b)
-	srvConn.Send(doc)
-
-	_, b, _ = cliConn.ReadMessage()
-	// var msg anypb.Any
-	proto.Unmarshal(b, any)
-	msg, _ := any.UnmarshalNew()
-	assert.Equal(t, msg.(*testdata.AnyTest2).GetHope(), "hh")
-
-	// assert.Equal(t, srvConn.GetIdentity(), uint64(11))
-
-	srvConn.Close()
-	_, _, err = cliConn.ReadMessage()
-	assert.Assert(t, err != io.EOF)
+	opt = ws.Export_withDefaultListenOption(ws.ListenOption{Auther: tmpAuther("tt")})
+	uid, err = opt.Auther.Auth("tt_101")
+	assert.Equal(t, uid, uint64(101))
+	assert.Equal(t, err, nil, err)
+	assert.Equal(t, opt.Addr, "")
 }

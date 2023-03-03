@@ -1,46 +1,48 @@
 package rpc
 
 import (
-	"context"
+	"io"
+	"time"
 
-	"github.com/hiank/think/net/pb"
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/net"
+	"github.com/hiank/think/run"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// type iSendRecver interface {
-// 	Send(*pb.Carrier) error
-// 	Recv() (*pb.Carrier, error)
-// }
-
-type conn struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	s      Stream
-	// identity uint64
+type sendReciver interface {
+	Send(*anypb.Any) error
+	Recv() (*anypb.Any, error)
 }
 
-// func (c *conn) GetIdentity() uint64 {
-// 	return c.identity
-// }
+type conn struct {
+	tk auth.Token
+	sr sendReciver
+	io.Closer
+}
 
-func (c *conn) Send(m pb.M) (err error) {
-	if err = c.ctx.Err(); err == nil {
-		err = c.s.Send(m.Any())
+func (c *conn) Token() auth.Token {
+	return c.tk
+}
+
+func (c *conn) Send(m *net.Message) (err error) {
+	if err = run.FrontErr(m.Token().Err, c.tk.Err); err == nil {
+		err = c.sr.Send(m.Any())
 	}
 	return
 }
 
-func (c *conn) Recv() (out pb.M, err error) {
-	if err = c.ctx.Err(); err == nil {
+func (c *conn) Recv() (out *net.Message, err error) {
+	if err = c.tk.Err(); err == nil {
 		var amsg *anypb.Any
-		if amsg, err = c.s.Recv(); err == nil {
-			out, err = pb.MakeM(amsg)
+		if amsg, err = c.sr.Recv(); err == nil {
+			out = net.NewMessage(net.WithMessageValue(amsg), net.WithMessageToken(c.tk.Fork(auth.WithTokenTimeout(time.Second*5))))
 		}
 	}
 	return
 }
 
-func (c *conn) Close() error {
-	c.cancel()
-	return nil
-}
+// type restClient struct {
+// 	pipe.RestClient
+// 	io.Closer
+// }

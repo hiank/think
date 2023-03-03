@@ -2,28 +2,43 @@ package ws
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/hiank/think/net/pb"
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/net"
 	"github.com/hiank/think/run"
+	"k8s.io/klog/v2"
 )
 
-const ErrUnsupportMessageType = run.Err("ws: unsupport message type recved")
+const (
+	ErrNotBinaryMessage = run.Err("ws: message recved should be BinaryMessage")
+)
 
 type conn struct {
-	// uid uint64
+	tk auth.Token
 	wc *websocket.Conn
 }
 
-func (l *conn) Send(m pb.M) error {
-	return l.wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
+func (c *conn) Token() auth.Token {
+	return c.tk
 }
 
-func (l *conn) Recv() (out pb.M, err error) {
-	t, bs, err := l.wc.ReadMessage()
+func (c *conn) Send(m *net.Message) error {
+	return c.wc.WriteMessage(websocket.BinaryMessage, m.Bytes())
+}
+
+func (c *conn) Recv() (out *net.Message, err error) {
+	mt, buf, err := c.wc.ReadMessage()
 	if err == nil {
-		if t == websocket.BinaryMessage {
-			out, err = pb.MakeM(bs)
-		} else {
-			err = ErrUnsupportMessageType
+		switch mt {
+		case websocket.BinaryMessage:
+			defer func() {
+				if r := recover(); r != nil {
+					err = r.(error)
+				}
+			}()
+			out = net.NewMessage(net.WithMessageBytes(buf))
+		default:
+			err = ErrNotBinaryMessage
+			klog.Warning("ws: unsupport message type:", mt)
 		}
 	}
 	return

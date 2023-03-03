@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option go_package = "github.com/hiank/think/pbtest";
+option csharp_namespace = "Hub.Test";
+
+message test1 {
+    string name = 1;
+}
+
+message test2 {
+    string hope = 1;
+}
+
+
+message AnyTest1 {
+    string name = 1;
+}
+
+message anyTest2 {
+    string hope = 1;
+}
+
+message messageTest1 {
+    string key = 1;
+}
+
+message S_Example {
+    string value = 1;
+}
+
+message G_Example {
+    string value = 1;
+}
+
+message P_Example {
+    string value = 1;
+}
+
+message TEST_Example {
+    string value = 1;
+}

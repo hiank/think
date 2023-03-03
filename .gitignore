@@ -1,3 +1,3 @@
 
-db/adapter/mongo/testdata/*
-db/adapter/redis/testdata/*
+store/db/adapter/mongo/testdata/*
+store/db/adapter/redis/testdata/*

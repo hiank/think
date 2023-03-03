@@ -1,12 +1,9 @@
 package net
 
-import "github.com/hiank/think/net/pb"
+import "sync"
 
 var (
-	Export_newTestConn = func(recvPP <-chan pb.M, sendPP chan<- pb.M) Conn {
-		return &testConn{
-			recvPP: recvPP,
-			sendPP: sendPP,
-		}
+	Export_clientm = func(cli *Client) sync.Map {
+		return cli.m
 	}
 )

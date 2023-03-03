@@ -1,0 +1,7 @@
+res/image/ui/common/bt_disable_024.png
+res/image/ui/common/bt_down_002.png
+res/image/ui/common/bt_down_006.png
+res/image/ui/common/bt_normal_006.png
+res/image/ui/common/bt_normal_024.png
+res/image/ui/common/disable/bg_002.png
+res/image/ui/homepage/bg_cj_001.png

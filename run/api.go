@@ -1,31 +1,41 @@
 package run
 
-import "context"
+import (
+	"io"
+)
 
-type Task struct {
-	//for handle value (V)
-	H func(v interface{}) error
-	//value for handle (H)
-	V interface{}
-	//for notice handle (H) error
-	C chan error
-}
+type Contextkey string
 
+//Tasker sequential task executor
 type Tasker interface {
 	Add(Task) error
-	Stop()
+	io.Closer
+	internalOnly()
 }
 
-type Token interface {
-	context.Context
-	Cancel()
-	Fork(ForkOptions) Token
+type Task interface {
+	Process() error
 }
 
-type TokenSet interface {
-	Get(uid uint64) Token
+type Hooker[T any] interface {
+	Hook(v T)
 }
 
-// type Handler interface {
-// 	Handle(v interface{}) error
+// type Token interface {
+// 	context.Context
+// 	Fork(...TokenOption) Token
+// 	io.Closer
+// 	// internal
 // }
+
+// type TokenSet interface {
+// 	Get(uid uint64) Token
+// }
+
+// type internal interface {
+// 	internalOnly()
+// }
+
+// type internalLimit struct{}
+
+// func (internalLimit) internalOnly() {}

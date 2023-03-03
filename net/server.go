@@ -2,43 +2,42 @@ package net
 
 import (
 	"context"
-	"reflect"
-	"sync"
+	"io"
 
-	"github.com/hiank/think/net/pb"
 	"github.com/hiank/think/run"
-	"k8s.io/klog/v2"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	DefaultHandler string = ""
+	DefaultHandler string = "__default_handler_routemux__"
 )
 
-type server struct {
+type Server struct {
 	ctx      context.Context
-	cancel   context.CancelFunc
 	listener Listener
-	*connpool
+	cp       *connset
+	io.Closer
 }
 
-func NewServer(listener Listener, h Handler) Server {
-	ctx, cancel := context.WithCancel(run.TODO())
-	return &server{
-		listener: listener,
-		ctx:      ctx,
-		cancel:   cancel,
-		connpool: newConnpool(ctx, h),
+func NewServer(ctx context.Context, lis Listener, h Handler) *Server {
+	srv := &Server{
+		listener: lis,
+		cp:       newConnset(h),
 	}
+	srv.ctx, srv.Closer = run.StartHealthyMonitoring(ctx, run.CloserToDoneHook(lis), srv.cp.close)
+	return srv
 }
 
-//ListenAndServe block to accept new conn until the listener closed or server closed
-func (srv *server) ListenAndServe() (err error) {
+// ListenAndServe block to accept new conn until the listener closed or server closed
+func (srv *Server) ListenAndServe() error {
 	defer srv.Close()
 	for {
-		iac, err := srv.listener.Accept()
+		tc, err := srv.listener.Accept()
 		if err == nil {
 			if err = srv.ctx.Err(); err == nil {
-				srv.AddConn(iac.ID, iac.Conn)
+				srv.cp.loadOrStore(srv.ctx, tc.Token().ToString(), func(context.Context) (Conn, error) {
+					return tc, nil
+				})
 				continue
 			}
 		}
@@ -46,40 +45,15 @@ func (srv *server) ListenAndServe() (err error) {
 	}
 }
 
-//Close close the server
-//will close all conns then clear the conns's map
-//the method could be called multiple
-func (srv *server) Close() (err error) {
+func (srv *Server) Send(pm proto.Message, tis ...string) (err error) {
 	if err = srv.ctx.Err(); err == nil {
-		srv.cancel() //will clean connpool by this call
-		err = srv.listener.Close()
+		m := NewMessage(WithMessageValue(pm))
+		switch len(tis) {
+		case 0:
+			err = srv.cp.broadcast(m)
+		default:
+			err = srv.cp.multiSend(m, tis...)
+		}
 	}
 	return
-}
-
-type RouteMux struct {
-	m sync.Map
-}
-
-func (rm *RouteMux) Handle(k interface{}, h Handler) {
-	sk, ok := k.(string)
-	if !ok {
-		rv := reflect.ValueOf(k)
-		for rv.Kind() == reflect.Ptr {
-			rv = rv.Elem()
-		}
-		sk = rv.Type().Name()
-	}
-	rm.m.Store(sk, h)
-}
-
-func (rm *RouteMux) Route(id string, m pb.M) {
-	mv, loaded := rm.m.Load(m.TypeName())
-	if !loaded {
-		if mv, loaded = rm.m.Load(DefaultHandler); !loaded {
-			klog.Warning("cannot find handler for handle message recv by conn: ", m.TypeName())
-			return
-		}
-	}
-	mv.(Handler).Route(id, m)
 }

@@ -2,12 +2,15 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	snet "net"
 	"strconv"
 
+	"github.com/hiank/think/auth"
 	"github.com/hiank/think/net"
-	"github.com/hiank/think/net/adapter/rpc/pp"
+	"github.com/hiank/think/net/adapter"
+	"github.com/hiank/think/net/adapter/rpc/pipe"
 	"github.com/hiank/think/run"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -16,82 +19,112 @@ import (
 
 const (
 	ErrLinkClosed = run.Err("rpc: Link closed")
+
+	linkMetadataIdentity = "identity"
+	linkMetadataSuccess  = "success"
 )
+
+type funcLinkServer func(tkey string) (auth.Token, chan<- net.Conn)
+
+func (fls funcLinkServer) Link(ls pipe.Keepalive_LinkServer) error {
+	identity, err := linkAuth2(ls)
+	if err != nil {
+		return err
+	}
+	tk, cc := fls(strconv.FormatUint(identity, 10))
+	ctx, closer := run.StartHealthyMonitoring(ls.Context(), func() {
+		tk.Close()
+	})
+	cc <- &conn{
+		tk:     tk,
+		sr:     ls,
+		Closer: closer,
+	}
+	<-ctx.Done()
+	return ErrLinkClosed
+}
+
+type listenOptions struct {
+	addr      string
+	rest      pipe.RestServer
+	keepalive pipe.KeepaliveServer
+	accepter  adapter.ChanAccepter
+}
+
+type ListenOption run.Option[*listenOptions]
 
 func defaultListenOptions() listenOptions {
 	return listenOptions{
-		addr: ":10250",
-		rest: new(pp.UnimplementedPipeServer),
+		keepalive: new(pipe.UnimplementedKeepaliveServer),
+		rest:      new(pipe.UnimplementedRestServer),
+		addr:      ":30202",
+		accepter:  make(adapter.ChanAccepter),
 	}
+}
+
+func WithAddress(addr string) ListenOption {
+	return run.FuncOption[*listenOptions](func(lis *listenOptions) {
+		lis.addr = addr
+	})
+}
+
+func WithServeKeepalive(ts auth.Tokenset) ListenOption {
+	return run.FuncOption[*listenOptions](func(opts *listenOptions) {
+		opts.keepalive = funcLinkServer(func(tkey string) (auth.Token, chan<- net.Conn) {
+			return ts.Derive(tkey), opts.accepter
+		})
+	})
+}
+
+func WithRestServer(rest pipe.RestServer) ListenOption {
+	return run.FuncOption[*listenOptions](func(opts *listenOptions) {
+		opts.rest = rest
+	})
 }
 
 type listener struct {
-	pp.UnsafePipeServer //for PipeServcer
-	REST                //for PipeServer
 	io.Closer
-	linkPP chan net.IAC
+	adapter.ChanAccepter
 }
 
-//NewListener new a rpc listener
-//NOTE: default addr is ":10250"
-func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
-	dopts := defaultListenOptions()
-	for _, opt := range opts {
-		opt.apply(&dopts)
-	}
-	lis, err := new(snet.ListenConfig).Listen(ctx, "tcp", dopts.addr)
-	if err != nil {
-		panic(err)
-	}
-	srv, linkPP := grpc.NewServer(), make(chan net.IAC)
-	l := &listener{
-		REST:   dopts.rest,
-		linkPP: linkPP,
-		Closer: run.NewOnceCloser(func() error {
-			close(linkPP)
-			srv.Stop()
-			return lis.Close()
-		}),
-	}
-	go func() {
-		defer l.Close()
-		pp.RegisterPipeServer(srv, l)
-		srv.Serve(lis)
-	}()
-	return l
-}
-
-func (l *listener) Accept() (c net.IAC, err error) {
-	c, ok := <-l.linkPP
-	if !ok {
-		err = io.EOF
-	}
-	return
-}
-
-//linkAuth get 'identity' value from metadata
-//NOTE: identity is generated in grpc client. it was generated with key "hostname.uid" in redis (IStorage)
-func (l *listener) linkAuth(ls pp.Pipe_LinkServer) (identity uint64, suc bool) {
+// linkAuth get 'identity' value from metadata
+// NOTE: identity is generated in grpc client. it was generated with key "hostname.uid" in redis (IStorage)
+func linkAuth2(ls pipe.Keepalive_LinkServer) (identity uint64, err error) {
+	err = fmt.Errorf("rpc: identity metadata for grpc-link invalided")
 	if md, ok := metadata.FromIncomingContext(ls.Context()); ok {
-		if arr := md.Get("identity"); arr != nil || len(arr) > 0 {
-			if identity, err := strconv.ParseUint(arr[0], 10, 64); err == nil {
-				ls.SetHeader(metadata.Pairs("success", "true"))
-				if err = ls.SendHeader(nil); err == nil {
-					return identity, true
+		if arr := md.Get(linkMetadataIdentity); arr != nil || len(arr) > 0 {
+			if identity, err = strconv.ParseUint(arr[0], 10, 64); err == nil {
+				if err = ls.SetHeader(metadata.Pairs(linkMetadataSuccess, "true")); err == nil {
+					err = ls.SendHeader(nil)
 				}
 			}
 		}
 	}
-	klog.Warning("identity metadata for grpc invalid")
 	return
 }
 
-//Link for pp.PipeServer
-func (l *listener) Link(ls pp.Pipe_LinkServer) (err error) {
-	if identity, suc := l.linkAuth(ls); suc {
-		ctx, cancel := context.WithCancel(ls.Context())
-		l.linkPP <- net.IAC{ID: strconv.FormatUint(identity, 10), Conn: &conn{ctx: ctx, cancel: cancel, s: ls}}
-		<-ctx.Done()
+// NewListener for grpc
+func NewListener(ctx context.Context, opts ...ListenOption) net.Listener {
+	dopts := defaultListenOptions()
+	for _, opt := range opts {
+		opt.Apply(&dopts)
 	}
-	return ErrLinkClosed
+	slis, err := new(snet.ListenConfig).Listen(ctx, "tcp", dopts.addr)
+	if err != nil {
+		panic(err) //failed listen in given address
+	}
+	lis := &listener{ChanAccepter: dopts.accepter}
+	_, lis.Closer = run.StartHealthyMonitoring(ctx, func() {
+		close(dopts.accepter)
+		slis.Close()
+	})
+	go func() {
+		defer lis.Close()
+		srv := grpc.NewServer()
+		defer srv.Stop()
+		pipe.RegisterKeepaliveServer(srv, dopts.keepalive)
+		pipe.RegisterRestServer(srv, dopts.rest)
+		klog.Warning(srv.Serve(slis))
+	}()
+	return lis
 }

@@ -2,31 +2,42 @@ package think
 
 import (
 	"context"
+	"io"
 
-	"github.com/hiank/think/db"
-	"github.com/hiank/think/doc/file"
+	"github.com/hiank/think/auth"
+	"github.com/hiank/think/doc/sys"
+	"github.com/hiank/think/store"
+	"github.com/hiank/think/store/db"
 	"github.com/nats-io/nats.go"
 )
 
-//utilset provide unique utils
-//only provide 'Set' method to get
+// utilset provide unique utils
+// only provide 'Set' method to get
 type utilset interface {
 	//TODO base context
+	//one.TODO()
 	TODO() context.Context
 
-	//Dataset read-write game data
-	DBS() db.DBS
+	//Tokenset one.TokenSet()
+	Tokenset() auth.Tokenset
 
-	//Decoder for decode to given values
-	Decoder() file.Decoder
+	//DB get cached database
+	DB(tag DBTag) (ed store.EasyDictionary, found bool)
+
+	//Sys config unmarshaler
+	Sys() *sys.Fat
 
 	//message queue
 	Nats() *nats.Conn
+
+	//Close and clean
+	io.Closer
 }
 
-//FuncKvDialer convert func to db.KvDialer
-type FuncKvDialer func(context.Context, ...db.DialOption) (db.KvDB, error)
+type DBTag int
 
-func (f FuncKvDialer) Dial(ctx context.Context, opts ...db.DialOption) (db.KvDB, error) {
-	return f(ctx, opts...)
+type DB struct {
+	Tag    DBTag           //tag in set
+	Dialer db.Dialer       //dialer
+	Opts   []db.DialOption //dial options
 }
